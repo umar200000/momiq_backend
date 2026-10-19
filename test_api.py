@@ -1,0 +1,104 @@
+import base64
+import http.cookiejar
+import json
+import os
+from pathlib import Path
+import tempfile
+import threading
+import unittest
+from urllib.request import Request, build_opener, HTTPCookieProcessor
+from urllib.error import HTTPError
+from http.server import ThreadingHTTPServer
+import server
+
+class ApiTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        server.DATA = Path(cls.temp.name)
+        os.environ['MOMIQ_ADMIN_PASSWORD'] = 'test-admin-password'
+        server.setup()
+        cls.http = ThreadingHTTPServer(('127.0.0.1',0),server.Handler)
+        cls.base = 'http://127.0.0.1:'+str(cls.http.server_port)
+        cls.thread = threading.Thread(target=cls.http.serve_forever,daemon=True)
+        cls.thread.start()
+    @classmethod
+    def tearDownClass(cls):
+        cls.http.shutdown()
+        cls.http.server_close()
+        cls.thread.join()
+        cls.temp.cleanup()
+    def setUp(self):
+        with server.db() as con: con.execute('DELETE FROM attempts')
+        self.client = build_opener()
+        self.admin = build_opener(HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.req('/api/admin/login','POST',{'username':'admin','password':'test-admin-password'},admin=True)
+    def req(self,path,method='GET',data=None,token=None,admin=False,expected=200,origin=None):
+        headers={}
+        if data is not None: headers['Content-Type']='application/json'
+        if token: headers['Authorization']='Bearer '+token
+        if origin: headers['Origin']=origin
+        request=Request(self.base+path,data=json.dumps(data).encode() if data is not None else None,headers=headers,method=method)
+        try: response=(self.admin if admin else self.client).open(request)
+        except HTTPError as e: response=e
+        self.assertEqual(response.status,expected)
+        return json.loads(response.read())
+    def login(self,phone='998901111111'):
+        return self.req('/api/auth/login','POST',{'phone':phone,'code':'111111'})
+    def test_auth_and_account_isolation(self):
+        a=self.login();b=self.login('998902222222')
+        self.req('/api/me',expected=401)
+        self.req('/api/admin/users',token=a['token'],expected=401)
+        account=a['account'];account['profile'].update(first='Umar',last='Test')
+        self.req('/api/me','PUT',account,token=a['token'])
+        self.assertEqual(self.req('/api/me',token=a['token'])['account']['profile']['first'],'Umar')
+        self.assertEqual(self.req('/api/me',token=b['token'])['account']['profile']['first'],'')
+    def test_chat_reply_isolation_and_idempotency(self):
+        a=self.login('998903333333');b=self.login('998904444444')
+        message={'sitter':'hoji','text':'Salom','requestId':'once'}
+        self.req('/api/messages','POST',message,token=a['token'])
+        self.req('/api/messages','POST',message,token=a['token'])
+        self.assertEqual(len(self.req('/api/messages',token=a['token'])['messages']),1)
+        self.assertEqual(self.req('/api/messages',token=b['token'])['messages'],[])
+        data=self.req('/api/admin/users/'+a['userId']+'/messages','POST',{'sitter':'hoji','text':'Salom, javob','requestId':'reply'},admin=True)
+        self.assertFalse(data['messages'][-1]['mine'])
+        self.req('/api/admin/messages/'+data['messages'][-1]['id'],'DELETE',admin=True)
+        self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][-1]['text'],'Xabar o‘chirildi')
+    def test_admin_block_and_unblock(self):
+        a=self.login('998905555555')
+        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':True},admin=True)
+        self.req('/api/me',token=a['token'],expected=403)
+        self.req('/api/auth/login','POST',{'phone':'998905555555','code':'111111'},expected=403)
+        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':False},admin=True)
+        self.req('/api/me',token=a['token'])
+    def test_validation_origin_and_revocation(self):
+        a=self.login('998906666666')
+        self.req('/api/messages','POST',{'sitter':'unknown','text':'x'},token=a['token'],expected=400)
+        self.req('/api/messages','POST',{'sitter':'hoji','text':''},token=a['token'],expected=400)
+        self.req('/api/me','PUT',a['account'],token=a['token'],expected=400)
+        self.req('/api/admin/users',admin=True,origin='https://evil.example',expected=403)
+        self.req('/api/auth/logout','POST',{},token=a['token'])
+        self.req('/api/me',token=a['token'],expected=401)
+    def test_photo_settings_and_persistence(self):
+        a=self.login('998907777777')
+        png=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'example').decode()
+        account=a['account'];account['profile']={'first':'Madina','last':'Test','photo':png}
+        account['notifications']['chat']=False
+        account['favorites']=['hoji'];account['language']='ru'
+        account['addresses']=[{'id':'home','lat':41.3,'lon':69.2,'address':'Toshkent','label':'Uy'}]
+        account['pets']=[{'id':'cat','name':'Momi','type':'Mushuk','photo':png}]
+        account['support']=[{'id':'support1','text':'Yordam kerak'}]
+        self.req('/api/me','PUT',account,token=a['token'])
+        again=self.login('998907777777')
+        self.assertEqual(again['account'],account)
+        self.req('/api/messages','POST',{'sitter':'hoji','image':png},token=a['token'])
+        self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][0]['image'],png)
+        self.req('/api/messages','POST',{'sitter':'hoji','image':base64.b64encode(b'html').decode()},token=a['token'],expected=400)
+    def test_static_admin_and_rate_limit(self):
+        response=self.client.open(self.base+'/admin/')
+        self.assertIn(b'loginForm',response.read())
+        self.assertIn("frame-ancestors 'none'",response.headers['Content-Security-Policy'])
+        for _ in range(15): self.req('/api/auth/login','POST',{'phone':'invalid','code':'0'},expected=401)
+        self.req('/api/auth/login','POST',{'phone':'invalid','code':'0'},expected=429)
+
+if __name__=='__main__': unittest.main()
