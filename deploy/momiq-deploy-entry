@@ -1,0 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+kind="${1:-}"
+sha="${SSH_ORIGINAL_COMMAND:-}"
+[[ "$kind" =~ ^(backend|admin)$ && "$sha" =~ ^[a-f0-9]{40}$ ]] || exit 64
+exec sudo -n /usr/local/sbin/momiq-deploy "$kind" "$sha"

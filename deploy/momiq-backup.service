@@ -1,0 +1,6 @@
+[Unit]
+Description=Consistent Momiq SQLite backup
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/momiq-backup
+UMask=0077

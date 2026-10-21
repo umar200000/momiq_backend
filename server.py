@@ -17,7 +17,9 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("MOMIQ_DATA_DIR", ROOT / "data"))
-ADMIN = ROOT.parent / "momiq_admin_panel"
+ADMIN = Path(os.environ.get("MOMIQ_ADMIN_DIR", ROOT.parent / "momiq_admin_panel"))
+PRODUCTION = os.environ.get("MOMIQ_ENV") == "production"
+DEV_LOGIN = not PRODUCTION or os.environ.get("MOMIQ_ALLOW_TEST_LOGIN") == "1"
 HOST = os.environ.get("MOMIQ_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MOMIQ_PORT", "8080"))
 SITTERS = {"hoji": "Hoji Sherhojiyiv", "nilufar": "Nilufar Karimova", "aziz": "Aziz Rahimov", "sitora": "Sitora Karimova", "malika": "Malika Aliyeva"}
@@ -62,6 +64,8 @@ def setup():
             salt = secrets.token_hex(16)
             con.execute("INSERT INTO admins VALUES(?,?,?)", ("admin", salt, password_hash(password, salt)))
             (DATA / "admin-login.txt").write_text("Username: admin\nPassword: " + password + "\n", encoding="utf-8")
+            if os.name != "nt":
+                (DATA / "admin-login.txt").chmod(0o600)
 
 def photo(value):
     if value is None:
@@ -144,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         if cookie:
-            self.send_header("Set-Cookie", cookie)
+            self.send_header("Set-Cookie", cookie + ("; Secure" if PRODUCTION else ""))
         self.end_headers()
         self.wfile.write(raw)
     def body(self):
@@ -176,6 +180,10 @@ class Handler(BaseHTTPRequestHandler):
         con.execute("DELETE FROM sessions WHERE expires<?", (time.time(),))
         con.execute("INSERT INTO sessions VALUES(?,?,?,?)", (hashlib.sha256(token.encode()).hexdigest(), user, role, time.time()+86400*7))
         return token
+    def client_ip(self):
+        if PRODUCTION and self.client_address[0] in ('127.0.0.1', '::1'):
+            return self.headers.get('X-Real-IP', self.client_address[0])
+        return self.client_address[0]
     def throttle(self, con, key):
         row = con.execute("SELECT * FROM attempts WHERE key=?", (key,)).fetchone()
         count = row["count"] if row and row["reset"] > time.time() else 0
@@ -194,7 +202,7 @@ class Handler(BaseHTTPRequestHandler):
     def handle_request(self):
         path = urlparse(self.path).path
         origin = self.headers.get("Origin")
-        if origin and urlparse(origin).netloc != self.headers.get("Host"):
+        if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if self.command == "GET" and not path.startswith("/api/"):
             name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/style.css": "style.css"}.get(path)
@@ -211,11 +219,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         with db() as con:
             if path == "/api/health" and self.command == "GET":
-                self.reply(200, {"ok": True, "mode": "local", "sms": False})
+                self.reply(200, {"ok": True, "mode": "production" if PRODUCTION else "local", "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})
                 return
             if path == "/api/auth/login" and self.command == "POST":
+                if not DEV_LOGIN:
+                    raise ApiError(503, "SMS orqali kirish hali ulanmagan. Keyinroq urinib ko‘ring.")
                 data = self.body()
-                self.throttle(con, "client:" + self.client_address[0])
+                self.throttle(con, "client:" + self.client_ip())
                 phone = re.sub(r"\D", "", string(data.get("phone", ""), 30))
                 if not re.fullmatch(r"998\d{9}", phone) or data.get("code") != "111111":
                     raise ApiError(401, "Telefon yoki kod noto‘g‘ri")
@@ -232,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/admin/login" and self.command == "POST":
                 data = self.body()
-                self.throttle(con, "admin:" + self.client_address[0])
+                self.throttle(con, "admin:" + self.client_ip())
                 row = con.execute("SELECT * FROM admins WHERE username=?", (string(data.get("username","")),)).fetchone()
                 if not row or not hmac.compare_digest(row["hash"],password_hash(string(data.get("password",""),200),row["salt"])):
                     raise ApiError(401,"Login yoki parol noto‘g‘ri")

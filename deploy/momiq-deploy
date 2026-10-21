@@ -1,0 +1,46 @@
+#!/bin/bash
+set -euo pipefail
+umask 022
+kind="${1:-}"; sha="${2:-}"
+[[ "$kind" =~ ^(backend|admin)$ && "$sha" =~ ^[a-f0-9]{40}$ ]] || exit 64
+exec 9>/run/lock/momiq-deploy.lock
+flock -w 600 9
+case "$kind" in
+  backend) repo=momiq_backend ;;
+  admin) repo=momiq_admin ;;
+esac
+base=/opt/momiq
+mirror="$base/git/$kind.git"
+mkdir -p "$base/git" "$base/releases/$kind" "$base/current"
+if [[ ! -d "$mirror" ]]; then git clone --bare "https://github.com/umar200000/$repo.git" "$mirror"; fi
+git --git-dir="$mirror" fetch --force origin refs/heads/main:refs/heads/main
+latest=$(git --git-dir="$mirror" rev-parse refs/heads/main)
+[[ "$sha" == "$latest" ]] || { echo 'Refusing stale or non-main commit'; exit 65; }
+release="$base/releases/$kind/$sha-$(date +%s)"
+mkdir "$release"
+git --git-dir="$mirror" archive "$sha" | tar -x -C "$release"
+if [[ "$kind" == backend ]]; then
+  python3 -m venv "$release/.venv"
+  "$release/.venv/bin/pip" install --disable-pip-version-check -r "$release/requirements.txt"
+  (cd "$release" && runuser -u momiq -- env MOMIQ_ADMIN_DIR="$base/current/admin" PYTHONDONTWRITEBYTECODE=1 "$release/.venv/bin/python" -m unittest -q)
+  (set -a; source /etc/momiq/backend.env; set +a; cd "$release"; runuser -u momiq -- "$release/.venv/bin/python" -c 'import server; server.setup()')
+else
+  test -s "$release/index.html" && test -s "$release/app.js" && test -s "$release/style.css"
+fi
+old=$(readlink -f "$base/current/$kind" || true)
+ln -s "$release" "$base/current/.$kind-new"
+mv -Tf "$base/current/.$kind-new" "$base/current/$kind"
+if [[ "$kind" == backend ]]; then
+  systemctl restart momiq
+  healthy=0
+  for attempt in {1..20}; do
+    if curl -fsS --max-time 3 http://127.0.0.1:8080/api/health >/dev/null; then healthy=1; break; fi
+    sleep 1
+  done
+  if [[ "$healthy" != 1 ]]; then
+    if [[ -n "$old" ]]; then ln -s "$old" "$base/current/.rollback"; mv -Tf "$base/current/.rollback" "$base/current/backend"; systemctl restart momiq; fi
+    echo 'Health check failed; previous release restored when available'; exit 1
+  fi
+fi
+printf '%s\n' "$sha" > "$base/current/$kind.sha"
+echo "Deployed $kind $sha"
