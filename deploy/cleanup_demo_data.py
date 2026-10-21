@@ -19,6 +19,9 @@ def clean(con):
         if phone == '998900000001' and signature in [('Sinov', 'Mijoz'), ('Deploy', 'Test')]:
             con.execute('DELETE FROM messages WHERE user_id=?', (uid,))
             con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (uid,))
+            for table in ['listings','user_roles']:
+                if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
+                    con.execute(f'DELETE FROM {table} WHERE user_id=?',(uid,))
             con.execute('DELETE FROM users WHERE id=?', (uid,))
             removed += 1
         else:

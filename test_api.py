@@ -47,6 +47,39 @@ class ApiTests(unittest.TestCase):
         return json.loads(response.read())
     def login(self,phone='998901111111'):
         return self.req('/api/auth/login','POST',{'phone':phone,'code':'111111'})
+    def test_roles_and_server_listings(self):
+        login = self.req('/api/auth/login','POST',{'phone':'998909991122','code':'111111','role':'sitter'})
+        token, uid = login['token'],login['userId']
+        users = self.req('/api/admin/users',admin=True)['users']
+        self.assertEqual(next(u for u in users if u['id']==uid)['roles'],['sitter'])
+        payload = {'housing':'house','listings':[{'type':'boarding','pets':['cat'],'price':100000,'capacity':2,'location':{'lat':41.3,'lon':69.2,'address':'Test address'},'active':True}]}
+        self.req('/api/me/listings','PUT',payload,token=token,expected=403)
+        account=login['account'];account['profile'].update(first='Sitter',last='Test')
+        account['sitterProfile']={'years':1,'about':'','homePhotos':[],'housing':'house'}
+        self.req('/api/me','PUT',account,token=token)
+        self.req('/api/me/listings','PUT',payload,token=token)
+        self.assertEqual(self.req('/api/me/listings',token=token),payload)
+        other=self.login('998909991133')
+        self.assertEqual(self.req('/api/me/listings',token=other['token'])['listings'],[])
+        self.req('/api/admin/listings',token=token,expected=401)
+        ads=self.req('/api/admin/listings',admin=True)['listings']
+        self.assertEqual(next(a for a in ads if a['userId']==uid)['price'],100000)
+        bad=json.loads(json.dumps(payload));bad['housing']='apartment'
+        self.req('/api/me/listings','PUT',bad,token=token,expected=400)
+        bad=json.loads(json.dumps(payload));bad['listings'][0]['price']=True
+        self.req('/api/me/listings','PUT',bad,token=token,expected=400)
+        bad=json.loads(json.dumps(payload));bad['listings'].append(dict(bad['listings'][0],type='personal',capacity=None))
+        self.req('/api/me/listings','PUT',bad,token=token,expected=400)
+        self.assertEqual(self.req('/api/me/listings',token=token),payload)
+        self.req('/api/auth/logout','POST',{},token=token)
+        again=self.req('/api/auth/login','POST',{'phone':'998909991122','code':'111111','role':'customer'})
+        self.assertEqual(self.req('/api/me/listings',token=again['token']),payload)
+        users=self.req('/api/admin/users',admin=True)['users']
+        self.assertEqual(next(u for u in users if u['id']==uid)['roles'],['customer','sitter'])
+        server.setup()
+        with server.db() as con:
+            self.assertEqual(server.roles_for(con,uid),['customer','sitter'])
+
     def test_catalog_contains_only_database_records(self):
         self.assertEqual(self.req('/api/sitters')['sitters'], [{'id':'hoji','name':'Test sitter'}])
         with server.db() as con:

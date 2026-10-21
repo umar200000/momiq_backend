@@ -94,3 +94,6 @@ python server.py
 ```
 
 Open http://127.0.0.1:8080/admin/ . Local credentials are generated on the first start.
+
+## Roles and sitter listings
+Login accepts optional `role` (`customer` / `sitter`). Memberships accumulate per account; existing users are migrated from their saved sitter profile. `GET/PUT /api/me/listings` stores up to three validated service types for the authenticated owner. Writes require a completed sitter profile. `GET /api/admin/listings` exposes owner details only to admins. This does not enable booking or public catalog publishing.

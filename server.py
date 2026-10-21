@@ -50,6 +50,8 @@ def setup():
         CREATE TABLE IF NOT EXISTS sitters(id TEXT PRIMARY KEY, profile TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
         CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, phone TEXT UNIQUE NOT NULL,
           account TEXT NOT NULL, blocked INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS user_roles(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, role TEXT NOT NULL, PRIMARY KEY(user_id,role));
+        CREATE TABLE IF NOT EXISTS listings(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, data TEXT NOT NULL, updated TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS admins(username TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, role TEXT NOT NULL, expires REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
@@ -59,6 +61,10 @@ def setup():
         CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, actor TEXT, action TEXT, target TEXT, time TEXT);
         CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY, count INTEGER, reset REAL);
         """)
+        for row in con.execute("SELECT id,account FROM users WHERE id NOT IN (SELECT user_id FROM user_roles)").fetchall():
+            account = json.loads(row['account'])
+            role = 'sitter' if account.get('sitterProfile') is not None else 'customer'
+            con.execute('INSERT INTO user_roles VALUES(?,?)', (row['id'],role))
         if not con.execute("SELECT 1 FROM admins").fetchone():
             password = os.environ.get("MOMIQ_ADMIN_PASSWORD") or secrets.token_urlsafe(16)
             salt = secrets.token_hex(16)
@@ -148,6 +154,40 @@ def validate_account(data):
                                   'homePhotos': [photo(v) for v in homes], 'housing': housing}
     result['support'] = support
     return result
+
+def validate_listings(data):
+    housing = data.get('housing')
+    items = data.get('listings')
+    if housing not in ['apartment','house'] or not isinstance(items,list) or len(items)>3:
+        raise ValueError('E’lonlar noto‘g‘ri')
+    result, seen = [], set()
+    for item in items:
+        if not isinstance(item,dict): raise ValueError('E’lon noto‘g‘ri')
+        kind = item.get('type')
+        if kind not in ['boarding','homeVisit','personal'] or kind in seen: raise ValueError('Xizmat turi noto‘g‘ri')
+        seen.add(kind)
+        pets = item.get('pets')
+        if not isinstance(pets,list) or not pets or len(pets)>2 or any(p not in ['dog','cat'] for p in pets) or len(set(pets))!=len(pets): raise ValueError('Hayvon turi noto‘g‘ri')
+        if kind!='homeVisit' and len(pets)!=1: raise ValueError('Bitta hayvon turini tanlang')
+        price, active, capacity = item.get('price'),item.get('active'),item.get('capacity')
+        if type(price) is not int or not 0<price<=999999999 or type(active) is not bool: raise ValueError('Narx yoki holat noto‘g‘ri')
+        if kind=='boarding' and (type(capacity) is not int or not 1<=capacity<=(1 if housing=='apartment' else 3)): raise ValueError('Sig‘im noto‘g‘ri')
+        location = item.get('location')
+        if location is not None:
+            if not isinstance(location,dict): raise ValueError('Manzil noto‘g‘ri')
+            lat, lon = location.get('lat'),location.get('lon')
+            if type(lat) not in [int,float] or type(lon) not in [int,float] or not -90<=lat<=90 or not -180<=lon<=180: raise ValueError('Koordinata noto‘g‘ri')
+            address = string(location.get('address'),1000)
+            if not address: raise ValueError('Manzil majburiy')
+            location = {'lat':lat,'lon':lon,'address':address}
+        if kind!='homeVisit' and location is None: raise ValueError('Manzil majburiy')
+        result.append({'type':kind,'pets':pets,'price':price,'active':active,'capacity':capacity if kind=='boarding' else None,'location':location})
+    active = [i['type'] for i in result if i['active']]
+    if 'personal' in active and len(active)>1: raise ValueError('Xizmatlar bir vaqtda faol bo‘la olmaydi')
+    return {'housing':housing,'listings':result}
+
+def roles_for(con, uid):
+    return [r[0] for r in con.execute('SELECT role FROM user_roles WHERE user_id=? ORDER BY role',(uid,))]
 
 class ApiError(Exception):
     def __init__(self, status, message):
@@ -257,6 +297,12 @@ class Handler(BaseHTTPRequestHandler):
                     user = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
                 if user["blocked"]:
                     raise ApiError(403, "Hisob bloklangan")
+                role = data.get('role')
+                if role is not None and role not in ['customer','sitter']: raise ValueError('Rol noto‘g‘ri')
+                if role is None and not roles_for(con,user['id']):
+                    role = 'sitter' if json.loads(user['account']).get('sitterProfile') else 'customer'
+                if role:
+                    con.execute('INSERT OR IGNORE INTO user_roles VALUES(?,?)',(user['id'],role))
                 token = self.session(con,user["id"],"client")
                 con.commit()
                 self.reply(200, {"token": token, "userId": user["id"], "account": json.loads(user["account"])})
@@ -287,9 +333,29 @@ class Handler(BaseHTTPRequestHandler):
                 if self.command == "PUT":
                     account = validate_account(self.body())
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
+                    if account.get('sitterProfile') is not None:
+                        con.execute("INSERT OR IGNORE INTO user_roles VALUES(?,'sitter')",(user,))
                 row = con.execute("SELECT * FROM users WHERE id=?", (user,)).fetchone()
                 con.commit()
                 self.reply(200,{"userId":user,"phone":row["phone"],"account":json.loads(row["account"])})
+                return
+            if path == '/api/me/listings' and self.command in ['GET','PUT']:
+                account = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                if self.command == 'PUT':
+                    if not account.get('sitterProfile'): raise ApiError(403,'Avval enaga profilini to‘ldiring')
+                    data = validate_listings(self.body())
+                    con.execute('INSERT INTO listings VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated=excluded.updated',(user,json.dumps(data),now()))
+                    con.commit()
+                row = con.execute('SELECT data FROM listings WHERE user_id=?',(user,)).fetchone()
+                self.reply(200,json.loads(row[0]) if row else {'housing':(account.get('sitterProfile') or {}).get('housing','apartment'),'listings':[]})
+                return
+            if path == '/api/admin/listings' and self.command == 'GET':
+                items = []
+                for r in con.execute('SELECT l.*,u.phone,u.account,u.blocked FROM listings l JOIN users u ON u.id=l.user_id ORDER BY l.updated DESC'):
+                    data = json.loads(r['data'])
+                    for item in data['listings']:
+                        items.append(dict(item,id=r['user_id']+':'+item['type'],userId=r['user_id'],phone=r['phone'],profile=json.loads(r['account'])['profile'],blocked=bool(r['blocked']),housing=data['housing'],updated=r['updated']))
+                self.reply(200,{'listings':items})
                 return
             if path == "/api/messages" and self.command == "GET":
                 self.reply(200,{"messages":self.messages(con,user)})
@@ -298,7 +364,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.save_message(con,user,True,self.body())
                 return
             if path == "/api/admin/users" and self.command == "GET":
-                users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"account":json.loads(r["account"])} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
+                users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"roles":roles_for(con,r["id"]),"account":json.loads(r["account"])} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
                 self.reply(200,{"users":users,"sitters":sitter_names()})
                 return
             match = re.fullmatch(r"/api/admin/users/([a-f0-9]+)(/messages)?", path)
