@@ -18,6 +18,8 @@ class ApiTests(unittest.TestCase):
         server.DATA = Path(cls.temp.name)
         os.environ['MOMIQ_ADMIN_PASSWORD'] = 'test-admin-password'
         server.setup()
+        with server.db() as con:
+            con.execute("INSERT INTO sitters(id,profile) VALUES(?,?)", ("hoji", json.dumps({"name":"Test sitter"})))
         cls.http = ThreadingHTTPServer(('127.0.0.1',0),server.Handler)
         cls.base = 'http://127.0.0.1:'+str(cls.http.server_port)
         cls.thread = threading.Thread(target=cls.http.serve_forever,daemon=True)
@@ -45,6 +47,17 @@ class ApiTests(unittest.TestCase):
         return json.loads(response.read())
     def login(self,phone='998901111111'):
         return self.req('/api/auth/login','POST',{'phone':phone,'code':'111111'})
+    def test_catalog_contains_only_database_records(self):
+        self.assertEqual(self.req('/api/sitters')['sitters'], [{'id':'hoji','name':'Test sitter'}])
+        with server.db() as con:
+            con.execute("UPDATE sitters SET active=0 WHERE id='hoji'")
+        try:
+            self.assertEqual(self.req('/api/sitters')['sitters'], [])
+            self.assertEqual(self.req('/api/admin/users',admin=True)['sitters'], {})
+        finally:
+            with server.db() as con:
+                con.execute("UPDATE sitters SET active=1 WHERE id='hoji'")
+
     def test_auth_and_account_isolation(self):
         a=self.login();b=self.login('998902222222')
         self.req('/api/me',expected=401)

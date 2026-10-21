@@ -22,7 +22,6 @@ PRODUCTION = os.environ.get("MOMIQ_ENV") == "production"
 DEV_LOGIN = not PRODUCTION or os.environ.get("MOMIQ_ALLOW_TEST_LOGIN") == "1"
 HOST = os.environ.get("MOMIQ_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MOMIQ_PORT", "8080"))
-SITTERS = {"hoji": "Hoji Sherhojiyiv", "nilufar": "Nilufar Karimova", "aziz": "Aziz Rahimov", "sitora": "Sitora Karimova", "malika": "Malika Aliyeva"}
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -48,6 +47,7 @@ def setup():
     with db() as con:
         con.executescript("""
         PRAGMA journal_mode=WAL;
+        CREATE TABLE IF NOT EXISTS sitters(id TEXT PRIMARY KEY, profile TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
         CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, phone TEXT UNIQUE NOT NULL,
           account TEXT NOT NULL, blocked INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS admins(username TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL);
@@ -66,6 +66,13 @@ def setup():
             (DATA / "admin-login.txt").write_text("Username: admin\nPassword: " + password + "\n", encoding="utf-8")
             if os.name != "nt":
                 (DATA / "admin-login.txt").chmod(0o600)
+
+def sitter_profiles():
+    with db() as con:
+        return [dict(json.loads(r['profile']), id=r['id']) for r in con.execute('SELECT id,profile FROM sitters WHERE active=1 ORDER BY id')]
+
+def sitter_names():
+    return {s['id']: s.get('name', '') for s in sitter_profiles()}
 
 def photo(value):
     if value is None:
@@ -93,7 +100,7 @@ def validate_account(data):
     if not result["profile"]["first"] or not result["profile"]["last"]:
         raise ValueError("Ism va familiya majburiy")
     fav = data.get("favorites", [])
-    if not isinstance(fav, list) or any(x not in SITTERS for x in fav):
+    if not isinstance(fav, list) or any(x not in sitter_names() for x in fav):
         raise ValueError("Enaga noto‘g‘ri")
     result["favorites"] = list(dict.fromkeys(fav))
     addresses = data.get("addresses", [])
@@ -218,6 +225,9 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(raw)
             return
         with db() as con:
+            if path == "/api/sitters" and self.command == "GET":
+                self.reply(200, {"sitters": sitter_profiles()})
+                return
             if path == "/api/health" and self.command == "GET":
                 self.reply(200, {"ok": True, "mode": "production" if PRODUCTION else "local", "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})
                 return
@@ -278,7 +288,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/admin/users" and self.command == "GET":
                 users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"account":json.loads(r["account"])} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
-                self.reply(200,{"users":users,"sitters":SITTERS})
+                self.reply(200,{"users":users,"sitters":sitter_names()})
                 return
             match = re.fullmatch(r"/api/admin/users/([a-f0-9]+)(/messages)?", path)
             if match:
@@ -315,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(404,"Topilmadi")
     def save_message(self,con,user,mine,data):
         sitter = data.get('sitter')
-        if sitter not in SITTERS: raise ValueError('Enaga topilmadi')
+        if sitter not in sitter_names(): raise ValueError('Enaga topilmadi')
         text = string(data.get('text',''),4000)
         image = photo(data.get('image'))
         if not text and not image: raise ValueError('Xabar yoki rasm kiriting')

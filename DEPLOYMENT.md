@@ -47,3 +47,9 @@ Select an existing release directory under `/opt/momiq/releases/backend`, replac
 ## Mobile app
 
 Flutter CI checks analysis/tests. App API default is the hosted HTTPS endpoint. Mobile store publication, signing, SMS, pushes, bookings and sitter-side backend completion are separate work.
+
+## Empty catalog and removal of demo data
+
+`GET /api/sitters` reads active rows from SQLite `sitters`; the table is created empty. There is no automatic demo seed. Real sitter registration/publication is not implemented by this change. Admin chat is unavailable until real sitter records exist.
+
+One-time migration: `sudo python3 /opt/momiq/current/backend/deploy/cleanup_demo_data.py /var/lib/momiq/momiq.sqlite3 /var/backups/momiq`. It first creates a verified backup, removes messages/favorites for the five former hardcoded demo contacts and removes the known deployment test account only when its phone and profile match. Other accounts and uploaded pets/addresses are retained. The command is idempotent and not part of normal deployments.
