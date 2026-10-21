@@ -58,6 +58,20 @@ class ApiTests(unittest.TestCase):
             with server.db() as con:
                 con.execute("UPDATE sitters SET active=1 WHERE id='hoji'")
 
+    def test_registered_profile_survives_logout_and_new_login(self):
+        first = self.login('998908888888')
+        self.assertEqual(first['account']['profile']['first'], '')
+        account = first['account']
+        account['profile'].update(first='Actual', last='Person')
+        account['sitterProfile'] = {'years':2,'about':'Pet care','homePhotos':[],'housing':'house'}
+        self.req('/api/me','PUT',account,token=first['token'])
+        self.req('/api/auth/logout','POST',{},token=first['token'])
+        self.req('/api/me',token=first['token'],expected=401)
+        second = self.login('998908888888')
+        self.assertEqual(first['userId'],second['userId'])
+        self.assertEqual(second['account']['profile']['first'],'Actual')
+        self.assertEqual(second['account']['sitterProfile']['years'],2)
+
     def test_auth_and_account_isolation(self):
         a=self.login();b=self.login('998902222222')
         self.req('/api/me',expected=401)

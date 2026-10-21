@@ -91,7 +91,7 @@ def string(value, limit=100):
 
 def default_account():
     return {"profile": {"first": "", "last": "", "photo": None}, "favorites": [],
-            "addresses": [], "notifications": {"orders": True, "chat": True, "video": True}, "language": "uz", "pets": [], "support": []}
+            "addresses": [], "notifications": {"orders": True, "chat": True, "video": True}, "language": "uz", "pets": [], "support": [], "sitterProfile": None}
 
 def validate_account(data):
     result = default_account()
@@ -135,6 +135,17 @@ def validate_account(data):
     for item in support:
         string(item['id'],100)
         string(item['text'],4000)
+    sitter = data.get('sitterProfile')
+    if sitter is not None:
+        if not isinstance(sitter, dict): raise ValueError('Enaga profili noto‘g‘ri')
+        years = sitter.get('years')
+        if years is not None and (type(years) is not int or not 0 <= years <= 80): raise ValueError('Tajriba noto‘g‘ri')
+        homes = sitter.get('homePhotos', [])
+        if not isinstance(homes, list) or len(homes) > 9: raise ValueError('Rasmlar soni noto‘g‘ri')
+        housing = sitter.get('housing', 'apartment')
+        if housing not in ['apartment','house']: raise ValueError('Uy turi noto‘g‘ri')
+        result['sitterProfile'] = {'years': years, 'about': string(sitter.get('about',''),4000),
+                                  'homePhotos': [photo(v) for v in homes], 'housing': housing}
     result['support'] = support
     return result
 
