@@ -70,6 +70,17 @@ MIGRATIONS = (
         'CREATE INDEX conversation_messages_page ON conversation_messages(conversation_id,id)',
         'CREATE TABLE conversation_reads(conversation_id TEXT NOT NULL REFERENCES conversations(id), user_id TEXT NOT NULL REFERENCES users(id), last_message_id INTEGER NOT NULL DEFAULT 0 CHECK(last_message_id>=0), PRIMARY KEY(conversation_id,user_id))',
     )),
+    (9, 'chat blocks reports and redaction events', (
+        'CREATE TABLE chat_blocks(blocker_id TEXT NOT NULL REFERENCES users(id), blocked_id TEXT NOT NULL REFERENCES users(id), active INTEGER NOT NULL CHECK(active IN (0,1)), revision INTEGER NOT NULL, updated TEXT NOT NULL, PRIMARY KEY(blocker_id,blocked_id), CHECK(blocker_id!=blocked_id))',
+        'ALTER TABLE conversation_messages ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0 CHECK(hidden IN (0,1))',
+        'CREATE TABLE chat_changes(id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id TEXT NOT NULL REFERENCES conversations(id), message_id INTEGER NOT NULL UNIQUE REFERENCES conversation_messages(id), created TEXT NOT NULL)',
+        'CREATE INDEX chat_changes_page ON chat_changes(conversation_id,id)',
+        "CREATE TABLE chat_reports(id INTEGER PRIMARY KEY AUTOINCREMENT, reporter_id TEXT NOT NULL REFERENCES users(id), message_id INTEGER NOT NULL REFERENCES conversation_messages(id), request_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('open','dismissed','removed')), revision INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL, reviewed_at TEXT, reviewed_by TEXT, review_reason TEXT, UNIQUE(reporter_id,request_id), UNIQUE(reporter_id,message_id))",
+        'CREATE INDEX chat_reports_queue ON chat_reports(status,id)',
+        'CREATE TABLE chat_report_history(report_id INTEGER NOT NULL REFERENCES chat_reports(id), revision INTEGER NOT NULL, status TEXT NOT NULL, actor TEXT NOT NULL, reason TEXT NOT NULL, created TEXT NOT NULL, PRIMARY KEY(report_id,revision))',
+        "CREATE TRIGGER chat_report_history_no_update BEFORE UPDATE ON chat_report_history BEGIN SELECT RAISE(ABORT, 'Chat review history is immutable'); END",
+        "CREATE TRIGGER chat_report_history_no_delete BEFORE DELETE ON chat_report_history BEGIN SELECT RAISE(ABORT, 'Chat review history is immutable'); END",
+    )),
 )
 
 

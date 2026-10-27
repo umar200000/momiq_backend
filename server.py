@@ -20,6 +20,7 @@ import wallet
 import catalog
 import notifications
 import conversations
+import chat_moderation
 from media_validation import validate_photo, MediaBusy
 
 ROOT = Path(__file__).resolve().parent
@@ -313,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if self.command == "GET" and not path.startswith("/api/"):
-            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/style.css": "style.css"}.get(path)
+            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/style.css": "style.css"}.get(path)
             if not name or not (ADMIN / name).is_file():
                 raise ApiError(404, "Topilmadi")
             raw = (ADMIN / name).read_bytes()
@@ -370,6 +371,8 @@ class Handler(BaseHTTPRequestHandler):
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
             if wallet.route(self,con,user,path,photo,ENVIRONMENT):
+                return
+            if chat_moderation.route(self,con,user,path):
                 return
             if conversations.route(self,con,user,path,photo,ENVIRONMENT):
                 return

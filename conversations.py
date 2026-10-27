@@ -37,6 +37,11 @@ def participant(con, conversation, user):
     return row
 
 
+def blocked_pair(con, user, peer):
+    return bool(con.execute('SELECT 1 FROM chat_blocks WHERE active=1 AND ((blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?)) LIMIT 1',
+                            (user, peer, peer, user)).fetchone())
+
+
 def quota(con, user, kind, limit):
     # Called inside the message transaction: no premature commit or lost retry.
     key = 'conversation:' + kind + ':' + user
@@ -50,8 +55,9 @@ def quota(con, user, kind, limit):
 
 def message(row, user):
     return {'id': str(row['id']), 'senderRole': row['sender_role'],
-            'mine': row['sender_id'] == user, 'text': row['text'],
-            'hasImage': row['image'] is not None, 'created': row['created'],
+            'mine': row['sender_id'] == user, 'text': '' if row['hidden'] else row['text'],
+            'hidden': bool(row['hidden']),
+            'hasImage': not row['hidden'] and row['image'] is not None, 'created': row['created'],
             'requestId': row['request_id'] if row['sender_id'] == user else None}
 
 
@@ -63,9 +69,12 @@ def summary(con, row, user):
     unread = con.execute('SELECT COUNT(*) FROM conversation_messages WHERE conversation_id=? AND sender_id!=? AND id>?',
                          (row['id'], user, reads.get(user, 0))).fetchone()[0]
     blocked = con.execute('SELECT blocked FROM users WHERE id=?', (peer,)).fetchone()[0]
+    own_block = con.execute('SELECT active,revision FROM chat_blocks WHERE blocker_id=? AND blocked_id=?', (user, peer)).fetchone()
     return {'id': row['id'], 'service': row['service'], 'myRole': 'customer' if customer else 'sitter',
             'peerName': row['sitter_name'] if customer else row['customer_name'],
-            'created': row['created'], 'canSend': not bool(blocked), 'unreadCount': unread,
+            'created': row['created'], 'canSend': not bool(blocked) and not blocked_pair(con, user, peer), 'unreadCount': unread,
+            'blockedByMe': bool(own_block['active']) if own_block else False,
+            'blockRevision': own_block['revision'] if own_block else 0,
             'peerReadThrough': str(reads.get(peer, 0)), 'lastMessage': message(latest, user) if latest else None}
 
 
@@ -80,6 +89,8 @@ def create(con, user, data, environment):
     row = con.execute('SELECT * FROM conversations WHERE customer_id=? AND sitter_id=? AND service=?', (user, sitter, service)).fetchone()
     if row:
         return summary(con, row, user)
+    if blocked_pair(con, user, sitter):
+        raise ChatError(409, 'Bu hisob bilan yozishma to‘xtatilgan')
     if not con.execute("SELECT 1 FROM user_roles WHERE user_id=? AND role='customer'", (user,)).fetchone():
         raise ChatError(403, 'Mijoz profili kerak')
     profile = json.loads(con.execute('SELECT account FROM users WHERE id=?', (user,)).fetchone()[0]).get('profile', {})
@@ -117,7 +128,7 @@ def send(con, user, identity, data, validate_photo):
             raise ChatError(409, 'So‘rov identifikatori boshqa xabarga tegishli')
         return message(old, user)
     peer = row['sitter_id'] if row['customer_id'] == user else row['customer_id']
-    if con.execute('SELECT blocked FROM users WHERE id=?', (peer,)).fetchone()[0]:
+    if blocked_pair(con, user, peer) or con.execute('SELECT blocked FROM users WHERE id=?', (peer,)).fetchone()[0]:
         raise ChatError(409, 'Bu hisobga hozir yozib bo‘lmaydi')
     quota(con, user, 'send', 60)
     if image:
@@ -179,7 +190,7 @@ def route(handler, con, user, path, validate_photo, environment):
     con.execute('BEGIN')
     row = participant(con, identity, user)
     if image_id:
-        image = con.execute('SELECT image FROM conversation_messages WHERE conversation_id=? AND id=?', (identity, int(image_id))).fetchone()
+        image = con.execute('SELECT image FROM conversation_messages WHERE conversation_id=? AND id=? AND hidden=0', (identity, int(image_id))).fetchone()
         if not image or not image['image']: raise ChatError(404, 'Rasm topilmadi')
         handler.reply(200, {'image': image['image']})
     elif action == 'messages':
@@ -194,7 +205,15 @@ def route(handler, con, user, path, validate_photo, environment):
         ascending = after is not None
         rows = con.execute('SELECT * FROM conversation_messages WHERE conversation_id=?' + clause + ' ORDER BY id ' + ('ASC' if ascending else 'DESC') + ' LIMIT 31', args).fetchall()
         page = rows[:PAGE] if ascending else list(reversed(rows[:PAGE]))
+        changes_after = query.get('changesAfter', [None])[0]
+        if changes_after is not None:
+            changes = con.execute('SELECT id,message_id FROM chat_changes WHERE conversation_id=? AND id>? ORDER BY id LIMIT 30', (identity, number(changes_after, zero=True))).fetchall()
+            change_cursor = str(changes[-1]['id']) if changes else changes_after
+        else:
+            changes = []
+            change_cursor = str(con.execute('SELECT COALESCE(MAX(id),0) FROM chat_changes WHERE conversation_id=?', (identity,)).fetchone()[0])
         handler.reply(200, {'items': [message(r, user) for r in page], 'hasMore': len(rows) > PAGE,
+                            'redactedIds': [str(r['message_id']) for r in changes], 'changeCursor': change_cursor,
                             'conversation': summary(con, row, user)})
     else:
         handler.reply(200, summary(con, row, user))
