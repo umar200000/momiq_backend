@@ -52,6 +52,9 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(entry['identityVerified'])
         self.assertNotIn('PRIVATE',json.dumps(entry))
         self.assertEqual(self.public('production'),[])
+        with server.db() as con:
+            notice=con.execute("SELECT payload FROM notifications WHERE user_id='abc'").fetchone()
+            self.assertEqual(json.loads(notice['payload'])['status'],'approved')
 
     def test_balance_threshold_and_blocking_reversible_without_reapproval(self):
         self.save();self.review()
@@ -72,6 +75,7 @@ class CatalogTests(unittest.TestCase):
         with server.db() as con:
             self.assertEqual(catalog.document(con,'abc')['_revision'],2)
             self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action='listing-reject'").fetchone()[0],0)
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE user_id='abc'").fetchone()[0],1)
         self.assertEqual(len(self.public()),1)
 
     def test_edits_invalidate_approval_but_notifications_do_not(self):

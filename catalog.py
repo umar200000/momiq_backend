@@ -1,6 +1,7 @@
 """Listing moderation and derived discovery; no client-owned approval flags."""
 import hashlib
 import json
+import notifications
 from datetime import datetime, timezone
 from wallet import MINIMUM_BALANCE_MINOR
 from media_validation import public_photo
@@ -144,6 +145,7 @@ def review(con,uid,kind,data,actor,environment):
     con.execute('INSERT INTO listing_moderation(user_id,service,status,approved_hash,test_only,reason,reviewed_by,reviewed_at,public_media) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,service) DO UPDATE SET status=excluded.status,approved_hash=excluded.approved_hash,test_only=excluded.test_only,reason=excluded.reason,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at,public_media=excluded.public_media',
                 (uid,kind,status,digest,int(test_only),reason.strip(),actor,now(),media))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(actor,'listing-'+decision,json.dumps({'id':uid+':'+kind,'revision':revision(con,uid),'reason':reason.strip(),'testOnly':test_only}),now()))
+    notifications.publish(con,uid,'listing-review:'+uid+':'+kind+':'+str(revision(con,uid)), 'listing',kind,status,reason.strip())
     con.commit()
     return document(con,uid)
 

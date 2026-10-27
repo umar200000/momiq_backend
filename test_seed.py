@@ -42,12 +42,16 @@ class SeedTests(unittest.TestCase):
                         offset += length + 12
 
     def test_seed_is_repeatable_and_clean_preserves_unowned_records(self):
+        import notifications
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'fixtures'
             seed(target)
             with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
                 con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps({'profile': {'first': 'Edited'}}), fixture_id('customer')))
                 con.execute("INSERT INTO users VALUES('unowned','998000000009','{}',0,'now')")
+                con.row_factory=sqlite3.Row
+                notifications.publish(con,fixture_id('customer'),'fixture-notice','listing','boarding','rejected','TEST')
+                notifications.publish(con,'unowned','keep-notice','listing','boarding','rejected','Keep')
             seed(target)
             with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
                 self.assertEqual(con.execute('SELECT COUNT(*) FROM users').fetchone()[0], 5)
@@ -56,6 +60,7 @@ class SeedTests(unittest.TestCase):
             seed(target, clean=True)
             with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
                 self.assertEqual(con.execute('SELECT id FROM users').fetchall(), [('unowned',)])
+                self.assertEqual(con.execute('SELECT user_id FROM notifications').fetchall(), [('unowned',)])
 
     def test_cannot_seed_live_or_unmarked_data(self):
         with tempfile.TemporaryDirectory() as tmp:

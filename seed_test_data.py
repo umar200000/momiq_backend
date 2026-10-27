@@ -67,6 +67,7 @@ def seed(directory, mode='local', clean=False):
                         raise ValueError('Unowned conversation references fixtures; cleanup refused')
                 for uid in ids:
                     con.execute('DELETE FROM messages WHERE user_id=?', (uid,))
+                    con.execute('DELETE FROM notifications WHERE user_id=?', (uid,))
                     con.execute('DELETE FROM sessions WHERE user_id=?', (uid,))
                     con.execute('DELETE FROM wallet_accounts WHERE user_id=? AND balance_minor=0', (uid,))
                     con.execute('DELETE FROM users WHERE id=?', (uid,))

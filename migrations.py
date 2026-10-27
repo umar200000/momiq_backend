@@ -40,6 +40,12 @@ MIGRATIONS = (
         "ALTER TABLE topup_requests ADD COLUMN payer_reference TEXT NOT NULL DEFAULT ''",
         'ALTER TABLE topup_requests ADD COLUMN paid_at TEXT',
     )),
+    (6, 'transactional in-app notifications', (
+        'CREATE TABLE notifications(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id), source_key TEXT NOT NULL UNIQUE, payload TEXT NOT NULL, created TEXT NOT NULL, read_at TEXT)',
+        'CREATE INDEX notifications_owner ON notifications(user_id,id)',
+        'CREATE INDEX notifications_unread ON notifications(user_id) WHERE read_at IS NULL',
+        "CREATE TRIGGER notifications_content_immutable BEFORE UPDATE OF user_id,source_key,payload,created ON notifications BEGIN SELECT RAISE(ABORT, 'Notice content is immutable'); END",
+    )),
 )
 
 

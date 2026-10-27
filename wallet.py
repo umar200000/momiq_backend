@@ -3,6 +3,7 @@ import base64
 import hashlib
 import re
 import secrets
+import notifications
 from datetime import datetime, timezone, timedelta
 from urllib.parse import parse_qs, urlparse
 
@@ -233,6 +234,7 @@ def route(handler, con, uid, path, photo, environment):
         con.execute('UPDATE topup_requests SET status=?,transfer_reference=?,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?',
                     (status,reference,uid,reason,now(),row['id']))
         con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'topup-'+decision,row['id']+': '+reason,now()))
+        notifications.publish(con,row['user_id'],'topup-review:'+row['id'],'wallet_topup',row['id'],status,reason)
         con.commit()
         handler.reply(200,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(row['id'],)).fetchone(),admin=True)})
         return True

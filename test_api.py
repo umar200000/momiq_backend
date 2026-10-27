@@ -50,6 +50,26 @@ class ApiTests(unittest.TestCase):
             return json.loads(response.read())
     def login(self,phone='998901111111'):
         return self.req('/api/auth/login','POST',{'phone':phone,'code':'111111'})
+    def test_notifications_are_owner_scoped_paginated_and_read_idempotently(self):
+        import notifications
+        a=self.login('998900000011');b=self.login('998900000012')
+        with server.db() as con:
+            con.execute('BEGIN IMMEDIATE')
+            for i in range(23):
+                notifications.publish(con,a['userId'],'test-notice:'+str(i),'wallet_topup',str(i),'approved','TEST only')
+        first=self.req('/api/notifications',token=a['token'])
+        self.assertEqual(len(first['items']),20);self.assertEqual(first['unreadCount'],23)
+        second=self.req('/api/notifications?before='+first['nextCursor'],token=a['token'])
+        self.assertEqual(len(second['items']),3);self.assertIsNone(second['nextCursor'])
+        self.assertFalse(set(x['id'] for x in first['items']) & set(x['id'] for x in second['items']))
+        self.assertEqual(self.req('/api/notifications',token=b['token'])['items'],[])
+        path='/api/notifications/'+first['items'][0]['id']+'/read'
+        self.req(path,'POST',{},token=b['token'],expected=404)
+        self.req(path,'POST',{},token=a['token']);self.req(path,'POST',{},token=a['token'])
+        self.assertEqual(self.req('/api/notifications',token=a['token'])['unreadCount'],22)
+        self.req('/api/notifications?before=-1',token=a['token'],expected=400)
+        self.req('/api/notifications',expected=401)
+
     def test_roles_and_server_listings(self):
         login = self.req('/api/auth/login','POST',{'phone':'998909991122','code':'111111','role':'sitter'})
         token, uid = login['token'],login['userId']
@@ -273,6 +293,9 @@ class ApiTests(unittest.TestCase):
         result=self.req('/api/wallet',token=a['token'])
         self.assertEqual(result['balanceMinor'],2_000_000)
         self.assertEqual(len(result['entries']),1)
+        notices=self.req('/api/notifications',token=a['token'])['items']
+        self.assertEqual(len([n for n in notices if n['targetId']==created['id']]),1)
+        self.assertEqual(next(n for n in notices if n['targetId']==created['id'])['status'],'approved')
         self.assertTrue(result['balanceEligible'])
         self.req(path,'POST',{'decision':'reject','reason':'Conflicting decision'},admin=True,expected=409)
         with server.db() as con:
