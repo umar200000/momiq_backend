@@ -51,7 +51,7 @@ def seed(directory, mode='local', clean=False):
         ids = [fixture_id(n) for n in names]
         photo = base64.b64encode(bytes.fromhex(
             '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489'
-            '0000000b49444154789c636000020000050001a5f645400000000049454e44ae426082')).decode()
+            '0000000b49444154789c6360000200000500017a5eab3f0000000049454e44ae426082')).decode()
         with server.db() as con:
             con.execute('BEGIN IMMEDIATE')
             if clean:

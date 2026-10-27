@@ -43,8 +43,9 @@ class ApiTests(unittest.TestCase):
         request=Request(self.base+path,data=json.dumps(data).encode() if data is not None else None,headers=headers,method=method)
         try: response=(self.admin if admin else self.client).open(request)
         except HTTPError as e: response=e
-        self.assertEqual(response.status,expected)
-        return json.loads(response.read())
+        with response:
+            self.assertEqual(response.status,expected)
+            return json.loads(response.read())
     def login(self,phone='998901111111'):
         return self.req('/api/auth/login','POST',{'phone':phone,'code':'111111'})
     def test_roles_and_server_listings(self):

@@ -1,4 +1,7 @@
 import json
+import base64
+import struct
+import zlib
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -9,6 +12,21 @@ from seed_test_data import seed, fixture_id
 
 
 class SeedTests(unittest.TestCase):
+    def test_fixture_images_have_valid_png_checksums(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'fixtures'
+            seed(target)
+            with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
+                for (account,) in con.execute('SELECT account FROM users'):
+                    raw = base64.b64decode(json.loads(account)['pets'][0]['photo'])
+                    offset = 8
+                    while offset < len(raw):
+                        length = struct.unpack('>I', raw[offset:offset+4])[0]
+                        chunk = raw[offset+4:offset+8+length]
+                        crc = struct.unpack('>I', raw[offset+8+length:offset+12+length])[0]
+                        self.assertEqual(zlib.crc32(chunk), crc)
+                        offset += length + 12
+
     def test_seed_is_repeatable_and_clean_preserves_unowned_records(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'fixtures'
