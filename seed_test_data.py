@@ -55,6 +55,9 @@ def seed(directory, mode='local', clean=False):
         with server.db() as con:
             con.execute('BEGIN IMMEDIATE')
             if clean:
+                for uid in ids:
+                    if con.execute('SELECT 1 FROM topup_requests WHERE user_id=? LIMIT 1',(uid,)).fetchone() or con.execute('SELECT 1 FROM wallet_entries WHERE user_id=? LIMIT 1',(uid,)).fetchone():
+                        raise ValueError('Fixture has financial history; cleanup refused. Use a new isolated preview directory.')
                 for row in con.execute('SELECT id,account FROM users'):
                     if row['id'] not in ids and set(json.loads(row['account']).get('favorites', [])) & set(ids):
                         raise ValueError('Unowned account references fixtures; cleanup refused')

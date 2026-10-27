@@ -36,7 +36,9 @@ Birinchi API sinovida appdan hisobdan chiqing, telefon bilan qayta kiring. Lokal
 - Admin: mijozlarni qidirish, profilni tahrirlash, bloklash/ochish, murojaatlarni ko‘rish, enaga nomidan matn/rasm javobi, xabarni moderatsiya qilish. Admin amallari `audit` jadvalida.
 - Mijoz boshqa hisobning xabarlariga kira olmaydi. Admin sessiyasi HttpOnly/SameSite cookie orqali ishlaydi.
 
-Buyurtmalar va to‘lov oqimlari hali ulanmagan. Enaga profili va e’lonlari serverga saqlanadi; mijoz katalogiga nashr qilish hali alohida bajariladi. Push bildirishnomalari/SMS provayderi hali ulanmagan. Admin javoblari mijoz appiga keladi; enaga appi hozir bu APIga autentifikatsiya qilinmagan.
+Bu branchda enaga autentifikatsiyasi, profil/afzalliklar va Paynet Xolis chek orqali balans to‘ldirish ulangan. Admin QR/foizni versiya bilan saqlaydi, chek va haqiqiy tushumni tekshiradi; faqat tasdiqdan keyin atomar kredit yoziladi. Tafsilotlar `API_CONTRACT.md`da. Bu o‘zgarishlar hali productionga chiqarilmagan.
+
+Buyurtmalar va komissiya yechish/qaytarish hali ulanmagan. Enaga e’lonlari serverga saqlanadi; mijoz katalogiga moderatsiya orqali nashr qilish hali alohida bajariladi. Push/SMS/MyID hali ulanmagan. Hozirgi mijoz–admin chatini haqiqiy mijoz–enaga suhbatiga aylantirish ham qolgan.
 
 Backendga ulangan rejimda hayvonlar serverda saqlanadi. Eski offline/test mock rejimida hayvonlar session ichida saqlanish qoidasi qoladi.
 

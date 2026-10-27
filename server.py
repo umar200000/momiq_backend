@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from config import Settings
 from migrations import migrate
+import wallet
 
 ROOT = Path(__file__).resolve().parent
 SETTINGS = Settings.load(os.environ, ROOT)
@@ -312,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if self.command == "GET" and not path.startswith("/api/"):
-            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/style.css": "style.css"}.get(path)
+            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/style.css": "style.css"}.get(path)
             if not name or not (ADMIN / name).is_file():
                 raise ApiError(404, "Topilmadi")
             raw = (ADMIN / name).read_bytes()
@@ -368,6 +369,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
+            if wallet.route(self,con,user,path,photo,ENVIRONMENT):
+                return
             if path == '/api/auth/logout-all' and self.command == 'POST':
                 con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (user,))
                 con.commit()
@@ -481,7 +484,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):
         try: self.handle_request()
-        except ApiError as e: self.reply(e.status,{'error':e.message})
+        except (ApiError,wallet.WalletError) as e: self.reply(e.status,{'error':e.message})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): pass
         except Exception as e:

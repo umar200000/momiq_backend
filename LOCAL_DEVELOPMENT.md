@@ -2,7 +2,7 @@
 
 Backend va admin repolari bir ota papkada `momiq_backend` va `momiq_admin` nomlari bilan turadi. Eski `momiq_admin_panel` nomi ham fallback sifatida qo‘llanadi; `MOMIQ_ADMIN_DIR` aniq yo‘lni belgilaydi.
 
-Python 3.12+ va Flutter kerak. Ushbu kompyuterda Python 3.15.1, Flutter 3.47.8 bor; CI hozir Python 3.12 / Flutter 3.44.5 ishlatadi. M010 versiyalarni uyg‘unlashtirish vazifasi hali yopilmagan. iOS simulator/build uchun macOS kerak; signing yakuniy bosqichda.
+Python 3.12+ va Flutter 3.44.5 kerak. CI Python 3.12 / Flutter 3.44.5 ishlatadi. App papkasida `./tool/setup-flutter.ps1` loyiha uchun alohida SDK o‘rnatadi; keyingi buyruqlarda `./tool/flutter.ps1` ishlatiladi. Global SDK o‘zgarmaydi. Windowsdagi global Flutter 3.47.8 test processida 0xc0000005 native qulash kuzatildi; CI bilan bir xil 3.44.5 SDK’da to‘liq suite o‘tdi. Bu kuzatuv upstream xatoning aniq ildiz sababi topildi degani emas. Git long-path sozlamasi faqat shu SDK clone’ida yoqiladi. Mahalliy Python 3.15.1, Java/NDK uyg‘unligi hali M010 doirasida tekshiriladi. iOS simulator/build uchun macOS kerak; signing yakuniy bosqichda.
 
 **Ishga tushirish**
 
@@ -45,7 +45,7 @@ Runtime database ichida muhit belgisi bor; boshqa muhitga ko‘rsatish startup�
 App sozlamalari `config/local.json`, `config/production.json`, `config/staging.example.json`. Hosted staging domeni tasdiqlangach `config/staging.local.json` yaratiladi. Staging namunasidagi `.invalid` host ishlaydigan server emas.
 
 ```powershell
-flutter run --dart-define-from-file=config/local.json
+./tool/flutter.ps1 run --dart-define-from-file=config/local.json
 ```
 
 Local build production API’ga ulanmaydi; release local konfiguratsiyani rad etadi. Login server health’dagi muhitni tekshiradi, production’da SMS/test-login flaglarini tekshiradi. Token saqlanganda muhit+API manzili ham saqlanadi; eski yoki boshqa muhit tokeni yuborilmasdan tozalanadi.
@@ -55,9 +55,9 @@ Local build production API’ga ulanmaydi; release local konfiguratsiyani rad et
 ```powershell
 python -m unittest -q
 # App papkasida:
-flutter analyze --no-pub
-flutter test --no-pub
-flutter test --no-pub --dart-define=MOMIQ_INTEGRATION=true --dart-define=MOMIQ_API_URL=http://127.0.0.1:8081/api test/customer_api_integration_test.dart
+./tool/flutter.ps1 analyze --no-pub
+./tool/flutter.ps1 test --no-pub --concurrency=1
+./tool/flutter.ps1 test --no-pub --dart-define=MOMIQ_INTEGRATION=true --dart-define=MOMIQ_API_URL=http://127.0.0.1:8081/api test/customer_api_integration_test.dart
 ```
 
 Integration testi faqat aniq belgilangan lokal test hisobida profil/hayvon/sozlamani yozadi. Windows umumiy test runner’i suite yuklashda ulanishni yo‘qotsa, `tool/check-windows.ps1` har faylni alohida processda bajaradi, `.local/test-results/summary.json` va alohida loglarga exit kodlarini saqlaydi. Muvaffaqiyatsiz testlar yashirilmaydi.

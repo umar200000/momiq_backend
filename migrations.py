@@ -13,6 +13,17 @@ MIGRATIONS = (
         'CREATE TABLE account_revisions(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0))',
         'INSERT INTO account_revisions(user_id) SELECT id FROM users',
     )),
+    (2, 'manual wallet and payment evidence', (
+        'CREATE TABLE wallet_accounts(user_id TEXT PRIMARY KEY REFERENCES users(id), balance_minor INTEGER NOT NULL DEFAULT 0 CHECK(balance_minor >= 0))',
+        "CREATE TABLE wallet_entries(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES wallet_accounts(user_id), amount_minor INTEGER NOT NULL CHECK(amount_minor != 0), balance_after INTEGER NOT NULL CHECK(balance_after >= 0), kind TEXT NOT NULL, source_key TEXT NOT NULL UNIQUE, actor TEXT NOT NULL, reason TEXT NOT NULL, created TEXT NOT NULL)",
+        'CREATE INDEX wallet_entries_user ON wallet_entries(user_id,created,id)',
+        "CREATE TRIGGER wallet_entries_no_update BEFORE UPDATE ON wallet_entries BEGIN SELECT RAISE(ABORT, 'Wallet journal is immutable'); END",
+        "CREATE TRIGGER wallet_entries_no_delete BEFORE DELETE ON wallet_entries BEGIN SELECT RAISE(ABORT, 'Wallet journal is immutable'); END",
+        'CREATE TABLE platform_settings(version INTEGER PRIMARY KEY AUTOINCREMENT, commission_bps INTEGER NOT NULL CHECK(commission_bps BETWEEN 0 AND 10000), qr_image TEXT, test_only INTEGER NOT NULL CHECK(test_only IN (0,1)), actor TEXT NOT NULL, reason TEXT NOT NULL, created TEXT NOT NULL)',
+        "INSERT INTO platform_settings(commission_bps,qr_image,test_only,actor,reason,created) VALUES(1000,NULL,0,'system','Initial 10 percent commission',CURRENT_TIMESTAMP)",
+        "CREATE TABLE topup_requests(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), amount_minor INTEGER NOT NULL CHECK(amount_minor > 0), receipt TEXT NOT NULL, receipt_hash TEXT NOT NULL UNIQUE, qr_version INTEGER NOT NULL REFERENCES platform_settings(version), terms_version TEXT NOT NULL, request_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')), transfer_reference TEXT UNIQUE, reviewed_by TEXT, review_reason TEXT, created TEXT NOT NULL, reviewed_at TEXT, UNIQUE(user_id,request_id))",
+        'CREATE INDEX topup_requests_status ON topup_requests(status,created,id)',
+    )),
 )
 
 

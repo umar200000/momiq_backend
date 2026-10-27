@@ -13,7 +13,7 @@ class MigrationTests(unittest.TestCase):
             con.execute('CREATE TABLE users(id TEXT PRIMARY KEY, account TEXT)')
             con.execute("INSERT INTO users VALUES('real', '{\"profile\":{}}')")
             con.commit()
-            self.assertEqual(migrations.migrate(con), [1])
+            self.assertEqual(migrations.migrate(con), [1,2])
             self.assertEqual(migrations.migrate(con), [])
             self.assertEqual(con.execute('SELECT * FROM users').fetchall(), [('real','{"profile":{}}')])
             self.assertEqual(con.execute('SELECT * FROM account_revisions').fetchall(), [('real',0)])
@@ -34,7 +34,7 @@ class MigrationTests(unittest.TestCase):
             con.commit()
             with self.assertRaisesRegex(RuntimeError, 'checksum'):
                 migrations.migrate(con)
-            con.execute('UPDATE schema_migrations SET version=999')
+            con.execute('UPDATE schema_migrations SET version=999 WHERE version=1')
             con.commit()
             with self.assertRaisesRegex(RuntimeError, 'newer'):
                 migrations.migrate(con)
@@ -49,7 +49,7 @@ class MigrationTests(unittest.TestCase):
                 con.commit()
                 migrations.backup_database(source, backup)
                 with closing(sqlite3.connect(backup)) as copy:
-                    self.assertEqual(migrations.migrate(copy), [1])
+                    self.assertEqual(migrations.migrate(copy), [1,2])
                     self.assertEqual(copy.execute('SELECT user_id FROM account_revisions').fetchone()[0], 'persist')
                 self.assertIsNone(con.execute("SELECT name FROM sqlite_master WHERE name='schema_migrations'").fetchone())
                 with self.assertRaises(ValueError):

@@ -52,3 +52,17 @@ python migrations.py <database> --apply --backup <new-backup-file>
 Then start the matching application and run smoke checks. A code rollback does not roll back schema/data. Restore a database backup only with writers stopped and an explicit decision about writes since the backup. The production deploy script still needs the coordinated stop/backup/migrate/restart workflow installed on the host; this document does not claim it has been deployed.
 
 Secure storage configuration follows the package maintainer's [Android/iOS instructions](https://pub.dev/packages/flutter_secure_storage). Actual iOS Keychain validation remains pending macOS/device access and final signing.
+
+## Manual Paynet Xolis balance (migration 2)
+
+All financial amounts are **integer minor UZS units**, 100 = 1 so‘m. Commission is integer basis points: 1000 = 10%, range 0–10000. No customer service payment, bank withdrawal or automatic payment-provider integration is exposed.
+
+- `GET /api/wallet`: authenticated sitter's balance, latest 50 ledger entries and current QR/config. `balanceEligible` means only balance >= 1,500,000 minor units; catalog/booking eligibility is not yet connected.
+- `GET /api/wallet/topups`: own request history. `POST` requires `requestId`, `amountMinor`, base64 `receipt`, displayed `qrVersion`, `termsVersion=balance-no-refund-v1`, and `acceptNonRefundable=true`. Pending request returns 201 without crediting balance. Identical retry returns 200; same ID/different payload or duplicate image hash returns 409.
+- `GET /api/wallet/topups/{id}/receipt`: own receipt only; another sitter's ID returns 404.
+- `GET/PUT /api/admin/platform-settings`: admin cookie; PUT requires loaded `version` and `reason`. Optional `commissionBps`, `qrImage`, `testOnly` append a version; stale version is 409. Production rejects test QR configuration. Old requests retain their QR version.
+- `GET /api/admin/topups`: request metadata, never bulk receipt images. Optional `status=pending|approved|rejected|all`. Both topup lists return up to 20 records and `nextCursor`; supply `cursor` for the next page. Own-list cursors are ownership checked.
+- `GET /api/admin/topups/{id}/receipt`: admin-only lazy receipt retrieval.
+- `POST /api/admin/topups/{id}/review`: `decision=approve|reject`, nonempty `reason`. Approval additionally requires `fundsVerified=true`, exact `receivedAmountMinor` and unique `transferReference`. References are trimmed/uppercased. Status, ledger entry, balance and audit commit together. Repeating the same approval returns 200 without another credit; conflicting decision or reused transfer reference returns 409. Rejection never credits funds.
+
+Ledger entries cannot be updated or deleted. Compensation must append a new entry; commission/reversal business routes are still outstanding. Seed cleanup refuses accounts with financial history; use a new isolated preview directory. Receipt photos remain private Base64 DB data pending object storage and stronger media validation. Image hashes detect identical bytes; altered/fake/another person's receipt still requires manual verification against the actual provider statement. Draft persistence, receipt clarification workflow, recipient metadata and review notifications remain open.

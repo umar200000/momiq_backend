@@ -65,7 +65,7 @@ if ($App) {
         if (-not (Test-Path lib/core/config/maps_key.local.dart)) {
             Copy-Item lib/core/config/maps_key.example.dart lib/core/config/maps_key.local.dart
         }
-        & flutter run --no-pub -d $Device --dart-define=MOMIQ_ENV=local "--dart-define=MOMIQ_API_URL=$baseUrl/api"
+        & ./tool/flutter.ps1 run --no-pub -d $Device --dart-define=MOMIQ_ENV=local "--dart-define=MOMIQ_API_URL=$baseUrl/api"
         if ($LASTEXITCODE -ne 0) { throw 'Flutter run failed.' }
     } finally { Pop-Location }
 }

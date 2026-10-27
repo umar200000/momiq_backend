@@ -2,6 +2,7 @@ import base64
 import http.cookiejar
 import json
 import os
+import sqlite3
 from pathlib import Path
 import tempfile
 import threading
@@ -196,6 +197,64 @@ class ApiTests(unittest.TestCase):
         updated=self.req('/api/me','PUT',saved,token=a['token'])['account']
         other=self.login('998909000005')
         self.assertEqual(other['account'],updated)
+
+    def test_manual_topup_verification_idempotency_and_access(self):
+        from concurrent.futures import ThreadPoolExecutor
+        a=self.req('/api/auth/login','POST',{'phone':'998909000006','code':'111111','role':'sitter'})
+        b=self.login('998909000007')
+        self.req('/api/wallet',token=b['token'],expected=403)
+        self.req('/api/admin/topups',token=a['token'],expected=401)
+        config=self.req('/api/admin/platform-settings',admin=True)
+        self.assertEqual(config['commissionBps'],1000)
+        png=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'test-qr').decode()
+        config=self.req('/api/admin/platform-settings','PUT',{'version':config['version'],'qrImage':png,'testOnly':True,'reason':'TEST only QR'},admin=True)
+        payload={'requestId':'once','amountMinor':2_000_000,'receipt':png,'qrVersion':config['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True}
+        self.req('/api/wallet/topups','POST',dict(payload,acceptNonRefundable=False),token=a['token'],expected=400)
+        created=self.req('/api/wallet/topups','POST',payload,token=a['token'],expected=201)['topup']
+        receipt_path='/api/wallet/topups/'+created['id']+'/receipt'
+        self.assertEqual(self.req(receipt_path,token=a['token'])['receipt'],png)
+        other=self.req('/api/auth/login','POST',{'phone':'998909000008','code':'111111','role':'sitter'})
+        self.req(receipt_path,token=other['token'],expected=404)
+        self.req('/api/admin/topups/'+created['id']+'/receipt',token=a['token'],expected=401)
+        self.assertEqual(self.req('/api/admin/topups/'+created['id']+'/receipt',admin=True)['receipt'],png)
+        self.assertNotIn('receipt',self.req('/api/admin/topups?status=pending',admin=True)['topups'][0])
+        self.req('/api/wallet/topups?cursor='+created['id'],token=other['token'],expected=400)
+        self.req('/api/admin/platform-settings','PUT',{'version':config['version']-1,'reason':'stale'},admin=True,expected=409)
+        self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],0)
+        self.assertEqual(self.req('/api/wallet/topups','POST',payload,token=a['token'])['topup']['id'],created['id'])
+        self.req('/api/wallet/topups','POST',dict(payload,amountMinor=3_000_000),token=a['token'],expected=409)
+        self.req('/api/wallet/topups','POST',dict(payload,requestId='duplicate'),token=a['token'],expected=409)
+        path='/api/admin/topups/'+created['id']+'/review'
+        decision={'decision':'approve','fundsVerified':True,'receivedAmountMinor':2_000_000,'transferReference':'TEST-XOLIS-1','reason':'TEST receipt and incoming funds verified'}
+        self.req(path,'POST',dict(decision,fundsVerified=False),admin=True,expected=400)
+        self.req(path,'POST',dict(decision,receivedAmountMinor=1_000_000),admin=True,expected=409)
+        # Two independently authenticated operators race to approve the same receipt.
+        operator=build_opener(HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        login=Request(self.base+'/api/admin/login',method='POST',headers={'Content-Type':'application/json'},data=json.dumps({'username':'admin','password':'test-admin-password'}).encode())
+        with operator.open(login) as response: response.read()
+        barrier=threading.Barrier(2)
+        def approve(opener):
+            request=Request(self.base+path,method='POST',headers={'Content-Type':'application/json'},data=json.dumps(decision).encode())
+            barrier.wait()
+            with opener.open(request) as response: return response.status
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            self.assertEqual(list(pool.map(approve,[self.admin,operator])),[200,200])
+        result=self.req('/api/wallet',token=a['token'])
+        self.assertEqual(result['balanceMinor'],2_000_000)
+        self.assertEqual(len(result['entries']),1)
+        self.assertTrue(result['balanceEligible'])
+        self.req(path,'POST',{'decision':'reject','reason':'Conflicting decision'},admin=True,expected=409)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT SUM(amount_minor) FROM wallet_entries WHERE user_id=?',(a['userId'],)).fetchone()[0],result['balanceMinor'])
+            with self.assertRaisesRegex(sqlite3.IntegrityError,'immutable'): con.execute('UPDATE wallet_entries SET amount_minor=1 WHERE user_id=?',(a['userId'],))
+        # A different receipt cannot credit the same real incoming transfer twice.
+        payload.update(requestId='second',receipt=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'different-test').decode())
+        second=self.req('/api/wallet/topups','POST',payload,token=a['token'],expected=201)['topup']
+        self.req('/api/admin/topups/'+second['id']+'/review','POST',decision,admin=True,expected=409)
+        self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],2_000_000)
+        self.req('/api/admin/topups/'+second['id']+'/review','POST',{'decision':'reject','reason':'TEST duplicate incoming transfer'},admin=True)
+        self.assertEqual(self.req('/api/wallet/topups',token=a['token'])['topups'][0]['status'],'rejected')
+        self.assertEqual(self.req('/api/admin/topups?status=pending',admin=True)['topups'],[])
     def test_chat_reply_isolation_and_idempotency(self):
         a=self.login('998903333333');b=self.login('998904444444')
         message={'sitter':'hoji','text':'Salom','requestId':'once'}
