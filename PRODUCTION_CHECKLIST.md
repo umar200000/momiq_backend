@@ -47,13 +47,14 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Bajarilish jurnali — 2026-10-27**
 
-- Ish branchlari: uchta loyihani ajratmasdan bajarish uchun tegishli repolarda `codex/production-foundations`; bu hali main yoki deploy emas.
+- Ish branchlari: tegishli repolarda `codex/production-foundations`; bu hali main yoki deploy emas.
 - M013 yopildi: `seed_test_data.py` faqat yangi/belgilangan local/test bazani qabul qiladi; ishlab turgan noma’lum bazani o‘zlashtirmaydi. Idempotency, tozalashda begona yozuvlarni saqlash va bog‘liqlik bo‘lsa rad etish testlari o‘tdi.
 - M026 yopildi: notes yo‘q/null/bo‘sh bo‘lganda ro‘yxat ham, tahrirlash sahifasi ham ochiladi; ism/yosh/zot/jins defaultlari tuzatildi. `customer_pet_optional_fields_test.dart`: 4 test o‘tdi.
 - M008/M009/M019 davom etmoqda: runtime muhit validatsiyasi, bazaning muhit belgisi, production test-login taqiqi, mobil URL/health tekshiruvi va tokenning muhitga bog‘lanishi yozildi. Hosted staging hali yaratilmagan, productiondagi eski konfiguratsiya o‘zgartirilmagan.
-- M011/M012 davom etmoqda: `start.ps1 -Port 8081 -Seed` va qayta ishga tushirish tekshirildi; izolyatsiyalangan bazada 1 mijoz, 3 xizmatli enaga, hayvon va e’lonlar yaratildi. Buyurtma/chat/hisobot ssenariylari tegishli modellar bilan kengaytiriladi.
-- Tekshiruv: `python -m unittest -q` — 22 test o‘tdi. To‘liq Flutter to‘plami hali tekshirilmoqda; oldindan muvaffaqiyat deb belgilanmaydi.
-- M015 davom etmoqda: GitHub connector repo permissions `pull=true`, `push=false`; lokal Git Credential Manager’da login qayd etilmagan. Push/CI uchun yozish huquqli hisob kerak, lokal ish davom etadi.
+- M011 yopildi: `start.ps1 -Port 8081 -Seed` va qayta ishga tushirish tekshirildi; admin papkasi, adb reverse va MapKit kalitini berish tartibi `LOCAL_DEVELOPMENT.md`da. Android debug APK yig‘ildi va emulatorda 8081 API bilan kirish, TEST enaga katalogi, hayvon ro‘yxati va ixtiyoriy maydonlari bo‘sh tahrirlash shakli ishladi. Haqiqiy xarita kaliti va iOS build tekshiruvi alohida ochiq vazifalarda qoladi.
+- M012 qisman bajarildi: izolyatsiyalangan bazada 1 mijoz, 3 xizmatli enaga, hayvon va e’lonlar yaratildi. Buyurtma/chat/hisobot ssenariylari tegishli modellar bilan kengaytiriladi.
+- Tekshiruv: `python -m unittest -q` — 23 test o‘tdi; backend GitHub CI ham o‘tdi (`9c32975`). Flutter analyze va to‘liq Linux CI testlari o‘tdi (`00b28e5`). Lokal API integration testi 8081 portda o‘tdi. Windows’da ayrim suite jarayonlari uzilishi qayd etildi; alohida processlar ham hammasini bartaraf etmadi, M126 Windows qismi ochiq.
+- M015 yopildi: Git Credential Manager orqali yozish huquqli hisob tekshirildi, ikkala branch push qilindi va draft PR’lar ochildi. GitHub connector boshqa hisob bilan faqat o‘qiy oladi. Ikkala main branch hozir himoyalanmagan — M109 ochiq. PR’lar: https://github.com/umar200000/momiq_backend/pull/1 va https://github.com/umar200000/momiq_app/pull/1. Main merge/deploy bajarilmadi.
 
 **Tekshirilgan boshlang‘ich holat**
 
@@ -79,13 +80,15 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 - [ ] M008 — Local, staging va production konfiguratsiyalarini ajratish: URL, baza, storage, push, SMS va payment kalitlari aralashmaydi; staging mavjudligi amalda tekshiriladi yoki yaratiladi.
 - [ ] M009 — Development/test/production build sozlamalarini joriy etish: muhit belgisi ko‘rinadi; production build localhost, umumiy OTP yoki test provider bilan chiqarilmaydi.
 - [ ] M010 — Flutter/Dart, Python, Java, Gradle, SDK va NDK versiyalarini uyg‘unlashtirish: yangi kompyuter va CI bir xil lockfile bilan build qiladi; mavjud lokal sozlama o‘zgarishlari alohida ko‘rib chiqiladi.
-- [ ] M011 — Mahalliy ishga tushirishni takrorlanadigan qilish: admin papka nomi, MapKit konfiguratsiyasi, emulator/telefon ulanishi hujjatlashtiriladi; yashirin qo‘lda tuzatish talab qilinmaydi.
+- [x] M011 — Mahalliy ishga tushirishni takrorlanadigan qilish: admin papka nomi, MapKit konfiguratsiyasi, emulator/telefon ulanishi hujjatlashtiriladi; yashirin qo‘lda tuzatish talab qilinmaydi.
 - [ ] M012 — Test ma’lumotlarini boshqariladigan seed orqali yaratish: mijoz, enaga, xizmatlar, sanalar, hayvonlar, buyurtma holatlari, chat va hisobotlar; qayta ishga tushirish dublikat yaratmaydi.
 - [x] M013 — Test ma’lumotlarini xavfsiz ajratish va tozalash: test identifikatori, alohida muhit yoki ko‘rinish cheklovi; tozalash faqat tegishli test yozuvlariga tegadi, real katalog/reyt­ing/hisob-kitobga ta’sir qilmaydi.
 - [ ] M014 — SMS, push, media va QR/chek oqimi uchun sinov rejimlarini qo‘shish: test QR va belgilangan test chek/tushum, tasdiq/rad/qayta yuborish; real balans, real pul yoki tasodifiy telefonlarga ta’sir qilmaydi.
-- [ ] M015 — GitHub kirishi, repo huquqlari, branch va CI holatini tekshirish: foydalanuvchi login kerak bo‘lsa o‘zi bajaradi; ruxsatni tekshirish uchun main’ga sinov push qilinmaydi, tokenlar repoga/logga tushmaydi.
+- [x] M015 — GitHub kirishi, repo huquqlari, branch va CI holatini tekshirish: foydalanuvchi login kerak bo‘lsa o‘zi bajaradi; ruxsatni tekshirish uchun main’ga sinov push qilinmaydi, tokenlar repoga/logga tushmaydi.
 
 **C. Kirish va hisob hayoti**
+
+SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayder kelishuvi hali tugamagan. Hozir lokal test kirishi ishlatiladi; SMS integratsiyasi bajarilgan deb belgilanmaydi. M019 test kirishini productiondan ajratish himoyasi hozir ishlab chiqiladi, yakuniy reliz tekshiruvi SMS ulangach bajariladi.
 
 - [ ] M016 — Haqiqiy SMS kodini so‘rashni ulash: telefon normallashtiriladi, challenge yaratiladi, provider natijasi va yuborish xatosi foydalanuvchiga to‘g‘ri ko‘rsatiladi.
 - [ ] M017 — OTP tekshirishni server boshqarishi: kodning amal muddati, bir martalik ishlatilishi, urinish limiti va xavfsiz saqlanishi bor; noto‘g‘ri/eskirgan/qayta ishlatilgan kod rad etiladi.

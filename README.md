@@ -36,7 +36,7 @@ Birinchi API sinovida appdan hisobdan chiqing, telefon bilan qayta kiring. Lokal
 - Admin: mijozlarni qidirish, profilni tahrirlash, bloklash/ochish, murojaatlarni ko‘rish, enaga nomidan matn/rasm javobi, xabarni moderatsiya qilish. Admin amallari `audit` jadvalida.
 - Mijoz boshqa hisobning xabarlariga kira olmaydi. Admin sessiyasi HttpOnly/SameSite cookie orqali ishlaydi.
 
-Buyurtmalar, to‘lov, enaga e’lonlari va enaga appining backendga ko‘chirilishi bu modulga kirmaydi; avvalgi mock oqimlari saqlangan. Push bildirishnomalari/SMS provayderi hali ulanmagan. Admin javoblari mijoz appiga keladi; enaga appi hozir bu APIga autentifikatsiya qilinmagan.
+Buyurtmalar va to‘lov oqimlari hali ulanmagan. Enaga profili va e’lonlari serverga saqlanadi; mijoz katalogiga nashr qilish hali alohida bajariladi. Push bildirishnomalari/SMS provayderi hali ulanmagan. Admin javoblari mijoz appiga keladi; enaga appi hozir bu APIga autentifikatsiya qilinmagan.
 
 Backendga ulangan rejimda hayvonlar serverda saqlanadi. Eski offline/test mock rejimida hayvonlar session ichida saqlanish qoidasi qoladi.
 
@@ -86,7 +86,7 @@ SQLite ma’lumotlarini keyin PostgreSQL/object storage ga ko‘chirish mumkin. 
 
 ## Clone from GitHub
 
-Clone the repositories into sibling folders. Keep the admin folder named `momiq_admin_panel` because the backend serves assets from that path.
+Clone the repositories into sibling folders. The backend detects `momiq_admin`, falls back to `momiq_admin_panel`, or uses an explicit `MOMIQ_ADMIN_DIR`.
 
 ```sh
 git clone https://github.com/umar200000/momiq_backend.git
