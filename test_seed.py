@@ -12,6 +12,20 @@ from seed_test_data import seed, fixture_id
 
 
 class SeedTests(unittest.TestCase):
+    def test_cleanup_preserves_financial_audit(self):
+        import wallet
+        with tempfile.TemporaryDirectory() as tmp:
+            target=Path(tmp)/'fixtures'
+            seed(target)
+            with sqlite3.connect(target/'momiq.sqlite3',factory=ClosingConnection) as con:
+                con.row_factory=sqlite3.Row
+                con.execute('BEGIN IMMEDIATE')
+                wallet.post_entry(con,fixture_id('boarding'),100,'topup','test-only','test','synthetic')
+            with self.assertRaisesRegex(ValueError,'financial history'): seed(target,clean=True)
+            with sqlite3.connect(target/'momiq.sqlite3',factory=ClosingConnection) as con:
+                self.assertEqual(con.execute('SELECT COUNT(*) FROM users').fetchone()[0],4)
+                self.assertEqual(con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0],1)
+
     def test_fixture_images_have_valid_png_checksums(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'fixtures'

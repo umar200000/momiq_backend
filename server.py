@@ -1,4 +1,4 @@
-"""Momiq local API. Python 3.12+, SQLite; no third-party runtime dependencies."""
+"""Momiq API. Python 3.12, SQLite and bounded Pillow upload decoding."""
 import base64
 import hashlib
 import hmac
@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from config import Settings
 from migrations import migrate
 import wallet
+from media_validation import validate_photo, MediaBusy
 
 ROOT = Path(__file__).resolve().parent
 SETTINGS = Settings.load(os.environ, ROOT)
@@ -110,14 +111,7 @@ def sitter_names():
     return {s['id']: s.get('name', '') for s in sitter_profiles()}
 
 def photo(value):
-    if value is None:
-        return None
-    if not isinstance(value, str) or len(value) > 4_200_000:
-        raise ValueError("Rasm 3 MB dan kichik bo‘lishi kerak")
-    raw = base64.b64decode(value, validate=True)
-    if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4] == b"RIFF" and raw[8:12] == b"WEBP")):
-        raise ValueError("PNG, JPEG yoki WebP rasm yuboring")
-    return value
+    return validate_photo(value)
 
 def string(value, limit=100):
     if not isinstance(value, str) or len(value) > limit:
@@ -485,6 +479,7 @@ class Handler(BaseHTTPRequestHandler):
     def dispatch(self):
         try: self.handle_request()
         except (ApiError,wallet.WalletError) as e: self.reply(e.status,{'error':e.message})
+        except MediaBusy as e: self.reply(503,{'error':str(e)})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): pass
         except Exception as e:

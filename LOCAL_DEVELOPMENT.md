@@ -2,13 +2,14 @@
 
 Backend va admin repolari bir ota papkada `momiq_backend` va `momiq_admin` nomlari bilan turadi. Eski `momiq_admin_panel` nomi ham fallback sifatida qo‘llanadi; `MOMIQ_ADMIN_DIR` aniq yo‘lni belgilaydi.
 
-Python 3.12+ va Flutter 3.44.5 kerak. CI Python 3.12 / Flutter 3.44.5 ishlatadi. App papkasida `./tool/setup-flutter.ps1` loyiha uchun alohida SDK o‘rnatadi; keyingi buyruqlarda `./tool/flutter.ps1` ishlatiladi. Global SDK o‘zgarmaydi. Windowsdagi global Flutter 3.47.8 test processida 0xc0000005 native qulash kuzatildi; CI bilan bir xil 3.44.5 SDK’da to‘liq suite o‘tdi. Bu kuzatuv upstream xatoning aniq ildiz sababi topildi degani emas. Git long-path sozlamasi faqat shu SDK clone’ida yoqiladi. Mahalliy Python 3.15.1, Java/NDK uyg‘unligi hali M010 doirasida tekshiriladi. iOS simulator/build uchun macOS kerak; signing yakuniy bosqichda.
+Python 3.12+ va Flutter 3.44.5 kerak. CI Python 3.12 / Flutter 3.44.5 ishlatadi. App papkasida `./tool/setup-flutter.ps1` loyiha uchun alohida SDK o‘rnatadi; keyingi buyruqlarda `./tool/flutter.ps1` ishlatiladi. Global SDK o‘zgarmaydi. Windowsdagi global Flutter 3.47.8 test processida 0xc0000005 native qulash kuzatildi; CI bilan bir xil 3.44.5 SDK’da to‘liq suite o‘tdi. Bu kuzatuv upstream xatoning aniq ildiz sababi topildi degani emas. Git long-path sozlamasi faqat shu SDK clone’ida yoqiladi. Loyiha Python 3.12.10 `.venv`da ishlaydi; global Python 3.15.1 o‘zgarmaydi. Java/NDK uyg‘unligi hali M010 doirasida tekshiriladi. iOS simulator/build uchun macOS kerak; signing yakuniy bosqichda.
 
 **Ishga tushirish**
 
 Backend papkasidan:
 
 ```powershell
+./tool/setup-python.ps1
 ./start.ps1 -Port 8081 -Seed
 ```
 
@@ -27,8 +28,8 @@ Skript adb reverse o‘rnatadi, mavjud bo‘lmasa MapKit lokal konfiguratsiya na
 Qo‘lda test ma’lumotlari:
 
 ```powershell
-python seed_test_data.py --data-dir .local/another-preview
-python seed_test_data.py --data-dir .local/another-preview --clean
+./.venv/Scripts/python.exe seed_test_data.py --data-dir .local/another-preview
+./.venv/Scripts/python.exe seed_test_data.py --data-dir .local/another-preview --clean
 ```
 
 Seed faqat yangi yoki o‘z markeriga ega local/test papkaga yozadi. Qayta ishga tushirish dublikat qilmaydi va tahrirlangan fixture ustidan yozmaydi. Clean faqat seedning hisoblari/yozuvlarini o‘chiradi; begona foydalanuvchi ularga bog‘langan bo‘lsa rad etadi. Ishlab turgan real bazani seed papkasiga ko‘chirmang. Hosted muhitda seed ishlamaydi.
@@ -53,7 +54,7 @@ Local build production API’ga ulanmaydi; release local konfiguratsiyani rad et
 **Tekshiruv**
 
 ```powershell
-python -m unittest -q
+./.venv/Scripts/python.exe -m unittest -q
 # App papkasida:
 ./tool/flutter.ps1 analyze --no-pub
 ./tool/flutter.ps1 test --no-pub --concurrency=1
@@ -61,3 +62,5 @@ python -m unittest -q
 ```
 
 Integration testi faqat aniq belgilangan lokal test hisobida profil/hayvon/sozlamani yozadi. Windows umumiy test runner’i suite yuklashda ulanishni yo‘qotsa, `tool/check-windows.ps1` har faylni alohida processda bajaradi, `.local/test-results/summary.json` va alohida loglarga exit kodlarini saqlaydi. Muvaffaqiyatsiz testlar yashirilmaydi.
+
+Android build C diskidagi global Gradle keshida joy tugashi bilan to‘xtadi. App wrapper endi Gradle va vaqtinchalik fayllarni loyiha `.local/gradle` va `.local/tmp` papkalariga yo‘naltiradi; global environment o‘zgarmaydi. Shu build yaratgan engine keshining fayllari D diskiga ko‘chirildi, qisman extraction fayllari `.local/failed-gradle-transforms`da saqlandi. Locklangan fayllar o‘chirilmadi. Qayta build natijasi bajarilish jurnalida qayd etiladi.

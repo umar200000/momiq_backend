@@ -47,6 +47,9 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Bajarilish jurnali — 2026-10-27**
 
+- M020/M021/M030/M126 yopildi: himoyalangan sessiya, barcha qurilmadan chiqish va server profil/afzalliklari uchun regressionlar o‘tdi. Android login/restart amalda ko‘rildi. App `6d6ba2e` uchun Linux analyze/test va iOS simulator build CI muvaffaqiyatli; Windows 126 passed / 1 opt-in integration skipped. Real iPhone/signing tekshiruvi M120 ostida ochiq. Backend `9aa6179` va admin `3188515` CI muvaffaqiyatli.
+- M010/M103: lokal Python 3.12.10 alohida papkaga o‘rnatildi, `.venv` va dependency install CI bilan moslandi. Pillow 13.0.0 yordamida haqiqiy PNG/JPEG/WebP decode, 3 MiB / 12 MP / 8192 px limit, animatsiyani rad etish va process boshiga 2 decoder cheklovi qo‘shildi. Buzilgan header/truncated/oversize rasmlar bo‘yicha 4 yangi test, cursor/ledger/auditni saqlash bilan jami 39 Python testi o‘tdi. Lokal bazada migration dry-run: yangi migratsiya yo‘q, integrity ok. Chek baytlari dalil sifatida o‘zgarmaydi; public media EXIF/object storage M104 ostida qoladi.
+
 Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetlanish qayd etiladi. Dastlabki 3–6 haftalik taxmin faol ishlab chiqish/test ko‘lamiga tegishli; SMS/MyID kelishuvi, Apple hisoblari va tashqi xizmatlarni kutish unga kirmaydi. Bu yakuniy reliz sanasi kafolati emas.
 
 - M010/M126 yechimi: Windows Application log’da global Flutter 3.47.8 `flutter_tester.exe` 0xc0000005 bilan qulagani kuzatildi. Global SDK o‘zgartirilmadi; `.local/toolchains/flutter-3.44.5` CI bilan bir xil exact commitga o‘rnatildi, wrapper va lockfile qo‘shildi. Birinchi to‘liq Windows tekshiruvi 124 passed / 1 opt-in integration skipped; native crash takrorlanmadi. Git long filename xatosi SDK clone’iga lokal `core.longpaths=true` orqali hal qilindi. Python/Java/NDK va yangi wallet suite CI yakuni alohida tekshiriladi.
@@ -112,8 +115,8 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 - [ ] M017 — OTP tekshirishni server boshqarishi: kodning amal muddati, bir martalik ishlatilishi, urinish limiti va xavfsiz saqlanishi bor; noto‘g‘ri/eskirgan/qayta ishlatilgan kod rad etiladi.
 - [ ] M018 — Qayta SMS yuborish va suiiste’mol cheklovlarini ulash: telefon/IP bo‘yicha limit, kutish vaqti va xarajat nazorati; ekrandagi taymer server holatiga mos keladi.
 - [ ] M019 — Umumiy 111111 kodini production oqimidan chiqarish: test mexanizmi faqat belgilangan sinov muhitida ishlaydi; release va deploy tekshiruvi test login yoqilganini to‘sadi.
-- [ ] M020 — Tokenlarni platformaning himoyalangan xotirasiga ko‘chirish: eski SharedPreferences tokenini ko‘chirish/tozalash; backup, log va xato hisobotlari tokenni oshkor qilmaydi.
-- [ ] M021 — Sessiya muddatini va ko‘p qurilmali ishlashni yakunlash: yangilash yoki qayta kirish siyosati, bir/barcha sessiyadan chiqish, bloklanganda bekor qilish; offline logout ham lokal hisobni tozalaydi.
+- [x] M020 — Tokenlarni platformaning himoyalangan xotirasiga ko‘chirish: eski SharedPreferences tokenini ko‘chirish/tozalash; backup, log va xato hisobotlari tokenni oshkor qilmaydi.
+- [x] M021 — Sessiya muddatini va ko‘p qurilmali ishlashni yakunlash: yangilash yoki qayta kirish siyosati, bir/barcha sessiyadan chiqish, bloklanganda bekor qilish; offline logout ham lokal hisobni tozalaydi.
 - [ ] M022 — Ro‘yxatdan o‘tishni davom ettirish va rol almashishni yakunlash: tugallanmagan profil qayta ochiladi, mijoz/enaga roli adashmaydi, rol tanlashning o‘zi ortiqcha huquq bermaydi.
 - [ ] M023 — Telefon almashtirish va hisobni tiklash oqimini belgilash: egalik qayta tekshiriladi, dublikat hisob va raqam qayta berilishi holatlari boshqariladi, muhim o‘zgarish sessiyalarga ta’sir qiladi.
 - [ ] M024 — Hisobni o‘chirishni ulash: ilova ichidagi so‘rov va tashqi veb yo‘li, qayta tasdiqlash, faol buyurtma/to‘lovlar siyosati, media/sessiya/push tokenlarini tozalash va zarur saqlash istisnolari foydalanuvchiga ko‘rsatiladi.
@@ -125,7 +128,7 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 - [ ] M027 — Hayvon yaratish/tahrirlash/arxivlashni yakunlash: rasm, tur, yosh, jins, zot, izoh va Boshqa turi validatsiyasi bir xil; eski buyurtmadagi hayvon tarixi saqlanadi.
 - [ ] M028 — Hayvon xavfsizligi ma’lumotlarini kelishilgan shaklda qo‘shish: emlash/pasport, allergiya, dori, xulq va favqulodda kontakt; faqat zarur tomonlar ko‘ra oladi, tibbiy qaror avtomatlashtirilmaydi.
 - [ ] M029 — Manzil yaratish/tahrirlash/o‘chirishni yakunlash: koordinata, matn, kirish ko‘rsatmasi va xizmat hududi tekshiriladi; eski buyurtma manzili o‘zgarmaydi, aniq manzil ruxsatsiz ochilmaydi.
-- [ ] M030 — Profil, til va afzalliklarni qurilmalar o‘rtasida uyg‘unlashtirish: mock.profile/mock.notify kabi lokal nusxalar server haqiqatini bosmaydi; rasmni almashtirish/o‘chirish ham aks etadi.
+- [x] M030 — Profil, til va afzalliklarni qurilmalar o‘rtasida uyg‘unlashtirish: mock.profile/mock.notify kabi lokal nusxalar server haqiqatini bosmaydi; rasmni almashtirish/o‘chirish ham aks etadi.
 - [x] M031 — Bir vaqtdagi tahrirlarni himoyalash: butun hisob JSON’ini yuborish bilan boshqa qurilma/admin o‘zgarishlari yo‘qolmaydi; versiya yoki qisman yangilash orqali konflikt aniqlanadi.
 
 **E. Enaga xizmatini e’lon qilish**
@@ -268,7 +271,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 
 **Q. Sinov va productionga chiqish dalillari**
 
-- [ ] M126 — Mavjud testlarni barqaror o‘tkazish: 14 backend testini saqlash, admin testlari va butun Flutter to‘plamini CI’da yakunlash; Windows runner uzilishining sababini ajratish, muvaffaqiyatli test soni qayd etiladi.
+- [x] M126 — Mavjud testlarni barqaror o‘tkazish: 14 backend testini saqlash, admin testlari va butun Flutter to‘plamini CI’da yakunlash; Windows runner uzilishining sababini ajratish, muvaffaqiyatli test soni qayd etiladi.
 - [ ] M127 — Biznes qoidalari va API contract testlarini qo‘shish: narx, sana, sig‘im, holat o‘tishi, null, rol, xato javobi va eski ma’lumot; testlar faqat implementatsiyani takrorlamaydi.
 - [ ] M128 — Ikki qurilma va admin bilan end-to-end oqim: ro‘yxat → enaga balansini to‘ldirish → e’lon/moderatsiya → qidiruv → bron → qabul/komissiya → chat → parvarish → yakun → sharh; xizmat puli Momiq orqali olinmaydi, restartdan keyin ma’lumot qoladi.
 - [ ] M129 — Muqobil oqimlarni sinash: rad, timeout, bekor/refund, no-show, nizo, blok, hisob o‘chirish, telefon/rol almashish; hech biri begona ma’lumot yoki noto‘g‘ri balans qoldirmaydi.

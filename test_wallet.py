@@ -1,11 +1,30 @@
 import sqlite3
 import unittest
 from contextlib import closing
+from types import SimpleNamespace
 import migrations
 import wallet
 
 
 class WalletLedgerTests(unittest.TestCase):
+    def test_history_cursor_reaches_all_records_and_is_owner_scoped(self):
+        with closing(sqlite3.connect(':memory:')) as con:
+            con.row_factory=sqlite3.Row
+            con.execute('CREATE TABLE users(id TEXT PRIMARY KEY)')
+            con.executemany('INSERT INTO users VALUES(?)',[('a',),('b',)])
+            con.commit();migrations.migrate(con)
+            for i in range(45):
+                con.execute('INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                            (f'{i:032x}','a',100,'image',str(i),1,wallet.TERMS_VERSION,str(i),'pending','2026-10-27T00:00:00+00:00'))
+            collected=[];cursor=None
+            for _ in range(3):
+                page=wallet.topup_page(SimpleNamespace(path='/api/wallet/topups'+('?cursor='+cursor if cursor else '')),con,'a')
+                collected.extend(r['id'] for r in page['topups']);cursor=page['nextCursor']
+            self.assertIsNone(cursor)
+            self.assertEqual(len(set(collected)),45)
+            with self.assertRaises(wallet.WalletError):
+                wallet.topup_page(SimpleNamespace(path='/api/wallet/topups?cursor='+collected[0]),con,'b')
+
     def test_debit_idempotency_rollback_and_immutable_history(self):
         with closing(sqlite3.connect(':memory:')) as con:
             con.row_factory = sqlite3.Row

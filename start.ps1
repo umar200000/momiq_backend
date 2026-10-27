@@ -12,7 +12,11 @@ if (-not $DataDir) {
 }
 $DataDir = [IO.Path]::GetFullPath($DataDir)
 $baseUrl = "http://127.0.0.1:$Port"
-$pythonExe = python -c 'import sys; print(sys.executable)'
+$pythonExe = Join-Path $backendRoot '.venv/Scripts/python.exe'
+if (-not (Test-Path -LiteralPath $pythonExe)) {
+    throw 'Create the project environment first: ./tool/setup-python.ps1'
+}
+& $pythonExe -c 'import PIL; import sys; assert sys.version_info[:2] == (3,12)'
 if ($LASTEXITCODE -ne 0) { throw 'Python 3.12+ is required.' }
 $saved = @{}
 foreach ($key in @('MOMIQ_ENV','MOMIQ_DATA_DIR','MOMIQ_PORT','MOMIQ_HOST','MOMIQ_ALLOW_TEST_LOGIN')) {
@@ -49,6 +53,12 @@ try {
             if (-not $health -or $health.instanceId -ne $instanceId -or $health.mode -ne 'local') {
                 throw "Backend did not start correctly. See $DataDir/server-error.log"
             }
+            # The Windows venv launcher may spawn the interpreter as a child.
+            $listener = Get-NetTCPConnection -LocalPort $Port -State Listen
+            $worker = Get-CimInstance Win32_Process -Filter "ProcessId=$($listener.OwningProcess)"
+            if ($worker.ProcessId -eq $serverProcess.Id -or $worker.ParentProcessId -eq $serverProcess.Id) {
+                $worker.ProcessId | Set-Content (Join-Path $DataDir 'server.pid')
+            } else { throw 'Unexpected listener process; no process was stopped.' }
         }
     } finally { Pop-Location }
 } finally {

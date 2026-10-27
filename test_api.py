@@ -11,6 +11,7 @@ from urllib.request import Request, build_opener, HTTPCookieProcessor
 from urllib.error import HTTPError
 from http.server import ThreadingHTTPServer
 import server
+from test_media import fixture_image
 
 class ApiTests(unittest.TestCase):
     @classmethod
@@ -174,7 +175,7 @@ class ApiTests(unittest.TestCase):
         for key,value in [('profile',[]),('notifications',[]),('notifications',None),('support',[None])]:
             with self.subTest(key=key,value=value):
                 self.req('/api/me','PUT',dict(account,**{key:value}),token=a['token'],expected=400)
-        png=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'example').decode()
+        png=fixture_image()
         pet={'id':'minimal','type':'Mushuk','photo':png,'notes':None}
         account['pets']=[pet]
         account['addresses']=[{'id':'home','label':None,'address':'Toshkent','lat':41.3,'lon':69.2}]
@@ -206,7 +207,7 @@ class ApiTests(unittest.TestCase):
         self.req('/api/admin/topups',token=a['token'],expected=401)
         config=self.req('/api/admin/platform-settings',admin=True)
         self.assertEqual(config['commissionBps'],1000)
-        png=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'test-qr').decode()
+        png=fixture_image('green')
         config=self.req('/api/admin/platform-settings','PUT',{'version':config['version'],'qrImage':png,'testOnly':True,'reason':'TEST only QR'},admin=True)
         payload={'requestId':'once','amountMinor':2_000_000,'receipt':png,'qrVersion':config['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True}
         self.req('/api/wallet/topups','POST',dict(payload,acceptNonRefundable=False),token=a['token'],expected=400)
@@ -248,7 +249,7 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(con.execute('SELECT SUM(amount_minor) FROM wallet_entries WHERE user_id=?',(a['userId'],)).fetchone()[0],result['balanceMinor'])
             with self.assertRaisesRegex(sqlite3.IntegrityError,'immutable'): con.execute('UPDATE wallet_entries SET amount_minor=1 WHERE user_id=?',(a['userId'],))
         # A different receipt cannot credit the same real incoming transfer twice.
-        payload.update(requestId='second',receipt=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'different-test').decode())
+        payload.update(requestId='second',receipt=fixture_image('blue'))
         second=self.req('/api/wallet/topups','POST',payload,token=a['token'],expected=201)['topup']
         self.req('/api/admin/topups/'+second['id']+'/review','POST',decision,admin=True,expected=409)
         self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],2_000_000)
@@ -285,7 +286,7 @@ class ApiTests(unittest.TestCase):
         self.req('/api/me',token=a['token'],expected=401)
     def test_photo_settings_and_persistence(self):
         a=self.login('998907777777')
-        png=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'example').decode()
+        png=fixture_image()
         account=a['account'];account['profile']={'first':'Madina','last':'Test','photo':png}
         account['notifications']['chat']=False
         account['favorites']=['hoji'];account['language']='ru'
