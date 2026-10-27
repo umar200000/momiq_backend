@@ -47,6 +47,10 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Bajarilish jurnali — 2026-10-27**
 
+- M115 qisman dalil: ishlayotgan preview bazasidan SQLite online backup olinib `.local/restore-drills/20261027T171112Z/momiq.sqlite3` nusxada tekshirildi. Integrity ok, FK xatosi 0, balans/ledger farqi 0, approved chek/kredit farqi 0, pending migration yo‘q; 5 test hisob va 1 ledger saqlangan. Bu offsite/production tiklash mashqi emas, M114/M115 ochiq qoladi.
+
+- Launcher qayta ishga tushirishida `-Seed`/`-DataDir` berilmagani sabab qisqa muddat default `.local/local` bazasi ochildi. Listener PID va instanceId tekshirilib, faqat shu lokal process to‘xtatildi; `-DataDir .local/preview` bilan to‘g‘ri baza tiklandi (`7857eb904d1ec5fc`). Bazalar o‘chirilmagan, tasdiqlangan test ledger saqlangan. Windows venv launcher child PID ochgani uchun PID fayli haqiqiy port egasini yozadigan qilindi.
+
 - M061/M136 yopildi: QR/chek/rozilik/retry UI va admin tekshiruvi API bilan ulandi. Android preview APK’da 15 000 so‘m test balans, 10% komissiya, tasdiqlangan so‘rov va aynan 1 ledger yozuvi ko‘rildi (`.local/wallet-android-balance.png`, `.local/wallet-android-history.png`). Admin UI dalili `.local/wallet-admin-approved.png`. Balans va jurnal GET javobi bir DB snapshotdan o‘qiladi; parallel kredit paytidagi izchillik regressioni bilan jami 40 Python testi o‘tdi. Bron/komissiya yechish, qoralama/aniqlashtirish va QR saqlash alohida ochiq bandlar bo‘lib qoladi.
 
 - Lokal oqim dalili: `TEST boarding` hisobidan sintetik chek yuborildi, pending paytida balans 0; admin UI tasdiqlagach 1 500 000 tiyin va aynan 1 ledger yozuvi. Haqiqiy pul o‘tkazilmagan. Tasdiqlangan chek screenshot’i `.local/wallet-admin-approved.png`. Androidda barcha sessiyalardan chiqish ham amalda tekshirildi.
