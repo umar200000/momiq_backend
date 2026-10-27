@@ -256,6 +256,30 @@ class ApiTests(unittest.TestCase):
         self.req('/api/admin/topups/'+second['id']+'/review','POST',{'decision':'reject','reason':'TEST duplicate incoming transfer'},admin=True)
         self.assertEqual(self.req('/api/wallet/topups',token=a['token'])['topups'][0]['status'],'rejected')
         self.assertEqual(self.req('/api/admin/topups?status=pending',admin=True)['topups'],[])
+
+    def test_wallet_read_uses_one_snapshot_during_credit(self):
+        from unittest.mock import patch
+        import wallet
+        a=self.req('/api/auth/login','POST',{'phone':'998909000009','code':'111111','role':'sitter'})
+        with server.db() as con:
+            con.execute('BEGIN IMMEDIATE')
+            wallet.post_entry(con,a['userId'],100,'topup','snapshot-initial','test','synthetic')
+        original_balance=wallet.balance
+        injected=False
+        def credit_between_reads(con,uid):
+            nonlocal injected
+            if not injected:
+                injected=True
+                with server.db() as writer:
+                    writer.execute('BEGIN IMMEDIATE')
+                    wallet.post_entry(writer,uid,200,'topup','snapshot-next','test','synthetic')
+            return original_balance(con,uid)
+        with patch.object(wallet,'balance',side_effect=credit_between_reads):
+            result=self.req('/api/wallet',token=a['token'])
+        self.assertEqual(result['balanceMinor'],100)
+        self.assertEqual(sum(row['amountMinor'] for row in result['entries']),100)
+        self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],300)
+
     def test_chat_reply_isolation_and_idempotency(self):
         a=self.login('998903333333');b=self.login('998904444444')
         message={'sitter':'hoji','text':'Salom','requestId':'once'}

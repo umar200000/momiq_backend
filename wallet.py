@@ -126,6 +126,8 @@ def route(handler, con, uid, path, photo, environment):
             con.commit()
         handler.reply(200,settings(con));return True
     if path == '/api/wallet' and method=='GET':
+        # Balance and entries must describe one snapshot during concurrent credit.
+        con.execute('BEGIN')
         require_sitter(con,uid)
         entries=[{'id':r['id'],'amountMinor':r['amount_minor'],'balanceAfter':r['balance_after'],'kind':r['kind'],'reason':r['reason'],'created':r['created']}
                  for r in con.execute('SELECT * FROM wallet_entries WHERE user_id=? ORDER BY created DESC,id DESC LIMIT 50',(uid,))]
