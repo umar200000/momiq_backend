@@ -415,17 +415,22 @@ class ApiTests(unittest.TestCase):
 
     def test_chat_reply_isolation_and_idempotency(self):
         a=self.login('998903333333');b=self.login('998904444444')
-        message={'sitter':'hoji','text':'Salom','requestId':'once'}
+        message={'sitter':'hoji','text':'Salom','requestId':'once','senderRole':'support'}
         self.req('/api/messages','POST',message,token=a['token'],expected=409)
         # A historical conversation survives removal from discovery.
         with server.db() as con:
             con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,time) VALUES(?,?,?,?,?,?)',('historical-chat',a['userId'],'hoji',0,'Old conversation','2020-01-01'))
         self.req('/api/messages','POST',message,token=a['token'])
         self.req('/api/messages','POST',message,token=a['token'])
+        self.req('/api/messages','POST',dict(message,text='Changed retry'),token=a['token'],expected=409)
+        self.req('/api/messages','POST',dict(message,image=fixture_image('pink')),token=a['token'],expected=409)
         self.assertEqual(len(self.req('/api/messages',token=a['token'])['messages']),2)
         self.assertEqual(self.req('/api/messages',token=b['token'])['messages'],[])
         data=self.req('/api/admin/users/'+a['userId']+'/messages','POST',{'sitter':'hoji','text':'Salom, javob','requestId':'reply'},admin=True)
         self.assertFalse(data['messages'][-1]['mine'])
+        self.assertEqual(data['messages'][-1]['senderRole'],'support')
+        self.assertEqual(data['messages'][-2]['senderRole'],'customer')
+        self.req('/api/admin/users/'+a['userId']+'/messages','POST',{'sitter':'hoji','text':'Changed reply','requestId':'reply'},admin=True,expected=409)
         self.req('/api/admin/messages/'+data['messages'][-1]['id'],'DELETE',admin=True)
         self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][-1]['text'],'Xabar o‘chirildi')
     def test_admin_block_and_unblock(self):

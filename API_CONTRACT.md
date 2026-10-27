@@ -76,3 +76,8 @@ Operators must compare recipient, time, amount and the provider's unique incomin
 ## Image validation
 
 Uploads are decoded using pinned Pillow 13.0.0: PNG, JPEG or WebP, at most 3 MiB, 12 million pixels, 8192 pixels per dimension, single frame. Both structural verification and full pixel loading must succeed. Fake magic headers and truncated images return 400. Decoder concurrency is bounded to two per process; saturation returns retryable 503. Original receipt bytes are retained for audit/hash matching; approved catalog images use resized, oriented public derivatives stripped of EXIF; other media lifecycle work remains in M104. Existing corrupt legacy images must be replaced when writing affected profiles. Validation follows [Pillow's image verification and decompression limits](https://pillow.readthedocs.io/en/stable/reference/Image.html).
+
+
+## Legacy support conversation attribution
+
+The existing `/api/messages` and admin reply endpoints now expose server-derived `senderRole=customer|support`. The legacy backend has no real sitter-authored messages; admin responses must display as Momiq support, never as the sitter. A caller-supplied sender role is ignored. Reusing an existing request ID requires the same sender side, conversation, text and image; changed payload returns 409. The admin composer reuses its in-memory request ID after a failed response, until content changes or succeeds. Durable chat drafts, true customer/sitter conversations, pagination/read state and operator permission scoping remain M067–M073 work.

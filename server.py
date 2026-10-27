@@ -302,6 +302,7 @@ class Handler(BaseHTTPRequestHandler):
         con.execute("INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)", ("admin",action,target,now()))
     def messages(self, con, user):
         return [{"id": r["id"], "sitter": r["sitter"], "mine": bool(r["mine"]),
+                 "senderRole": "customer" if r["mine"] else "support",
                  "text": "Xabar o‘chirildi" if r["deleted"] else r["text"],
                  "image": None if r["deleted"] else r["image"], "time": r["time"]}
                 for r in con.execute("SELECT * FROM messages WHERE user_id=? ORDER BY time,id", (user,))]
@@ -485,7 +486,8 @@ class Handler(BaseHTTPRequestHandler):
         con.execute('BEGIN IMMEDIATE')
         existing = con.execute('SELECT * FROM messages WHERE user_id=? AND request_id=?',(user,request_id)).fetchone()
         if existing:
-            if bool(existing['mine']) != mine or existing['sitter'] != sitter:
+            if (bool(existing['mine']) != mine or existing['sitter'] != sitter
+                    or existing['text'] != text or existing['image'] != image):
                 raise ApiError(409,'So‘rov identifikatori takrorlangan')
         else:
             if mine and not con.execute('SELECT 1 FROM messages WHERE user_id=? AND sitter=? LIMIT 1',(user,sitter)).fetchone():
