@@ -1,19 +1,20 @@
-# Momiq — lokal profil va chat backend
+# Momiq — API va production tayyorgarligi
 
 Joriy local/test ish tartibi: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md). Production ishlari va bajarilish dalillari: [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md). Yangi launcher test bazasini alohida saqlaydi; production test OTP konfiguratsiyasini qabul qilmaydi.
 
 ## Ishga tushirish
 
-Python 3.12+ yetarli. Qo‘shimcha paket talab qilinmaydi.
+Python 3.12 va `requirements.txt` dagi Pillow talab qilinadi. Windows uchun loyiha ichidagi toolchain va virtual muhitni tayyorlang:
 
 ```powershell
-cd "D:\full projects\momiq project\momiq_backend"
+cd "D:\projects\momiq_v1\momiq_backend"
+.\tool\setup-python.ps1
 .\start.ps1
 ```
 
 Admin: http://127.0.0.1:8080/admin/
 API holati: http://127.0.0.1:8080/api/health
-Admin login/paroli birinchi startda `data/admin-login.txt` fayliga yoziladi. Bu fayl, SQLite baza va loglar Gitga kiritilmaydi.
+Admin login/paroli tanlangan data papkasidagi `admin-login.txt` fayliga yoziladi (standart launcher: `.local/local`). Bu fayl, SQLite baza va loglar Gitga kiritilmaydi.
 
 ## USB orqali Android telefon
 
@@ -66,11 +67,11 @@ Sinov uchun `+998 90 000 00 01` hisobida `Sinov Mijoz` mavjud; bu haqiqiy mijoz 
 ## Testlar
 
 ```powershell
-python -m unittest -v
+.\.venv\Scripts\python.exe -m unittest -v
 cd ..\momiq_app
-flutter analyze --no-pub
-flutter test --no-pub
-flutter test --no-pub --dart-define=MOMIQ_INTEGRATION=true test/customer_api_integration_test.dart
+.\tool\flutter.ps1 analyze
+.\tool\flutter.ps1 test
+.\tool\flutter.ps1 test --dart-define=MOMIQ_INTEGRATION=true test/customer_api_integration_test.dart
 ```
 
 Oxirgi buyruq ishlayotgan localhost APIga ulanadi va belgilangan sinov hisobini ishlatadi. Oddiy testlar tarmoqsiz mock rejimda ishlaydi.
@@ -78,7 +79,7 @@ Oxirgi buyruq ishlayotgan localhost APIga ulanadi va belgilangan sinov hisobini 
 ## Serverga ko‘chirish
 
 Bu versiya localhost development uchun: Python stdlib HTTP serveri va doimiy 111111 kodi bilan internetga ochmang.
-Production bosqichida SMS provayder/OTP challenge, HTTPS reverse proxy, production HTTP server/framework, tokenni platformaning secure storage xizmatiga ko‘chirish, object storage, paginatsiya, push/WebSocket, backup va monitoring qo‘shiladi. Mijozdagi URL:
+Mobil token secure storage’ga ko‘chirildi; uning va boshqa bajarilgan bosqichlarning dalillari checklistda. SMS/OTP, MyID, public release, object storage, katalog paginatsiyasi, push va production backup/monitoring bo‘yicha qolgan talablar ham shu ro‘yxatda yuritiladi. Mijozdagi URL:
 
 ```powershell
 flutter run --dart-define=MOMIQ_API_URL=https://api.example.uz/api
@@ -94,10 +95,15 @@ Clone the repositories into sibling folders. The backend detects `momiq_admin`, 
 git clone https://github.com/umar200000/momiq_backend.git
 git clone https://github.com/umar200000/momiq_admin.git momiq_admin_panel
 cd momiq_backend
+python -m pip install -r requirements.txt
 python server.py
 ```
 
 Open http://127.0.0.1:8080/admin/ . Local credentials are generated on the first start.
 
 ## Roles and sitter listings
-Login accepts optional `role` (`customer` / `sitter`). Memberships accumulate per account; existing users are migrated from their saved sitter profile. `GET/PUT /api/me/listings` stores up to three validated service types for the authenticated owner. Writes require a completed sitter profile. `GET /api/admin/listings` exposes owner details only to admins. This does not enable booking or public catalog publishing.
+Login accepts optional `role` (`customer` / `sitter`). Memberships accumulate per account; existing users are migrated from their saved sitter profile. `GET/PUT /api/me/listings` stores up to three validated service types for the authenticated owner. PUT requires the loaded `_revision` (428 when missing, 409 when stale). Responses include server-owned `moderation` status/reason per service. Admins review using `POST /api/admin/listings/{userId}/{service}/review` with `_revision`, `decision` (approve/reject/suspend), `reason` and explicit `testOnly`.
+
+`GET /api/sitters` derives discovery from active approved listings, matching profile/price fingerprints, unblocked sitter accounts and balance >= 15,000 UZS. Legacy demo `sitters` rows are retained only as existing references. Private street addresses are replaced by an approximate map point; public image derivatives are resized, oriented and stripped of metadata during approval. Originals and payment receipts remain unchanged. Existing chat remains usable after discovery removal; new client conversations require current discovery eligibility.
+
+MyID is deferred: approval currently requires `testOnly=true` in a non-production environment. These records explicitly return `identityVerified=false`; production discovery remains empty until actual verification is implemented. Seeding does not approve or fund fixtures automatically. Complete a TEST profile, review its TEST top-up, then explicitly approve its TEST listing in the local admin panel. Booking, capacity locking and commission charging remain separate unfinished work in `PRODUCTION_CHECKLIST.md`.

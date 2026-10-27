@@ -24,6 +24,11 @@ MIGRATIONS = (
         "CREATE TABLE topup_requests(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), amount_minor INTEGER NOT NULL CHECK(amount_minor > 0), receipt TEXT NOT NULL, receipt_hash TEXT NOT NULL UNIQUE, qr_version INTEGER NOT NULL REFERENCES platform_settings(version), terms_version TEXT NOT NULL, request_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')), transfer_reference TEXT UNIQUE, reviewed_by TEXT, review_reason TEXT, created TEXT NOT NULL, reviewed_at TEXT, UNIQUE(user_id,request_id))",
         'CREATE INDEX topup_requests_status ON topup_requests(status,created,id)',
     )),
+    (3, 'listing revisions and moderation', (
+        'CREATE TABLE listing_revisions(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0))',
+        'INSERT INTO listing_revisions(user_id) SELECT id FROM users',
+        "CREATE TABLE listing_moderation(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, service TEXT NOT NULL CHECK(service IN ('boarding','homeVisit','personal')), status TEXT NOT NULL CHECK(status IN ('draft','pending','approved','rejected','suspended','archived')), approved_hash TEXT, test_only INTEGER NOT NULL DEFAULT 0 CHECK(test_only IN (0,1)), reason TEXT NOT NULL DEFAULT '', reviewed_by TEXT, reviewed_at TEXT, public_media TEXT, PRIMARY KEY(user_id,service))",
+    )),
 )
 
 

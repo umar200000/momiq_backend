@@ -3,7 +3,7 @@ import base64
 import io
 import threading
 import warnings
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_BYTES = 3 * 1024 * 1024
 MAX_PIXELS = 12_000_000
@@ -46,3 +46,29 @@ def validate_photo(value):
     # Keep the submitted evidence bytes unchanged; metadata cleanup is a separate
     # public-derivative/storage operation, not a mutation of payment evidence.
     return value
+
+
+def public_photo(value):
+    """Generate a small, oriented discovery image without private EXIF/GPS data.
+
+    Called on moderation approval, never on every public catalog request.
+    Payment receipts and original uploads are untouched.
+    """
+    if value is None: return None
+    validate_photo(value)
+    if not _decoders.acquire(timeout=1):
+        raise MediaBusy('Rasm tayyorlash band. Qayta urinib ko‘ring.')
+    try:
+        with Image.open(io.BytesIO(base64.b64decode(value))) as source:
+            oriented = ImageOps.exif_transpose(source)
+            oriented.thumbnail((1280,1280))
+            clean = Image.new('RGB',oriented.size,'white')
+            if 'A' in oriented.getbands():
+                clean.paste(oriented.convert('RGB'),mask=oriented.getchannel('A'))
+            else:
+                clean.paste(oriented.convert('RGB'))
+            output=io.BytesIO()
+            clean.save(output,format='JPEG',quality=85)
+            return base64.b64encode(output.getvalue()).decode('ascii')
+    finally:
+        _decoders.release()

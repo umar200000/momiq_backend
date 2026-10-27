@@ -55,18 +55,20 @@ def seed(directory, mode='local', clean=False):
         with server.db() as con:
             con.execute('BEGIN IMMEDIATE')
             if clean:
+                references = set(ids) | {uid+':'+service for uid in ids for service in ('boarding','homeVisit','personal')}
                 for uid in ids:
                     if con.execute('SELECT 1 FROM topup_requests WHERE user_id=? LIMIT 1',(uid,)).fetchone() or con.execute('SELECT 1 FROM wallet_entries WHERE user_id=? LIMIT 1',(uid,)).fetchone():
                         raise ValueError('Fixture has financial history; cleanup refused. Use a new isolated preview directory.')
                 for row in con.execute('SELECT id,account FROM users'):
-                    if row['id'] not in ids and set(json.loads(row['account']).get('favorites', [])) & set(ids):
+                    if row['id'] not in ids and set(json.loads(row['account']).get('favorites', [])) & references:
                         raise ValueError('Unowned account references fixtures; cleanup refused')
                 for row in con.execute('SELECT user_id,sitter FROM messages'):
-                    if row['user_id'] not in ids and row['sitter'] in ids:
+                    if row['user_id'] not in ids and row['sitter'] in references:
                         raise ValueError('Unowned conversation references fixtures; cleanup refused')
                 for uid in ids:
                     con.execute('DELETE FROM messages WHERE user_id=?', (uid,))
                     con.execute('DELETE FROM sessions WHERE user_id=?', (uid,))
+                    con.execute('DELETE FROM wallet_accounts WHERE user_id=? AND balance_minor=0', (uid,))
                     con.execute('DELETE FROM users WHERE id=?', (uid,))
                     con.execute('DELETE FROM sitters WHERE id=?', (uid,))
                 return {'cleaned': len(ids), 'directory': str(directory)}

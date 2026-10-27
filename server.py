@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from config import Settings
 from migrations import migrate
 import wallet
+import catalog
 from media_validation import validate_photo, MediaBusy
 
 ROOT = Path(__file__).resolve().parent
@@ -105,10 +106,12 @@ def claim_account_revision(con, uid, revision):
 
 def sitter_profiles():
     with db() as con:
-        return [dict(json.loads(r['profile']), id=r['id']) for r in con.execute('SELECT id,profile FROM sitters WHERE active=1 ORDER BY id')]
+        con.execute('BEGIN')
+        return catalog.profiles(con, ENVIRONMENT)
 
 def sitter_names():
-    return {s['id']: s.get('name', '') for s in sitter_profiles()}
+    with db() as con:
+        return catalog.known_names(con)
 
 def photo(value):
     return validate_photo(value)
@@ -385,6 +388,8 @@ class Handler(BaseHTTPRequestHandler):
                     data = self.body()
                     account = validate_account(data)
                     claim_account_revision(con, user, data.get('_revision'))
+                    before = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                    catalog.invalidate_profile(con,user,before,account)
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
                         con.execute("INSERT OR IGNORE INTO user_roles VALUES(?,'sitter')",(user,))
@@ -393,22 +398,29 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200,{"userId":user,"phone":row["phone"],"account":account_snapshot(con,row)})
                 return
             if path == '/api/me/listings' and self.command in ['GET','PUT']:
-                account = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
                 if self.command == 'PUT':
-                    if not account.get('sitterProfile'): raise ApiError(403,'Avval enaga profilini to‘ldiring')
-                    data = validate_listings(self.body())
-                    con.execute('INSERT INTO listings VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated=excluded.updated',(user,json.dumps(data),now()))
-                    con.commit()
-                row = con.execute('SELECT data FROM listings WHERE user_id=?',(user,)).fetchone()
-                self.reply(200,json.loads(row[0]) if row else {'housing':(account.get('sitterProfile') or {}).get('housing','apartment'),'listings':[]})
+                    body = self.body()
+                    result = catalog.save(con,user,validate_listings(body),body.get('_revision'))
+                else:
+                    result = catalog.document(con,user)
+                self.reply(200,result)
                 return
             if path == '/api/admin/listings' and self.command == 'GET':
                 items = []
+                con.execute('BEGIN')
                 for r in con.execute('SELECT l.*,u.phone,u.account,u.blocked FROM listings l JOIN users u ON u.id=l.user_id ORDER BY l.updated DESC'):
-                    data = json.loads(r['data'])
+                    data = catalog.document(con,r['user_id'])
                     for item in data['listings']:
-                        items.append(dict(item,id=r['user_id']+':'+item['type'],userId=r['user_id'],phone=r['phone'],profile=json.loads(r['account'])['profile'],blocked=bool(r['blocked']),housing=data['housing'],updated=r['updated']))
+                        items.append(dict(item,id=r['user_id']+':'+item['type'],userId=r['user_id'],phone=r['phone'],profile=json.loads(r['account'])['profile'],blocked=bool(r['blocked']),housing=data['housing'],updated=r['updated'],_revision=data['_revision'],moderation=data['moderation'][item['type']],missing=catalog.completeness(json.loads(r['account']),item)))
                 self.reply(200,{'listings':items})
+                return
+            match = re.fullmatch(r'/api/me/listings/(boarding|homeVisit|personal)/archive',path)
+            if match and self.command == 'POST':
+                self.reply(200,catalog.archive(con,user,match[1],self.body().get('_revision')))
+                return
+            match = re.fullmatch(r'/api/admin/listings/([a-f0-9]+)/(boarding|homeVisit|personal)/review',path)
+            if match and self.command == 'POST':
+                self.reply(200,catalog.review(con,*match.groups(),self.body(),user,ENVIRONMENT))
                 return
             if path == "/api/messages" and self.command == "GET":
                 self.reply(200,{"messages":self.messages(con,user)})
@@ -442,6 +454,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Holat noto‘g‘ri')
                     account = validate_account(data['account']) if 'account' in data else json.loads(row['account'])
                     claim_account_revision(con, uid, data.get('_revision'))
+                    catalog.invalidate_profile(con,uid,json.loads(row['account']),account)
                     blocked = int(data.get('blocked',row['blocked']))
                     con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),blocked,uid))
                     if blocked:
@@ -466,11 +479,15 @@ class Handler(BaseHTTPRequestHandler):
         image = photo(data.get('image'))
         if not text and not image: raise ValueError('Xabar yoki rasm kiriting')
         request_id = string(data.get('requestId',secrets.token_hex(16)),100)
+        con.execute('BEGIN IMMEDIATE')
         existing = con.execute('SELECT * FROM messages WHERE user_id=? AND request_id=?',(user,request_id)).fetchone()
         if existing:
             if bool(existing['mine']) != mine or existing['sitter'] != sitter:
                 raise ApiError(409,'So‘rov identifikatori takrorlangan')
         else:
+            if mine and not con.execute('SELECT 1 FROM messages WHERE user_id=? AND sitter=? LIMIT 1',(user,sitter)).fetchone():
+                if sitter not in {s['id'] for s in catalog.profiles(con,ENVIRONMENT)}:
+                    raise ApiError(409,'Bu enaga hozir yangi mijoz qabul qilmayapti. Katalogni yangilang.')
             con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,image,time,request_id) VALUES(?,?,?,?,?,?,?,?)',
                         (secrets.token_hex(16),user,sitter,int(mine),text,image,now(),request_id))
             if not mine: self.audit(con,'reply',user)
@@ -478,7 +495,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):
         try: self.handle_request()
-        except (ApiError,wallet.WalletError) as e: self.reply(e.status,{'error':e.message})
+        except (ApiError,wallet.WalletError,catalog.CatalogError) as e: self.reply(e.status,{'error':e.message})
         except MediaBusy as e: self.reply(503,{'error':str(e)})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): pass

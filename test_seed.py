@@ -79,3 +79,5 @@ class SeedTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Unowned'): seed(target, clean=True)
             with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
                 self.assertEqual(con.execute('SELECT COUNT(*) FROM users').fetchone()[0], 5)
+                con.execute("UPDATE users SET account=? WHERE id='other'",(json.dumps({'favorites':[fixture_id('boarding')+':boarding']}),))
+            with self.assertRaisesRegex(ValueError, 'Unowned'): seed(target, clean=True)

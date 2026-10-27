@@ -5,7 +5,7 @@ import unittest
 import zlib
 from unittest.mock import patch
 from PIL import Image
-from media_validation import validate_photo, MAX_BYTES, MediaBusy
+from media_validation import validate_photo, public_photo, MAX_BYTES, MediaBusy
 
 
 def fixture_image(color='red', format='PNG', size=(2, 2)):
@@ -16,6 +16,19 @@ def fixture_image(color='red', format='PNG', size=(2, 2)):
 
 
 class MediaTests(unittest.TestCase):
+    def test_public_derivative_strips_metadata_and_orients_without_changing_evidence(self):
+        output=io.BytesIO()
+        image=Image.new('RGB',(2000,1000),'red')
+        exif=Image.Exif();exif[274]=6;exif[270]='PRIVATE ADDRESS';exif[315]='PRIVATE OWNER'
+        image.save(output,format='JPEG',exif=exif)
+        original=base64.b64encode(output.getvalue()).decode()
+        result=public_photo(original)
+        with Image.open(io.BytesIO(base64.b64decode(result))) as public:
+            self.assertEqual(public.size,(640,1280))
+            self.assertFalse(public.getexif())
+            self.assertNotIn('exif',public.info)
+        self.assertEqual(validate_photo(original),original)
+
     def test_real_formats_decode_and_evidence_is_unchanged(self):
         for format in ('PNG','JPEG','WEBP'):
             value=fixture_image(format=format)

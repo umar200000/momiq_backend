@@ -60,23 +60,37 @@ class ApiTests(unittest.TestCase):
         account=login['account'];account['profile'].update(first='Sitter',last='Test')
         account['sitterProfile']={'years':1,'about':'','homePhotos':[],'housing':'house'}
         self.req('/api/me','PUT',account,token=token)
-        self.req('/api/me/listings','PUT',payload,token=token)
-        self.assertEqual(self.req('/api/me/listings',token=token),payload)
+        self.req('/api/me/listings','PUT',payload,token=token,expected=428)
+        payload['_revision']=0
+        saved=self.req('/api/me/listings','PUT',payload,token=token)
+        self.assertEqual(saved['listings'],payload['listings'])
+        self.assertEqual(saved['moderation']['boarding']['status'],'pending')
+        self.req('/api/me/listings','PUT',payload,token=token,expected=409)
+        self.assertEqual(self.req('/api/me/listings',token=token),saved)
         other=self.login('998909991133')
         self.assertEqual(self.req('/api/me/listings',token=other['token'])['listings'],[])
         self.req('/api/admin/listings',token=token,expected=401)
         ads=self.req('/api/admin/listings',admin=True)['listings']
         self.assertEqual(next(a for a in ads if a['userId']==uid)['price'],100000)
+        review_path='/api/admin/listings/'+uid+'/boarding/review'
+        review={'decision':'approve','reason':'TEST review','testOnly':True,'_revision':1}
+        self.req(review_path,'POST',review,token=token,expected=401)
+        self.req(review_path,'POST',review,admin=True,expected=409) # incomplete profile
         bad=json.loads(json.dumps(payload));bad['housing']='apartment'
         self.req('/api/me/listings','PUT',bad,token=token,expected=400)
         bad=json.loads(json.dumps(payload));bad['listings'][0]['price']=True
         self.req('/api/me/listings','PUT',bad,token=token,expected=400)
         bad=json.loads(json.dumps(payload));bad['listings'].append(dict(bad['listings'][0],type='personal',capacity=None))
         self.req('/api/me/listings','PUT',bad,token=token,expected=400)
-        self.assertEqual(self.req('/api/me/listings',token=token),payload)
+        self.assertEqual(self.req('/api/me/listings',token=token),saved)
         self.req('/api/auth/logout','POST',{},token=token)
         again=self.req('/api/auth/login','POST',{'phone':'998909991122','code':'111111','role':'customer'})
-        self.assertEqual(self.req('/api/me/listings',token=again['token']),payload)
+        self.assertEqual(self.req('/api/me/listings',token=again['token']),saved)
+        archived=self.req('/api/me/listings/boarding/archive','POST',{'_revision':saved['_revision']},token=again['token'])
+        self.assertEqual(archived['moderation']['boarding']['status'],'archived')
+        self.assertFalse(archived['listings'][0]['active'])
+        self.assertEqual(archived['listings'][0]['price'],100000)
+        self.req('/api/me/listings/boarding/archive','POST',{'_revision':saved['_revision']},token=again['token'],expected=409)
         users=self.req('/api/admin/users',admin=True)['users']
         self.assertEqual(next(u for u in users if u['id']==uid)['roles'],['customer','sitter'])
         server.setup()
@@ -84,12 +98,13 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(server.roles_for(con,uid),['customer','sitter'])
 
     def test_catalog_contains_only_database_records(self):
-        self.assertEqual(self.req('/api/sitters')['sitters'], [{'id':'hoji','name':'Test sitter'}])
+        # Legacy, unreviewed demo records are references, never public ads.
+        self.assertEqual(self.req('/api/sitters')['sitters'], [])
         with server.db() as con:
             con.execute("UPDATE sitters SET active=0 WHERE id='hoji'")
         try:
             self.assertEqual(self.req('/api/sitters')['sitters'], [])
-            self.assertEqual(self.req('/api/admin/users',admin=True)['sitters'], {})
+            self.assertEqual(self.req('/api/admin/users',admin=True)['sitters']['hoji'],'Test sitter')
         finally:
             with server.db() as con:
                 con.execute("UPDATE sitters SET active=1 WHERE id='hoji'")
@@ -283,9 +298,13 @@ class ApiTests(unittest.TestCase):
     def test_chat_reply_isolation_and_idempotency(self):
         a=self.login('998903333333');b=self.login('998904444444')
         message={'sitter':'hoji','text':'Salom','requestId':'once'}
+        self.req('/api/messages','POST',message,token=a['token'],expected=409)
+        # A historical conversation survives removal from discovery.
+        with server.db() as con:
+            con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,time) VALUES(?,?,?,?,?,?)',('historical-chat',a['userId'],'hoji',0,'Old conversation','2020-01-01'))
         self.req('/api/messages','POST',message,token=a['token'])
         self.req('/api/messages','POST',message,token=a['token'])
-        self.assertEqual(len(self.req('/api/messages',token=a['token'])['messages']),1)
+        self.assertEqual(len(self.req('/api/messages',token=a['token'])['messages']),2)
         self.assertEqual(self.req('/api/messages',token=b['token'])['messages'],[])
         data=self.req('/api/admin/users/'+a['userId']+'/messages','POST',{'sitter':'hoji','text':'Salom, javob','requestId':'reply'},admin=True)
         self.assertFalse(data['messages'][-1]['mine'])
@@ -320,8 +339,10 @@ class ApiTests(unittest.TestCase):
         self.req('/api/me','PUT',account,token=a['token'])
         again=self.login('998907777777')
         self.assertEqual(again['account'],dict(server.validate_account(account),_revision=account['_revision']+1))
+        with server.db() as con:
+            con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,time) VALUES(?,?,?,?,?,?)',('historical-image-chat',a['userId'],'hoji',0,'Old conversation','2020-01-01'))
         self.req('/api/messages','POST',{'sitter':'hoji','image':png},token=a['token'])
-        self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][0]['image'],png)
+        self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][-1]['image'],png)
         self.req('/api/messages','POST',{'sitter':'hoji','image':base64.b64encode(b'html').decode()},token=a['token'],expected=400)
     def test_static_admin_and_rate_limit(self):
         response=self.client.open(self.base+'/admin/')
