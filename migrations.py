@@ -62,6 +62,14 @@ MIGRATIONS = (
         "CREATE TRIGGER topup_claims_no_update BEFORE UPDATE ON topup_evidence_claims BEGIN SELECT RAISE(ABORT, 'Receipt claim is immutable'); END",
         "CREATE TRIGGER topup_claims_no_delete BEFORE DELETE ON topup_evidence_claims BEGIN SELECT RAISE(ABORT, 'Receipt claim is immutable'); END",
     )),
+    (8, 'participant scoped conversations and ordered messages', (
+        "CREATE TABLE conversations(seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, customer_id TEXT NOT NULL REFERENCES users(id), sitter_id TEXT NOT NULL REFERENCES users(id), service TEXT NOT NULL CHECK(service IN ('boarding','homeVisit','personal')), customer_name TEXT NOT NULL, sitter_name TEXT NOT NULL, created TEXT NOT NULL, CHECK(customer_id!=sitter_id), UNIQUE(customer_id,sitter_id,service))",
+        'CREATE INDEX conversations_customer ON conversations(customer_id,seq)',
+        'CREATE INDEX conversations_sitter ON conversations(sitter_id,seq)',
+        "CREATE TABLE conversation_messages(id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id TEXT NOT NULL REFERENCES conversations(id), sender_id TEXT NOT NULL REFERENCES users(id), sender_role TEXT NOT NULL CHECK(sender_role IN ('customer','sitter')), text TEXT NOT NULL, image TEXT, request_id TEXT NOT NULL, created TEXT NOT NULL, UNIQUE(sender_id,request_id))",
+        'CREATE INDEX conversation_messages_page ON conversation_messages(conversation_id,id)',
+        'CREATE TABLE conversation_reads(conversation_id TEXT NOT NULL REFERENCES conversations(id), user_id TEXT NOT NULL REFERENCES users(id), last_message_id INTEGER NOT NULL DEFAULT 0 CHECK(last_message_id>=0), PRIMARY KEY(conversation_id,user_id))',
+    )),
 )
 
 

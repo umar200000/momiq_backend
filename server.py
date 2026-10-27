@@ -19,6 +19,7 @@ from migrations import migrate
 import wallet
 import catalog
 import notifications
+import conversations
 from media_validation import validate_photo, MediaBusy
 
 ROOT = Path(__file__).resolve().parent
@@ -370,6 +371,8 @@ class Handler(BaseHTTPRequestHandler):
             user = self.auth(con,"admin" if admin else "client")
             if wallet.route(self,con,user,path,photo,ENVIRONMENT):
                 return
+            if conversations.route(self,con,user,path,photo,ENVIRONMENT):
+                return
             if notifications.route(self,con,user,path):
                 return
             if path == '/api/auth/logout-all' and self.command == 'POST':
@@ -500,7 +503,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):
         try: self.handle_request()
-        except (ApiError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError) as e: self.reply(e.status,{'error':e.message})
+        except (ApiError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError) as e: self.reply(e.status,{'error':e.message})
         except MediaBusy as e: self.reply(503,{'error':str(e)})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): pass

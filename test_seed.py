@@ -74,6 +74,19 @@ class SeedTests(unittest.TestCase):
             self.assertEqual((target / 'real.txt').read_text(), 'Keep me')
             self.assertFalse((target / 'new').exists())
 
+    def test_cleanup_preserves_new_conversation_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'fixtures'
+            seed(target)
+            with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
+                con.execute('INSERT INTO conversations(id,customer_id,sitter_id,service,customer_name,sitter_name,created) VALUES(?,?,?,?,?,?,?)',
+                            ('test-chat', fixture_id('customer'), fixture_id('boarding'), 'boarding', 'TEST', 'TEST', 'now'))
+            with self.assertRaisesRegex(ValueError, 'conversation history'):
+                seed(target, clean=True)
+            with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
+                self.assertEqual(con.execute('SELECT COUNT(*) FROM conversations').fetchone()[0], 1)
+                self.assertEqual(con.execute('SELECT COUNT(*) FROM users').fetchone()[0], 4)
+
     def test_cleanup_refuses_unowned_dependencies(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'fixtures'
