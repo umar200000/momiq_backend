@@ -14,14 +14,19 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+from config import Settings
 
 ROOT = Path(__file__).resolve().parent
-DATA = Path(os.environ.get("MOMIQ_DATA_DIR", ROOT / "data"))
-ADMIN = Path(os.environ.get("MOMIQ_ADMIN_DIR", ROOT.parent / "momiq_admin_panel"))
-PRODUCTION = os.environ.get("MOMIQ_ENV") == "production"
-DEV_LOGIN = not PRODUCTION or os.environ.get("MOMIQ_ALLOW_TEST_LOGIN") == "1"
-HOST = os.environ.get("MOMIQ_HOST", "127.0.0.1")
-PORT = int(os.environ.get("MOMIQ_PORT", "8080"))
+SETTINGS = Settings.load(os.environ, ROOT)
+ENVIRONMENT = SETTINGS.environment
+DATA, ADMIN = SETTINGS.data, SETTINGS.admin
+# Hosted staging uses the same cookie/origin transport protections as production.
+PRODUCTION = ENVIRONMENT in {'staging', 'production'}
+DEV_LOGIN = SETTINGS.test_login
+HOST, PORT = SETTINGS.host, SETTINGS.port
+
+def instance_id():
+    return hashlib.sha256(str(DATA.resolve()).encode()).hexdigest()[:16]
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -45,6 +50,11 @@ def password_hash(value, salt):
 def setup():
     DATA.mkdir(parents=True, exist_ok=True)
     with db() as con:
+        con.execute('CREATE TABLE IF NOT EXISTS runtime_metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        row = con.execute("SELECT value FROM runtime_metadata WHERE key='environment'").fetchone()
+        if row and row[0] != ENVIRONMENT:
+            raise ValueError('This database belongs to a different environment; use a separate data directory')
+        con.execute("INSERT OR IGNORE INTO runtime_metadata VALUES('environment',?)", (ENVIRONMENT,))
         con.executescript("""
         PRAGMA journal_mode=WAL;
         CREATE TABLE IF NOT EXISTS sitters(id TEXT PRIMARY KEY, profile TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
@@ -280,7 +290,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200, {"sitters": sitter_profiles()})
                 return
             if path == "/api/health" and self.command == "GET":
-                self.reply(200, {"ok": True, "mode": "production" if PRODUCTION else "local", "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})
+                self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})
                 return
             if path == "/api/auth/login" and self.command == "POST":
                 if not DEV_LOGIN:

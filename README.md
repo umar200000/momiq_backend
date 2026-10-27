@@ -1,5 +1,7 @@
 # Momiq — lokal profil va chat backend
 
+Joriy local/test ish tartibi: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md). Production ishlari va bajarilish dalillari: [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md). Yangi launcher test bazasini alohida saqlaydi; production test OTP konfiguratsiyasini qabul qilmaydi.
+
 ## Ishga tushirish
 
 Python 3.12+ yetarli. Qo‘shimcha paket talab qilinmaydi.
