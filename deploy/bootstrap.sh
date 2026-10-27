@@ -16,7 +16,7 @@ if [[ ! -f /etc/momiq/backend.env ]]; then
   umask 077
   cat > /etc/momiq/backend.env <<'ENV'
 MOMIQ_ENV=production
-MOMIQ_ALLOW_TEST_LOGIN=1
+MOMIQ_ALLOW_TEST_LOGIN=0
 MOMIQ_DATA_DIR=/var/lib/momiq
 MOMIQ_ADMIN_DIR=/opt/momiq/current/admin
 PYTHONDONTWRITEBYTECODE=1

@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 from config import Settings
+from migrations import migrate
 
 ROOT = Path(__file__).resolve().parent
 SETTINGS = Settings.load(os.environ, ROOT)
@@ -82,6 +83,23 @@ def setup():
             (DATA / "admin-login.txt").write_text("Username: admin\nPassword: " + password + "\n", encoding="utf-8")
             if os.name != "nt":
                 (DATA / "admin-login.txt").chmod(0o600)
+        con.commit()
+        migrate(con)
+
+def account_snapshot(con, row):
+    snapshot = con.execute('SELECT u.account, COALESCE(r.revision,0) revision FROM users u LEFT JOIN account_revisions r ON r.user_id=u.id WHERE u.id=?', (row['id'],)).fetchone()
+    account = json.loads(snapshot['account'])
+    account['_revision'] = snapshot['revision']
+    return account
+
+def claim_account_revision(con, uid, revision):
+    if revision is None:
+        raise ApiError(428, 'Ilovani yangilang va profilni qayta yuklang')
+    if type(revision) is not int or revision < 0:
+        raise ValueError('Profil versiyasi noto‘g‘ri')
+    con.execute('INSERT OR IGNORE INTO account_revisions(user_id) VALUES(?)', (uid,))
+    if not con.execute('UPDATE account_revisions SET revision=revision+1 WHERE user_id=? AND revision=?', (uid,revision)).rowcount:
+        raise ApiError(409, 'Profil boshqa qurilmada o‘zgargan. Qayta yuklab, o‘zgarishni takrorlang.')
 
 def sitter_profiles():
     with db() as con:
@@ -315,7 +333,7 @@ class Handler(BaseHTTPRequestHandler):
                     con.execute('INSERT OR IGNORE INTO user_roles VALUES(?,?)',(user['id'],role))
                 token = self.session(con,user["id"],"client")
                 con.commit()
-                self.reply(200, {"token": token, "userId": user["id"], "account": json.loads(user["account"])})
+                self.reply(200, {"token": token, "userId": user["id"], "account": account_snapshot(con,user)})
                 return
             if path == "/api/admin/login" and self.command == "POST":
                 data = self.body()
@@ -329,6 +347,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
+            if path == '/api/auth/logout-all' and self.command == 'POST':
+                con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (user,))
+                con.commit()
+                self.reply(200, {'ok':True})
+                return
             if path in ["/api/auth/logout", "/api/admin/logout"] and self.command == "POST":
                 if admin:
                     cookie = SimpleCookie(self.headers.get('Cookie',''))
@@ -341,13 +364,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":
-                    account = validate_account(self.body())
+                    data = self.body()
+                    account = validate_account(data)
+                    claim_account_revision(con, user, data.get('_revision'))
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
                         con.execute("INSERT OR IGNORE INTO user_roles VALUES(?,'sitter')",(user,))
                 row = con.execute("SELECT * FROM users WHERE id=?", (user,)).fetchone()
                 con.commit()
-                self.reply(200,{"userId":user,"phone":row["phone"],"account":json.loads(row["account"])})
+                self.reply(200,{"userId":user,"phone":row["phone"],"account":account_snapshot(con,row)})
                 return
             if path == '/api/me/listings' and self.command in ['GET','PUT']:
                 account = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
@@ -374,12 +399,14 @@ class Handler(BaseHTTPRequestHandler):
                 self.save_message(con,user,True,self.body())
                 return
             if path == "/api/admin/users" and self.command == "GET":
-                users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"roles":roles_for(con,r["id"]),"account":json.loads(r["account"])} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
+                users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"roles":roles_for(con,r["id"]),"account":account_snapshot(con,r)} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
                 self.reply(200,{"users":users,"sitters":sitter_names()})
                 return
             match = re.fullmatch(r"/api/admin/users/([a-f0-9]+)(/messages)?", path)
             if match:
                 uid, chat = match.groups()
+                if not chat and self.command == 'PUT':
+                    con.execute('BEGIN IMMEDIATE')
                 row = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
                 if not row:
                     raise ApiError(404,"Mijoz topilmadi")
@@ -396,7 +423,11 @@ class Handler(BaseHTTPRequestHandler):
                     if type(data.get('blocked',False)) is not bool:
                         raise ValueError('Holat noto‘g‘ri')
                     account = validate_account(data['account']) if 'account' in data else json.loads(row['account'])
-                    con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),int(data.get('blocked',False)),uid))
+                    claim_account_revision(con, uid, data.get('_revision'))
+                    blocked = int(data.get('blocked',row['blocked']))
+                    con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),blocked,uid))
+                    if blocked:
+                        con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (uid,))
                     self.audit(con,'update-user',uid)
                     con.commit()
                     self.reply(200,{"ok":True})

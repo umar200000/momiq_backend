@@ -47,6 +47,14 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Bajarilish jurnali — 2026-10-27**
 
+Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetlanish qayd etiladi. Dastlabki 3–6 haftalik taxmin faol ishlab chiqish/test ko‘lamiga tegishli; SMS/MyID kelishuvi, Apple hisoblari va tashqi xizmatlarni kutish unga kirmaydi. Bu yakuniy reliz sanasi kafolati emas.
+
+- M031 yopildi: account `_revision` qiymati bilan tranzaksion compare-and-increment qo‘shildi. Eski versiyadagi tahrir 409, versiyasiz eski mijoz 428 oladi; admin ham shu qoidaga amal qiladi. Forma ochilgandagi versiya saqlanadi, polling uni yangilab eski tahrirni yashirin tasdiqlamaydi. Ikki parallel yozishdan bittasi o‘tishi, admin konflikti va rollback API testlari; Flutter stale-form testi hamda 2 admin testi o‘tdi. Boshqacha yechim: maydonlarni avtomatik birlashtirish o‘rniga konservativ konflikt tanlandi; foydalanuvchi sahifani qayta ochib tahrirni takrorlaydi. Eski app/admin bilan yozish mos emas — stagingda mos versiyalar birga sinovdan o‘tadi.
+- M021 amalga oshirildi, yakuniy UI/CI tekshiruvi davom etmoqda: sessiya 7 kun, jim refresh yo‘q; bir yoki barcha qurilmalardan chiqish, bloklanganda barcha client tokenlarini bekor qilish. Blokdan chiqarish tokenlarni qayta tiriltirmaydi. Barcha qurilmadan offline chiqish muvaffaqiyat sifatida ko‘rsatilmaydi; oddiy offline logout lokal ma’lumotni tozalaydi. Backendning 30 testi va Flutter sessiyasining 9 testi o‘tdi.
+- M020 qisman: token OS secure storage ichidagi bitta muhit/API/user envelope’ga ko‘chdi; plaintext token ko‘chirilmay, bir marta qayta login talab qilinadi. Android backup/device-transfer yopildi, iOS device-only Keychain sozlandi. 4 vault regression testi o‘tdi; Android qurilma va iOS moslik tekshiruvi davom etmoqda. Rasmiy manba: https://pub.dev/packages/flutter_secure_storage .
+- M100/M111 qisman: checksummed, tartibli tranzaksion migratsiya, SQLite WAL’ni qamragan backup va nusxada dry-run qo‘shildi. 4 test: eski yozuvni saqlash, idempotency, schema rollback, history rad etish va WAL backup. `.local/preview` bazasida dry-run: migration 1, integrity ok; original baza o‘zgarmadi. Hosted stop/backup/migrate/restart tartibi hali o‘rnatilmagan, shuning uchun vazifa to‘liq yopilmadi. API/upgrade tafsilotlari `API_CONTRACT.md`da.
+- M120 davom etmoqda: macOS CI’da imzosiz iOS simulator build qo‘shildi; bu signing yoki real iPhone tekshiruvi bajarildi degani emas.
+
 - Ish branchlari: tegishli repolarda `codex/production-foundations`; bu hali main yoki deploy emas.
 - M013 yopildi: `seed_test_data.py` faqat yangi/belgilangan local/test bazani qabul qiladi; ishlab turgan noma’lum bazani o‘zlashtirmaydi. Idempotency, tozalashda begona yozuvlarni saqlash va bog‘liqlik bo‘lsa rad etish testlari o‘tdi.
 - M026 yopildi: notes yo‘q/null/bo‘sh bo‘lganda ro‘yxat ham, tahrirlash sahifasi ham ochiladi; ism/yosh/zot/jins defaultlari tuzatildi. `customer_pet_optional_fields_test.dart`: 4 test o‘tdi.
@@ -108,7 +116,7 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 - [ ] M028 — Hayvon xavfsizligi ma’lumotlarini kelishilgan shaklda qo‘shish: emlash/pasport, allergiya, dori, xulq va favqulodda kontakt; faqat zarur tomonlar ko‘ra oladi, tibbiy qaror avtomatlashtirilmaydi.
 - [ ] M029 — Manzil yaratish/tahrirlash/o‘chirishni yakunlash: koordinata, matn, kirish ko‘rsatmasi va xizmat hududi tekshiriladi; eski buyurtma manzili o‘zgarmaydi, aniq manzil ruxsatsiz ochilmaydi.
 - [ ] M030 — Profil, til va afzalliklarni qurilmalar o‘rtasida uyg‘unlashtirish: mock.profile/mock.notify kabi lokal nusxalar server haqiqatini bosmaydi; rasmni almashtirish/o‘chirish ham aks etadi.
-- [ ] M031 — Bir vaqtdagi tahrirlarni himoyalash: butun hisob JSON’ini yuborish bilan boshqa qurilma/admin o‘zgarishlari yo‘qolmaydi; versiya yoki qisman yangilash orqali konflikt aniqlanadi.
+- [x] M031 — Bir vaqtdagi tahrirlarni himoyalash: butun hisob JSON’ini yuborish bilan boshqa qurilma/admin o‘zgarishlari yo‘qolmaydi; versiya yoki qisman yangilash orqali konflikt aniqlanadi.
 
 **E. Enaga xizmatini e’lon qilish**
 

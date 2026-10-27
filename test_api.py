@@ -114,6 +114,58 @@ class ApiTests(unittest.TestCase):
         self.req('/api/me','PUT',account,token=a['token'])
         self.assertEqual(self.req('/api/me',token=a['token'])['account']['profile']['first'],'Umar')
         self.assertEqual(self.req('/api/me',token=b['token'])['account']['profile']['first'],'')
+
+    def test_stale_profile_and_admin_updates_do_not_overwrite(self):
+        a = self.login('998909000001')
+        original = a['account']
+        original['profile'].update(first='Initial',last='Name')
+        current = self.req('/api/me','PUT',original,token=a['token'])['account']
+        stale = json.loads(json.dumps(current))
+        current['language'] = 'ru'
+        saved = self.req('/api/me','PUT',current,token=a['token'])['account']
+        stale['profile']['first'] = 'Lost change'
+        self.req('/api/me','PUT',stale,token=a['token'],expected=409)
+        self.req('/api/admin/users/'+a['userId'],'PUT',{'account':stale,'_revision':stale['_revision']},admin=True,expected=409)
+        self.assertEqual(self.req('/api/me',token=a['token'])['account'],saved)
+        missing = dict(saved); missing.pop('_revision')
+        self.req('/api/me','PUT',missing,token=a['token'],expected=428)
+        self.req('/api/me','PUT',dict(saved,_revision=True),token=a['token'],expected=400)
+        self.assertEqual(self.req('/api/me',token=a['token'])['account'],saved)
+
+    def test_parallel_profile_updates_have_one_winner(self):
+        from concurrent.futures import ThreadPoolExecutor
+        a=self.login('998909000002')
+        a['account']['profile'].update(first='Before',last='Test')
+        start=self.req('/api/me','PUT',a['account'],token=a['token'])['account']
+        barrier=threading.Barrier(2)
+        def update(language):
+            payload=dict(start,language=language)
+            request=Request(self.base+'/api/me',data=json.dumps(payload).encode(),method='PUT',headers={'Content-Type':'application/json','Authorization':'Bearer '+a['token']})
+            barrier.wait()
+            try: response=build_opener().open(request)
+            except HTTPError as e: response=e
+            with response: return response.status
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes=list(pool.map(update,['ru','en']))
+        self.assertEqual(sorted(outcomes),[200,409])
+        saved=self.req('/api/me',token=a['token'])['account']
+        self.assertEqual(saved['_revision'],start['_revision']+1)
+
+    def test_session_expiry_and_all_device_revocation(self):
+        import time
+        a=self.login('998909000003'); b=self.login('998909000003')
+        other=self.login('998909000004')
+        self.req('/api/auth/logout','POST',{},token=a['token'])
+        self.req('/api/me',token=a['token'],expected=401)
+        self.req('/api/me',token=b['token'])
+        c=self.login('998909000003')
+        self.req('/api/auth/logout-all','POST',{},token=b['token'])
+        self.req('/api/me',token=b['token'],expected=401)
+        self.req('/api/me',token=c['token'],expected=401)
+        self.req('/api/me',token=other['token'])
+        with server.db() as con:
+            con.execute('UPDATE sessions SET expires=? WHERE user_id=?', (time.time()-1,other['userId']))
+        self.req('/api/me',token=other['token'],expected=401)
     def test_chat_reply_isolation_and_idempotency(self):
         a=self.login('998903333333');b=self.login('998904444444')
         message={'sitter':'hoji','text':'Salom','requestId':'once'}
@@ -127,11 +179,13 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][-1]['text'],'Xabar o‘chirildi')
     def test_admin_block_and_unblock(self):
         a=self.login('998905555555')
-        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':True},admin=True)
-        self.req('/api/me',token=a['token'],expected=403)
+        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':True,'_revision':a['account']['_revision']},admin=True)
+        self.req('/api/me',token=a['token'],expected=401)
         self.req('/api/auth/login','POST',{'phone':'998905555555','code':'111111'},expected=403)
-        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':False},admin=True)
-        self.req('/api/me',token=a['token'])
+        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':False,'_revision':a['account']['_revision']+1},admin=True)
+        self.req('/api/me',token=a['token'],expected=401)
+        fresh=self.login('998905555555')
+        self.req('/api/me',token=fresh['token'])
     def test_validation_origin_and_revocation(self):
         a=self.login('998906666666')
         self.req('/api/messages','POST',{'sitter':'unknown','text':'x'},token=a['token'],expected=400)
@@ -151,7 +205,7 @@ class ApiTests(unittest.TestCase):
         account['support']=[{'id':'support1','text':'Yordam kerak'}]
         self.req('/api/me','PUT',account,token=a['token'])
         again=self.login('998907777777')
-        self.assertEqual(again['account'],account)
+        self.assertEqual(again['account'],dict(account,_revision=account['_revision']+1))
         self.req('/api/messages','POST',{'sitter':'hoji','image':png},token=a['token'])
         self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][0]['image'],png)
         self.req('/api/messages','POST',{'sitter':'hoji','image':base64.b64encode(b'html').decode()},token=a['token'],expected=400)
