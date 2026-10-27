@@ -29,6 +29,13 @@ MIGRATIONS = (
         'INSERT INTO listing_revisions(user_id) SELECT id FROM users',
         "CREATE TABLE listing_moderation(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, service TEXT NOT NULL CHECK(service IN ('boarding','homeVisit','personal')), status TEXT NOT NULL CHECK(status IN ('draft','pending','approved','rejected','suspended','archived')), approved_hash TEXT, test_only INTEGER NOT NULL DEFAULT 0 CHECK(test_only IN (0,1)), reason TEXT NOT NULL DEFAULT '', reviewed_by TEXT, reviewed_at TEXT, public_media TEXT, PRIMARY KEY(user_id,service))",
     )),
+    (4, 'payment recipient and QR availability', (
+        "ALTER TABLE platform_settings ADD COLUMN recipient_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE platform_settings ADD COLUMN payment_instructions TEXT NOT NULL DEFAULT ''",
+        'ALTER TABLE platform_settings ADD COLUMN qr_active INTEGER NOT NULL DEFAULT 0 CHECK(qr_active IN (0,1))',
+        'ALTER TABLE platform_settings ADD COLUMN legacy_receipt_allowed INTEGER NOT NULL DEFAULT 0 CHECK(legacy_receipt_allowed IN (0,1))',
+        'UPDATE platform_settings SET legacy_receipt_allowed=1 WHERE qr_image IS NOT NULL',
+    )),
 )
 
 

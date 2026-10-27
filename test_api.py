@@ -223,7 +223,7 @@ class ApiTests(unittest.TestCase):
         config=self.req('/api/admin/platform-settings',admin=True)
         self.assertEqual(config['commissionBps'],1000)
         png=fixture_image('green')
-        config=self.req('/api/admin/platform-settings','PUT',{'version':config['version'],'qrImage':png,'testOnly':True,'reason':'TEST only QR'},admin=True)
+        config=self.req('/api/admin/platform-settings','PUT',{'version':config['version'],'qrImage':png,'testOnly':True,'reason':'TEST only QR','recipientName':'TEST recipient','qrActive':True},admin=True)
         payload={'requestId':'once','amountMinor':2_000_000,'receipt':png,'qrVersion':config['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True}
         self.req('/api/wallet/topups','POST',dict(payload,acceptNonRefundable=False),token=a['token'],expected=400)
         created=self.req('/api/wallet/topups','POST',payload,token=a['token'],expected=201)['topup']
@@ -233,6 +233,16 @@ class ApiTests(unittest.TestCase):
         self.req(receipt_path,token=other['token'],expected=404)
         self.req('/api/admin/topups/'+created['id']+'/receipt',token=a['token'],expected=401)
         self.assertEqual(self.req('/api/admin/topups/'+created['id']+'/receipt',admin=True)['receipt'],png)
+        changed=self.req('/api/admin/platform-settings','PUT',{'version':config['version'],'qrActive':False,'recipientName':'NEW recipient','reason':'Pause new payments'},admin=True)
+        self.assertFalse(changed['qrActive'])
+        snapshot=self.req('/api/admin/topups/'+created['id']+'/receipt',admin=True)['paymentSnapshot']
+        self.assertEqual(snapshot['recipientName'],'TEST recipient')
+        self.assertEqual(snapshot['qrImage'],png)
+        self.req('/api/wallet/topups','POST',dict(payload,requestId='paused',receipt=fixture_image('yellow'),qrVersion=changed['version']),token=a['token'],expected=409)
+        # Already paid on a prior active version: evidence remains submittable.
+        late=self.req('/api/wallet/topups','POST',dict(payload,requestId='previous-version',receipt=fixture_image('purple')),token=a['token'],expected=201)['topup']
+        self.req('/api/admin/topups/'+late['id']+'/review','POST',{'decision':'reject','reason':'TEST only prior-version evidence'},admin=True)
+        self.req('/api/admin/platform-settings','PUT',{'version':changed['version'],'qrActive':True,'recipientName':'','reason':'Invalid activation'},admin=True,expected=400)
         self.assertNotIn('receipt',self.req('/api/admin/topups?status=pending',admin=True)['topups'][0])
         self.req('/api/wallet/topups?cursor='+created['id'],token=other['token'],expected=400)
         self.req('/api/admin/platform-settings','PUT',{'version':config['version']-1,'reason':'stale'},admin=True,expected=409)

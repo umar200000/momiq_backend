@@ -47,6 +47,9 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Bajarilish jurnali — 2026-10-27**
 
+- M033/M034 yopildi: moderatsiya holatlari, sabab, arxivdan qayta yuborish va tasdiqlangan e’lonning yagona katalogi API/admin/Flutter testlari bilan tekshirildi. Native Androidda mijozga TEST profil, kunlik har hayvon narxi, noma’lum mavjudlik va bloklangan bron tugmasi ko‘rindi (`.local/catalog-android-customer.png`). Backend `f43e16f`, admin `f695b0c` CI o‘tdi; app `c83804e` Android analyze/test/build o‘tdi, iOS tekshiruvi davom etmoqda. Haqiqiy MyID, sana bo‘yicha bandlik va bron alohida ochiq bandlarda qoladi.
+- M059 davomida migratsiya 4: versiyalangan QR’ga oluvchi nomi, yo‘riqnoma va ilovada ko‘rsatish holati qo‘shildi. Faol yangi QR uchun rasm/oluvchi majburiy; ilovada oluvchi nomini provayderdagi nom bilan solishtirish ko‘rsatiladi. Admin chekni ochganda so‘rovning tarixiy QR/oluvchi nusxasini ko‘radi. QR almashtirish/to‘xtatish oldin to‘langan chekning yuborilishini bekor qilmaydi. Eski QR’lar migratsiyada yangi to‘lov ko‘rinishi uchun o‘chiriladi, tarixiy dalili saqlanadi; operator oluvchini to‘ldirib faollashtiradi. Bu tashqi provayderdagi QR’ni bloklash emas. 50 Python, 6 admin, 3 wallet widget/unit testi o‘tdi; `.local/preview/before-recipient-migration.sqlite3` zaxira va `.local/qr-recipient-settings.png` dalili saqlandi. Faqat sintetik lokal QR faollashtirildi.
+
 - M044/M046 sinovida topilgan tuzatish: GPSsiz katalogda `distance=null` qidiruvni yiqitishi aniqlandi; masofasi noma’lum e’lonlar uchun aniq izoh bilan filtr xavfsiz qilindi. Bron/bandlik mexanizmi ulanmaguncha `availabilityKnown=false` qaytariladi: ilova taxminiy «3 ta bo‘sh» o‘rniga «Mavjud sanalar hali tasdiqlanmagan» deydi va buyurtma tugmasi ochilmaydi. Yangi widget regression GPSsiz qidiruv va ushbu holatni tekshirdi. Bu haqiqiy mavjudlik/bron ishlari bajarilgan degani emas. Mijoz ekranida admin tasdiqlagan TEST e’lon va haqiqiy saqlangan narx paydo bo‘lishi ko‘rildi; yangi preview build 42,0 s, analyze xatosiz.
 
 - M033 arxivlash qo‘shildi: egasi e’lonni arxivlaydi, narx/manzil kabi tahrirlanadigan shartlar saqlanadi, katalogdan olinadi; qayta yoqish yangi moderatsiya talab qiladi. Eski kontakt/favorites referenslari katalogdan o‘chishga bog‘lanmagan. Migratsiya 3 bilan jami 49 Python testi, arxivlash/CAS va mobil UI bo‘yicha oxirgi 8 maqsadli regression o‘tdi; analyze xatosiz. Native previewdagi dastlabki tasdiq tekshiruvidan keyin arxivlash qo‘shilgani sabab navbatdagi CI/build yangilanishi kutiladi.
@@ -151,8 +154,8 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 **E. Enaga xizmatini e’lon qilish**
 
 - [ ] M032 — Enaga profili to‘liqligi va tasdiqlash talablarini qo‘llash: tajriba, tavsif, uy turi, rasmlar va tekshiruv holati kelishilgan mezonga mos bo‘lmasa nashrga o‘tmaydi.
-- [ ] M033 — E’lon holatlarini joriy etish: draft, ko‘rib chiqilmoqda, tasdiqlangan, rad etilgan, to‘xtatilgan/arxivlangan; sabab va qayta yuborish foydalanuvchiga ko‘rinadi.
-- [ ] M034 — listings va sitters katalogini yagona bog‘langan modelga keltirish: tasdiqlangan faol e’lon avtomatik qidiruvda paydo bo‘ladi; o‘chirilgan/bloklangan e’lon yo‘qoladi, dublikat bo‘lmaydi.
+- [x] M033 — E’lon holatlarini joriy etish: draft, ko‘rib chiqilmoqda, tasdiqlangan, rad etilgan, to‘xtatilgan/arxivlangan; sabab va qayta yuborish foydalanuvchiga ko‘rinadi.
+- [x] M034 — listings va sitters katalogini yagona bog‘langan modelga keltirish: tasdiqlangan faol e’lon avtomatik qidiruvda paydo bo‘ladi; o‘chirilgan/bloklangan e’lon yo‘qoladi, dublikat bo‘lmaydi.
 - [ ] M035 — Uch xizmat validatsiyasini birlashtirish: cat/dog/Boshqa mosligi, narx, manzil, sig‘im va shaxsiy enaga ziddiyatlari barcha kirish yo‘llarida tekshiriladi.
 - [ ] M036 — Ish haftasi, vaqt oralig‘i, ta’til va yopiq sanalarni serverda saqlash: kalendar va qidiruv shu ma’lumotga tayanadi; timezone va tungi chegaralar kelishilgan qoidaga mos.
 - [ ] M037 — E’lonni tahrirlash/to‘xtatish/arxivlash ta’sirini boshqarish: oldingi buyurtmaning narxi/manzili o‘zgarmaydi; faol majburiyatlar sig‘im yoki uy turi o‘zgarishidan buzilmaydi.

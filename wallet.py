@@ -36,6 +36,8 @@ def settings(con):
     return {'version':row['version'],'commissionBps':row['commission_bps'],
             'minimumBalanceMinor':MINIMUM_BALANCE_MINOR,'currency':'UZS',
             'provider':'paynet_xolis','qrImage':row['qr_image'], 'testOnly':bool(row['test_only']),
+            'recipientName':row['recipient_name'],'paymentInstructions':row['payment_instructions'],
+            'qrActive':bool(row['qr_active']),
             'termsVersion':TERMS_VERSION,'unusedBalanceRefundable':False}
 
 
@@ -101,11 +103,13 @@ def route(handler, con, uid, path, photo, environment):
     method=handler.command
     receipt_match=re.fullmatch(r'/api/(admin|wallet)/topups/([a-f0-9]{32})/receipt',path)
     if receipt_match and method=='GET':
-        row=con.execute('SELECT user_id,receipt FROM topup_requests WHERE id=?',(receipt_match[2],)).fetchone()
+        row=con.execute('SELECT t.user_id,t.receipt,s.qr_image,s.version,s.recipient_name,s.payment_instructions,s.test_only FROM topup_requests t JOIN platform_settings s ON s.version=t.qr_version WHERE t.id=?',(receipt_match[2],)).fetchone()
         if receipt_match[1]=='wallet': require_sitter(con,uid)
         if not row or (receipt_match[1]=='wallet' and row['user_id']!=uid):
             raise WalletError(404,'Chek topilmadi')
-        handler.reply(200,{'receipt':row['receipt']});return True
+        handler.reply(200,{'receipt':row['receipt'],'paymentSnapshot':{'version':row['version'],
+            'qrImage':row['qr_image'],'recipientName':row['recipient_name'],
+            'paymentInstructions':row['payment_instructions'],'testOnly':bool(row['test_only'])}});return True
     if path == '/api/admin/platform-settings' and method in ('GET','PUT'):
         if method=='PUT':
             data=handler.body()
@@ -120,8 +124,14 @@ def route(handler, con, uid, path, photo, environment):
             if type(test_only) is not bool: raise ValueError('Test belgisi noto‘g‘ri')
             if environment=='production' and test_only: raise WalletError(400,'Productionda test QR mumkin emas')
             reason=text(data.get('reason'),1000)
-            con.execute('INSERT INTO platform_settings(commission_bps,qr_image,test_only,actor,reason,created) VALUES(?,?,?,?,?,?)',
-                        (rate,qr,int(test_only),uid,reason,now()))
+            recipient=text(data.get('recipientName',current['recipientName']),200,required=False)
+            instructions=text(data.get('paymentInstructions',current['paymentInstructions']),1000,required=False)
+            active=data.get('qrActive',current['qrActive'])
+            if type(active) is not bool: raise ValueError('QR holati noto‘g‘ri')
+            if active and (not qr or not recipient):
+                raise WalletError(400,'Faol QR uchun rasm va oluvchi nomi majburiy')
+            con.execute('INSERT INTO platform_settings(commission_bps,qr_image,test_only,actor,reason,created,recipient_name,payment_instructions,qr_active) VALUES(?,?,?,?,?,?,?,?,?)',
+                        (rate,qr,int(test_only),uid,reason,now(),recipient,instructions,int(active)))
             con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'platform-settings',reason,now()))
             con.commit()
         handler.reply(200,settings(con));return True
@@ -159,6 +169,10 @@ def route(handler, con, uid, path, photo, environment):
             handler.reply(200,{'topup':topup_view(existing)});return True
         qr=con.execute('SELECT * FROM platform_settings WHERE version=?',(version,)).fetchone()
         if not qr or not qr['qr_image']: raise WalletError(409,'Balans to‘ldirish uchun QR hali berilmagan')
+        # Historic active versions remain valid evidence after replacement or pause.
+        # Versions created before recipient migration also remain reviewable.
+        if not qr['qr_active'] and not qr['legacy_receipt_allowed']:
+            raise WalletError(409,'Bu QR versiyasi to‘lov qabul qilish uchun faollashtirilmagan')
         if environment=='production' and qr['test_only']: raise WalletError(400,'Test QR mumkin emas')
         if con.execute('SELECT 1 FROM topup_requests WHERE receipt_hash=?',(digest,)).fetchone():
             raise WalletError(409,'Bu chek avval yuborilgan. Yordam xizmatiga murojaat qiling.')
