@@ -4,6 +4,7 @@ import hashlib
 import re
 import secrets
 import notifications
+import topup_history
 from datetime import datetime, timezone, timedelta
 from urllib.parse import parse_qs, urlparse
 
@@ -84,7 +85,7 @@ def topup_view(row, *, admin=False):
     result={'id':row['id'],'amountMinor':row['amount_minor'],'currency':'UZS',
             'qrVersion':row['qr_version'],'status':row['status'],'created':row['created'],
             'reviewReason':row['review_reason'],'reviewedAt':row['reviewed_at'],
-            'payerReference':row['payer_reference'],'paidAt':row['paid_at']}
+            'payerReference':row['payer_reference'],'paidAt':row['paid_at'],'revision':row['revision']}
     if admin:
         result.update(userId=row['user_id'],transferReference=row['transfer_reference'])
     return result
@@ -96,7 +97,7 @@ def topup_page(handler, con, uid, admin=False):
     if not admin:
         predicates.append('user_id=?');args.append(uid)
     status=query.get('status',['all'])[0]
-    if status not in ('all','pending','approved','rejected'): raise ValueError('Invalid status')
+    if status not in ('all','pending','approved','rejected','needs_info'): raise ValueError('Invalid status')
     if status!='all': predicates.append('status=?');args.append(status)
     cursor=query.get('cursor',[None])[0]
     if cursor:
@@ -118,13 +119,34 @@ def require_sitter(con, uid):
 
 def route(handler, con, uid, path, photo, environment):
     method=handler.command
+    one=re.fullmatch(r'/api/wallet/topups/([a-f0-9]{32})',path)
+    if one and method=='GET':
+        require_sitter(con,uid)
+        row=con.execute('SELECT * FROM topup_requests WHERE id=? AND user_id=?',(one[1],uid)).fetchone()
+        if not row: raise WalletError(404,'So‘rov topilmadi')
+        handler.reply(200,{'topup':topup_view(row)});return True
+    history_match=re.fullmatch(r'/api/(admin|wallet)/topups/([a-f0-9]{32})/history(?:/([0-9]{1,9})/receipt)?',path)
+    if history_match and method=='GET':
+        row=con.execute('SELECT user_id FROM topup_requests WHERE id=?',(history_match[2],)).fetchone()
+        if history_match[1]=='wallet': require_sitter(con,uid)
+        if not row or (history_match[1]=='wallet' and row['user_id']!=uid): raise WalletError(404,'So‘rov topilmadi')
+        if history_match[3] is not None:
+            evidence=con.execute('SELECT c.receipt FROM topup_history h JOIN topup_evidence_claims c ON c.receipt_hash=h.receipt_hash AND c.topup_id=h.topup_id WHERE h.topup_id=? AND h.revision=?',(history_match[2],int(history_match[3]))).fetchone()
+            if not evidence: raise WalletError(404,'Chek nusxasi topilmadi')
+            handler.reply(200,{'receipt':evidence['receipt']});return True
+        query=parse_qs(urlparse(handler.path).query)
+        before=query.get('before',[None])[0]
+        if before is not None and not re.fullmatch(r'[0-9]{1,9}',before): raise ValueError('Invalid history cursor')
+        rows=con.execute('SELECT * FROM topup_history WHERE topup_id=?'+(' AND revision<?' if before is not None else '')+' ORDER BY revision DESC LIMIT 21',
+                         (history_match[2],int(before)) if before is not None else (history_match[2],)).fetchall()
+        handler.reply(200,{'items':[dict(topup_history.view(r),actor=r['actor']) if history_match[1]=='admin' else topup_history.view(r) for r in rows[:20]],'nextCursor':str(rows[19]['revision']) if len(rows)>20 else None});return True
     receipt_match=re.fullmatch(r'/api/(admin|wallet)/topups/([a-f0-9]{32})/receipt',path)
     if receipt_match and method=='GET':
-        row=con.execute('SELECT t.user_id,t.receipt,s.qr_image,s.version,s.recipient_name,s.payment_instructions,s.test_only FROM topup_requests t JOIN platform_settings s ON s.version=t.qr_version WHERE t.id=?',(receipt_match[2],)).fetchone()
+        row=con.execute('SELECT t.user_id,t.receipt,t.revision,s.qr_image,s.version,s.recipient_name,s.payment_instructions,s.test_only FROM topup_requests t JOIN platform_settings s ON s.version=t.qr_version WHERE t.id=?',(receipt_match[2],)).fetchone()
         if receipt_match[1]=='wallet': require_sitter(con,uid)
         if not row or (receipt_match[1]=='wallet' and row['user_id']!=uid):
             raise WalletError(404,'Chek topilmadi')
-        handler.reply(200,{'receipt':row['receipt'],'paymentSnapshot':{'version':row['version'],
+        handler.reply(200,{'receipt':row['receipt'],'revision':row['revision'],'paymentSnapshot':{'version':row['version'],
             'qrImage':row['qr_image'],'recipientName':row['recipient_name'],
             'paymentInstructions':row['payment_instructions'],'testOnly':bool(row['test_only'])}});return True
     if path == '/api/admin/platform-settings' and method in ('GET','PUT'):
@@ -183,8 +205,9 @@ def route(handler, con, uid, path, photo, environment):
         require_sitter(con,uid)
         existing=con.execute('SELECT * FROM topup_requests WHERE user_id=? AND request_id=?',(uid,request_id)).fetchone()
         if existing:
-            if (existing['amount_minor']!=value or existing['receipt_hash']!=digest or existing['qr_version']!=version
-                    or existing['payer_reference']!=payer_reference or existing['paid_at']!=paid_at):
+            original=con.execute('SELECT * FROM topup_history WHERE topup_id=? AND revision=0',(existing['id'],)).fetchone()
+            if (original['amount_minor']!=value or original['receipt_hash']!=digest or original['qr_version']!=version
+                    or original['payer_reference']!=payer_reference or original['paid_at']!=paid_at):
                 raise WalletError(409,'So‘rov identifikatori boshqa ma’lumot bilan ishlatilgan')
             handler.reply(200,{'topup':topup_view(existing)});return True
         if not payer_reference and not paid_at:
@@ -196,22 +219,59 @@ def route(handler, con, uid, path, photo, environment):
         if not qr['qr_active'] and not qr['legacy_receipt_allowed']:
             raise WalletError(409,'Bu QR versiyasi to‘lov qabul qilish uchun faollashtirilmagan')
         if environment=='production' and qr['test_only']: raise WalletError(400,'Test QR mumkin emas')
-        if con.execute('SELECT 1 FROM topup_requests WHERE receipt_hash=?',(digest,)).fetchone():
+        if con.execute('SELECT 1 FROM topup_evidence_claims WHERE receipt_hash=?',(digest,)).fetchone():
             raise WalletError(409,'Bu chek avval yuborilgan. Yordam xizmatiga murojaat qiling.')
         topup=secrets.token_hex(16)
         con.execute('INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created,payer_reference,paid_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                     (topup,uid,value,receipt,digest,version,TERMS_VERSION,request_id,'pending',now(),payer_reference,paid_at))
+        topup_history.record(con,topup,'created',uid)
         con.commit()
         handler.reply(201,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(topup,)).fetchone())})
         return True
     if path == '/api/admin/topups' and method=='GET':
         handler.reply(200,topup_page(handler,con,uid,admin=True))
         return True
+    amend=re.fullmatch(r'/api/wallet/topups/([a-f0-9]{32})/amend',path)
+    if amend and method=='POST':
+        require_sitter(con,uid)
+        data=handler.body();value=amount(data.get('amountMinor'))
+        receipt=photo(data.get('receipt'))
+        if not receipt: raise ValueError('Chek rasmi majburiy')
+        digest=hashlib.sha256(base64.b64decode(receipt,validate=True)).hexdigest()
+        request_id=text(data.get('requestId'),100)
+        payer_reference=text(data.get('payerReference',''),200,required=False)
+        paid_at=payment_time(data.get('paidAt'))
+        if not payer_reference and not paid_at: raise ValueError('To‘lov vaqti yoki operatsiya ID majburiy')
+        revision=data.get('revision');version=data.get('qrVersion')
+        if type(revision) is not int or revision<0: raise WalletError(428,'So‘rov versiyasi majburiy')
+        if type(version) is not int: raise ValueError('QR versiyasi noto‘g‘ri')
+        if data.get('acceptNonRefundable') is not True or data.get('termsVersion')!=TERMS_VERSION:
+            raise WalletError(400,'Balans qoldig‘i qaytarilmasligi haqidagi shartni tasdiqlang')
+        con.execute('BEGIN IMMEDIATE');require_sitter(con,uid)
+        row=con.execute('SELECT * FROM topup_requests WHERE id=? AND user_id=?',(amend[1],uid)).fetchone()
+        if not row: raise WalletError(404,'So‘rov topilmadi')
+        previous=con.execute('SELECT * FROM topup_history WHERE topup_id=? AND request_id=?',(row['id'],request_id)).fetchone()
+        if previous:
+            if (previous['revision']!=revision+1 or previous['amount_minor']!=value or previous['receipt_hash']!=digest
+                    or previous['qr_version']!=version or previous['payer_reference']!=payer_reference or previous['paid_at']!=paid_at):
+                raise WalletError(409,'Qayta yuborish identifikatori boshqa ma’lumot bilan ishlatilgan')
+            handler.reply(200,{'topup':topup_view(row)});return True
+        if row['revision']!=revision or row['status'] not in ('needs_info','rejected'):
+            raise WalletError(409,'So‘rov o‘zgargan yoki tahrirlashga ochiq emas. Qayta yuklang.')
+        if version!=row['qr_version']: raise WalletError(409,'Asl to‘lovning QR versiyasini o‘zgartirmang')
+        claim=con.execute('SELECT topup_id FROM topup_evidence_claims WHERE receipt_hash=?',(digest,)).fetchone()
+        if claim and claim[0]!=row['id']: raise WalletError(409,'Bu chek boshqa so‘rovda ishlatilgan')
+        con.execute("UPDATE topup_requests SET amount_minor=?,receipt=?,receipt_hash=?,payer_reference=?,paid_at=?,terms_version=?,status='pending',transfer_reference=NULL,reviewed_by=NULL,review_reason=NULL,reviewed_at=NULL,revision=revision+1 WHERE id=?",
+                    (value,receipt,digest,payer_reference,paid_at,TERMS_VERSION,row['id']))
+        topup_history.record(con,row['id'],'resubmitted',uid,request_id=request_id)
+        con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'topup-resubmit',row['id']+':'+str(revision+1),now()))
+        con.commit()
+        handler.reply(200,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(row['id'],)).fetchone())});return True
     match=re.fullmatch(r'/api/admin/topups/([a-f0-9]{32})/review',path)
     if match and method=='POST':
         data=handler.body();reason=text(data.get('reason'),1000)
         decision=data.get('decision')
-        if decision not in ('approve','reject'): raise ValueError('Qaror noto‘g‘ri')
+        if decision not in ('approve','reject','request_info'): raise ValueError('Qaror noto‘g‘ri')
         reference=text(data.get('transferReference'),200) if decision=='approve' else None
         if reference:
             reference=reference.upper()
@@ -222,19 +282,23 @@ def route(handler, con, uid, path, photo, environment):
         if not row: raise WalletError(404,'Chek so‘rovi topilmadi')
         if decision=='approve' and (type(data.get('receivedAmountMinor')) is not int or data['receivedAmountMinor']!=row['amount_minor']):
             raise WalletError(409,'Tekshirilgan tushum summasi so‘rovga mos emas. Avval aniqlashtiring.')
-        status='approved' if decision=='approve' else 'rejected'
+        status={'approve':'approved','reject':'rejected','request_info':'needs_info'}[decision]
+        revision=data.get('revision')
+        if type(revision) is not int: raise WalletError(428,'So‘rov versiyasi majburiy. Sahifani yangilang.')
         if row['status']!='pending':
-            if row['status']==status and row['transfer_reference']==reference:
+            if row['status']==status and row['transfer_reference']==reference and row['review_reason']==reason and row['revision']==revision+1:
                 handler.reply(200,{'topup':topup_view(row,admin=True)});return True
             raise WalletError(409,'Bu so‘rov allaqachon ko‘rib chiqilgan')
+        if revision!=row['revision']: raise WalletError(409,'So‘rov o‘zgargan. Chekni qayta tekshiring.')
         if reference and con.execute('SELECT 1 FROM topup_requests WHERE transfer_reference=?',(reference,)).fetchone():
             raise WalletError(409,'Bu tushum boshqa so‘rovda ishlatilgan')
         if decision=='approve':
             post_entry(con,row['user_id'],row['amount_minor'],'topup','topup:'+row['id'],uid,reason)
-        con.execute('UPDATE topup_requests SET status=?,transfer_reference=?,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?',
+        con.execute('UPDATE topup_requests SET status=?,transfer_reference=?,reviewed_by=?,review_reason=?,reviewed_at=?,revision=revision+1 WHERE id=?',
                     (status,reference,uid,reason,now(),row['id']))
         con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'topup-'+decision,row['id']+': '+reason,now()))
-        notifications.publish(con,row['user_id'],'topup-review:'+row['id'],'wallet_topup',row['id'],status,reason)
+        topup_history.record(con,row['id'],decision,uid,reason)
+        notifications.publish(con,row['user_id'],'topup-review:'+row['id']+':'+str(revision+1),'wallet_topup',row['id'],status,reason)
         con.commit()
         handler.reply(200,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(row['id'],)).fetchone(),admin=True)})
         return True

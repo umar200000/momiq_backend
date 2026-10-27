@@ -266,7 +266,7 @@ class ApiTests(unittest.TestCase):
         self.req('/api/wallet/topups','POST',dict(payload,requestId='paused',receipt=fixture_image('yellow'),qrVersion=changed['version']),token=a['token'],expected=409)
         # Already paid on a prior active version: evidence remains submittable.
         late=self.req('/api/wallet/topups','POST',dict(payload,requestId='previous-version',receipt=fixture_image('purple')),token=a['token'],expected=201)['topup']
-        self.req('/api/admin/topups/'+late['id']+'/review','POST',{'decision':'reject','reason':'TEST only prior-version evidence'},admin=True)
+        self.req('/api/admin/topups/'+late['id']+'/review','POST',{'revision':0,'decision':'reject','reason':'TEST only prior-version evidence'},admin=True)
         self.req('/api/admin/platform-settings','PUT',{'version':changed['version'],'qrActive':True,'recipientName':'','reason':'Invalid activation'},admin=True,expected=400)
         self.assertNotIn('receipt',self.req('/api/admin/topups?status=pending',admin=True)['topups'][0])
         self.req('/api/wallet/topups?cursor='+created['id'],token=other['token'],expected=400)
@@ -276,7 +276,7 @@ class ApiTests(unittest.TestCase):
         self.req('/api/wallet/topups','POST',dict(payload,amountMinor=3_000_000),token=a['token'],expected=409)
         self.req('/api/wallet/topups','POST',dict(payload,requestId='duplicate'),token=a['token'],expected=409)
         path='/api/admin/topups/'+created['id']+'/review'
-        decision={'decision':'approve','fundsVerified':True,'receivedAmountMinor':2_000_000,'transferReference':'TEST-XOLIS-1','reason':'TEST receipt and incoming funds verified'}
+        decision={'revision':0,'decision':'approve','fundsVerified':True,'receivedAmountMinor':2_000_000,'transferReference':'TEST-XOLIS-1','reason':'TEST receipt and incoming funds verified'}
         self.req(path,'POST',dict(decision,fundsVerified=False),admin=True,expected=400)
         self.req(path,'POST',dict(decision,receivedAmountMinor=1_000_000),admin=True,expected=409)
         # Two independently authenticated operators race to approve the same receipt.
@@ -297,7 +297,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(len([n for n in notices if n['targetId']==created['id']]),1)
         self.assertEqual(next(n for n in notices if n['targetId']==created['id'])['status'],'approved')
         self.assertTrue(result['balanceEligible'])
-        self.req(path,'POST',{'decision':'reject','reason':'Conflicting decision'},admin=True,expected=409)
+        self.req(path,'POST',{'revision':0,'decision':'reject','reason':'Conflicting decision'},admin=True,expected=409)
         with server.db() as con:
             self.assertEqual(con.execute('SELECT SUM(amount_minor) FROM wallet_entries WHERE user_id=?',(a['userId'],)).fetchone()[0],result['balanceMinor'])
             with self.assertRaisesRegex(sqlite3.IntegrityError,'immutable'): con.execute('UPDATE wallet_entries SET amount_minor=1 WHERE user_id=?',(a['userId'],))
@@ -306,9 +306,51 @@ class ApiTests(unittest.TestCase):
         second=self.req('/api/wallet/topups','POST',payload,token=a['token'],expected=201)['topup']
         self.req('/api/admin/topups/'+second['id']+'/review','POST',decision,admin=True,expected=409)
         self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],2_000_000)
-        self.req('/api/admin/topups/'+second['id']+'/review','POST',{'decision':'reject','reason':'TEST duplicate incoming transfer'},admin=True)
+        self.req('/api/admin/topups/'+second['id']+'/review','POST',{'revision':0,'decision':'reject','reason':'TEST duplicate incoming transfer'},admin=True)
         self.assertEqual(self.req('/api/wallet/topups',token=a['token'])['topups'][0]['status'],'rejected')
         self.assertEqual(self.req('/api/admin/topups?status=pending',admin=True)['topups'],[])
+
+    def test_wallet_clarification_preserves_evidence_and_blocks_stale_credit(self):
+        a=self.req('/api/auth/login','POST',{'phone':'998909000021','code':'111111','role':'sitter'})
+        other=self.req('/api/auth/login','POST',{'phone':'998909000022','code':'111111','role':'sitter'})
+        config=self.req('/api/admin/platform-settings',admin=True)
+        config=self.req('/api/admin/platform-settings','PUT',dict(config,qrImage=fixture_image('cyan'),qrActive=True,recipientName='TEST ONLY',reason='TEST clarification QR'),admin=True)
+        original={'requestId':'clarification-original','amountMinor':100,'receipt':fixture_image('cyan'),'qrVersion':config['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True,'payerReference':'TEST-CLARIFY-001'}
+        topup=self.req('/api/wallet/topups','POST',original,token=a['token'],expected=201)['topup'];tid=topup['id']
+        review='/api/admin/topups/'+tid+'/review'
+        self.req(review,'POST',{'decision':'request_info','reason':'TEST: receipt amount unclear'},admin=True,expected=428)
+        returned=self.req(review,'POST',{'revision':0,'decision':'request_info','reason':'TEST: receipt amount unclear'},admin=True)['topup']
+        self.assertEqual((returned['status'],returned['revision']),('needs_info',1))
+        edit=dict(original,requestId='edit-once',revision=1,amountMinor=200,receipt=fixture_image('pink'),payerReference='TEST-EDIT-001')
+        amend='/api/wallet/topups/'+tid+'/amend'
+        self.req(amend,'POST',edit,token=other['token'],expected=404)
+        self.req(amend,'POST',dict(edit,revision=0),token=a['token'],expected=409)
+        self.req(amend,'POST',dict(edit,qrVersion=config['version']+1),token=a['token'],expected=409)
+        self.req(amend,'POST',dict(edit,acceptNonRefundable=False),token=a['token'],expected=400)
+        changed=self.req(amend,'POST',edit,token=a['token'])['topup']
+        self.assertEqual((changed['status'],changed['revision'],changed['amountMinor']),('pending',2,200))
+        self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],0)
+        approval={'revision':0,'decision':'approve','reason':'TEST verified','fundsVerified':True,'receivedAmountMinor':200,'transferReference':'TEST-CLARIFY-INCOMING-001'}
+        self.req(review,'POST',approval,admin=True,expected=409)
+        approval['revision']=2
+        self.req(review,'POST',approval,admin=True);self.req(review,'POST',approval,admin=True)
+        self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],200)
+        self.assertEqual(self.req(amend,'POST',edit,token=a['token'])['topup']['status'],'approved')
+        self.req(amend,'POST',dict(edit,amountMinor=300),token=a['token'],expected=409)
+        self.assertEqual(self.req('/api/wallet/topups','POST',original,token=a['token'])['topup']['revision'],3)
+        self.req('/api/wallet/topups','POST',dict(original,requestId='reuse-old-image'),token=a['token'],expected=409)
+        history='/api/wallet/topups/'+tid+'/history'
+        events=self.req(history,token=a['token'])['items']
+        self.assertEqual([e['event'] for e in events],['approve','resubmitted','request_info','created'])
+        self.assertTrue(all('receipt' not in e for e in events))
+        self.assertEqual(self.req(history+'/0/receipt',token=a['token'])['receipt'],original['receipt'])
+        self.assertEqual(self.req(history+'/2/receipt',token=a['token'])['receipt'],edit['receipt'])
+        self.req(history,token=other['token'],expected=404)
+        self.req(history+'/0/receipt',token=other['token'],expected=404)
+        notices=self.req('/api/notifications',token=a['token'])['items']
+        self.assertEqual([n['status'] for n in notices],['approved','needs_info'])
+        with server.db() as con:
+            with self.assertRaises(sqlite3.IntegrityError): con.execute('DELETE FROM topup_history WHERE topup_id=?',(tid,))
 
     def test_wallet_read_uses_one_snapshot_during_credit(self):
         from unittest.mock import patch

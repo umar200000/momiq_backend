@@ -46,6 +46,22 @@ MIGRATIONS = (
         'CREATE INDEX notifications_unread ON notifications(user_id) WHERE read_at IS NULL',
         "CREATE TRIGGER notifications_content_immutable BEFORE UPDATE OF user_id,source_key,payload,created ON notifications BEGIN SELECT RAISE(ABORT, 'Notice content is immutable'); END",
     )),
+    (7, 'versioned top-up clarification and evidence history', (
+        'ALTER TABLE topup_requests RENAME TO topup_requests_legacy_v7',
+        'DROP INDEX topup_requests_status',
+        "CREATE TABLE topup_requests(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), amount_minor INTEGER NOT NULL CHECK(amount_minor > 0), receipt TEXT NOT NULL, receipt_hash TEXT NOT NULL UNIQUE, qr_version INTEGER NOT NULL REFERENCES platform_settings(version), terms_version TEXT NOT NULL, request_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected','needs_info')), transfer_reference TEXT UNIQUE, reviewed_by TEXT, review_reason TEXT, created TEXT NOT NULL, reviewed_at TEXT, payer_reference TEXT NOT NULL DEFAULT '', paid_at TEXT, revision INTEGER NOT NULL DEFAULT 0 CHECK(revision>=0), UNIQUE(user_id,request_id))",
+        'INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,transfer_reference,reviewed_by,review_reason,created,reviewed_at,payer_reference,paid_at) SELECT id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,transfer_reference,reviewed_by,review_reason,created,reviewed_at,payer_reference,paid_at FROM topup_requests_legacy_v7',
+        'DROP TABLE topup_requests_legacy_v7',
+        'CREATE INDEX topup_requests_status ON topup_requests(status,created,id)',
+        'CREATE TABLE topup_evidence_claims(receipt_hash TEXT PRIMARY KEY, topup_id TEXT NOT NULL REFERENCES topup_requests(id), receipt TEXT NOT NULL)',
+        'INSERT INTO topup_evidence_claims SELECT receipt_hash,id,receipt FROM topup_requests',
+        'CREATE TABLE topup_history(topup_id TEXT NOT NULL REFERENCES topup_requests(id), revision INTEGER NOT NULL, event TEXT NOT NULL, actor TEXT NOT NULL, reason TEXT NOT NULL, created TEXT NOT NULL, amount_minor INTEGER NOT NULL, receipt_hash TEXT NOT NULL, qr_version INTEGER NOT NULL, terms_version TEXT NOT NULL, payer_reference TEXT NOT NULL, paid_at TEXT, status TEXT NOT NULL, request_id TEXT, PRIMARY KEY(topup_id,revision), UNIQUE(topup_id,request_id))',
+        "INSERT INTO topup_history SELECT id,0,'migrated','system','Existing evidence imported; earlier transitions are not reconstructed',strftime('%Y-%m-%dT%H:%M:%fZ','now'),amount_minor,receipt_hash,qr_version,terms_version,payer_reference,paid_at,status,NULL FROM topup_requests",
+        "CREATE TRIGGER topup_history_no_update BEFORE UPDATE ON topup_history BEGIN SELECT RAISE(ABORT, 'Top-up history is immutable'); END",
+        "CREATE TRIGGER topup_history_no_delete BEFORE DELETE ON topup_history BEGIN SELECT RAISE(ABORT, 'Top-up history is immutable'); END",
+        "CREATE TRIGGER topup_claims_no_update BEFORE UPDATE ON topup_evidence_claims BEGIN SELECT RAISE(ABORT, 'Receipt claim is immutable'); END",
+        "CREATE TRIGGER topup_claims_no_delete BEFORE DELETE ON topup_evidence_claims BEGIN SELECT RAISE(ABORT, 'Receipt claim is immutable'); END",
+    )),
 )
 
 

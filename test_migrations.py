@@ -24,21 +24,25 @@ class MigrationTests(unittest.TestCase):
 
     def test_existing_payment_requests_keep_their_evidence(self):
         with closing(sqlite3.connect(':memory:')) as con:
+            con.execute('PRAGMA foreign_keys=ON')
             con.execute('CREATE TABLE users(id TEXT PRIMARY KEY)')
             con.execute("INSERT INTO users VALUES('sitter')")
             con.commit()
             original=migrations.MIGRATIONS
             with patch.object(migrations,'MIGRATIONS',original[:4]): migrations.migrate(con)
             con.execute("INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created) VALUES('old','sitter',1500000,'receipt','hash',1,'v1','once','pending','2026-01-01')")
-            con.commit();self.assertEqual(migrations.migrate(con),[5,6])
+            con.commit();self.assertEqual(migrations.migrate(con),[5,6,7])
             self.assertEqual(con.execute('SELECT receipt,amount_minor,payer_reference,paid_at FROM topup_requests').fetchone(),('receipt',1500000,'',None))
+            self.assertEqual(con.execute('SELECT receipt FROM topup_evidence_claims').fetchone()[0],'receipt')
+            self.assertEqual(con.execute('SELECT event FROM topup_history').fetchone()[0],'migrated')
+            self.assertEqual(con.execute('PRAGMA foreign_key_check').fetchall(),[])
 
     def test_legacy_data_preserved_and_idempotent(self):
         with closing(sqlite3.connect(':memory:')) as con:
             con.execute('CREATE TABLE users(id TEXT PRIMARY KEY, account TEXT)')
             con.execute("INSERT INTO users VALUES('real', '{\"profile\":{}}')")
             con.commit()
-            self.assertEqual(migrations.migrate(con), [1,2,3,4,5,6])
+            self.assertEqual(migrations.migrate(con), [1,2,3,4,5,6,7])
             self.assertEqual(migrations.migrate(con), [])
             self.assertEqual(con.execute('SELECT * FROM users').fetchall(), [('real','{"profile":{}}')])
             self.assertEqual(con.execute('SELECT * FROM account_revisions').fetchall(), [('real',0)])
@@ -74,7 +78,7 @@ class MigrationTests(unittest.TestCase):
                 con.commit()
                 migrations.backup_database(source, backup)
                 with closing(sqlite3.connect(backup)) as copy:
-                    self.assertEqual(migrations.migrate(copy), [1,2,3,4,5,6])
+                    self.assertEqual(migrations.migrate(copy), [1,2,3,4,5,6,7])
                     self.assertEqual(copy.execute('SELECT user_id FROM account_revisions').fetchone()[0], 'persist')
                 self.assertIsNone(con.execute("SELECT name FROM sqlite_master WHERE name='schema_migrations'").fetchone())
                 with self.assertRaises(ValueError):
