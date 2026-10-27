@@ -169,7 +169,8 @@ def profiles(con,environment):
                 'capacity':1 if item['type']=='personal' else item.get('capacity'),
                 'rating':0,'reviews':0,'years':sitter.get('years',0),'about':sitter.get('about',''),
                 'photo':media['photo'],'homePhotos':media['homePhotos'],
-                'location':public_location,'testOnly':True,'identityVerified':False})
+                'location':public_location,'testOnly':True,'identityVerified':False,
+                'availabilityKnown':False})
     return result
 
 
