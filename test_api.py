@@ -224,9 +224,14 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(config['commissionBps'],1000)
         png=fixture_image('green')
         config=self.req('/api/admin/platform-settings','PUT',{'version':config['version'],'qrImage':png,'testOnly':True,'reason':'TEST only QR','recipientName':'TEST recipient','qrActive':True},admin=True)
-        payload={'requestId':'once','amountMinor':2_000_000,'receipt':png,'qrVersion':config['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True}
+        payload={'payerReference':'TEST-PAYER-001','paidAt':'2026-10-26T10:00:00+05:00','requestId':'once','amountMinor':2_000_000,'receipt':png,'qrVersion':config['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True}
         self.req('/api/wallet/topups','POST',dict(payload,acceptNonRefundable=False),token=a['token'],expected=400)
+        self.req('/api/wallet/topups','POST',dict(payload,payerReference='',paidAt=None),token=a['token'],expected=400)
+        self.req('/api/wallet/topups','POST',dict(payload,paidAt='2099-01-01T00:00:00Z'),token=a['token'],expected=400)
         created=self.req('/api/wallet/topups','POST',payload,token=a['token'],expected=201)['topup']
+        self.assertEqual(created['payerReference'],'TEST-PAYER-001')
+        self.assertEqual(created['paidAt'],'2026-10-26T05:00:00+00:00')
+        self.req('/api/wallet/topups','POST',dict(payload,payerReference='changed'),token=a['token'],expected=409)
         receipt_path='/api/wallet/topups/'+created['id']+'/receipt'
         self.assertEqual(self.req(receipt_path,token=a['token'])['receipt'],png)
         other=self.req('/api/auth/login','POST',{'phone':'998909000008','code':'111111','role':'sitter'})

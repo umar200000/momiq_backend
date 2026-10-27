@@ -36,6 +36,10 @@ MIGRATIONS = (
         'ALTER TABLE platform_settings ADD COLUMN legacy_receipt_allowed INTEGER NOT NULL DEFAULT 0 CHECK(legacy_receipt_allowed IN (0,1))',
         'UPDATE platform_settings SET legacy_receipt_allowed=1 WHERE qr_image IS NOT NULL',
     )),
+    (5, 'payer supplied payment evidence metadata', (
+        "ALTER TABLE topup_requests ADD COLUMN payer_reference TEXT NOT NULL DEFAULT ''",
+        'ALTER TABLE topup_requests ADD COLUMN paid_at TEXT',
+    )),
 )
 
 

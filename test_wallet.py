@@ -7,6 +7,12 @@ import wallet
 
 
 class WalletLedgerTests(unittest.TestCase):
+    def test_payment_timestamp_requires_explicit_zone_and_real_past_time(self):
+        self.assertIsNone(wallet.payment_time(None))
+        self.assertEqual(wallet.payment_time('2026-01-01T15:00:00+05:00'), '2026-01-01T10:00:00+00:00')
+        for value in (123, 'yesterday', '2026-01-01T15:00:00', '2099-01-01T00:00:00Z', '1900-01-01T00:00:00Z'):
+            with self.assertRaises(ValueError): wallet.payment_time(value)
+
     def test_history_cursor_reaches_all_records_and_is_owner_scoped(self):
         with closing(sqlite3.connect(':memory:')) as con:
             con.row_factory=sqlite3.Row

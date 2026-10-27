@@ -3,7 +3,7 @@ import base64
 import hashlib
 import re
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.parse import parse_qs, urlparse
 
 MINIMUM_BALANCE_MINOR = 1_500_000
@@ -29,6 +29,21 @@ def amount(value):
     if type(value) is not int or not 0 < value <= 100_000_000_000:
         raise ValueError('Summa butun tiyinlarda berilishi kerak')
     return value
+
+
+def payment_time(value):
+    if value is None or value == '': return None
+    if not isinstance(value, str) or len(value) > 40:
+        raise ValueError('To‘lov vaqti noto‘g‘ri')
+    try:
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is None: raise ValueError()
+        parsed = parsed.astimezone(timezone.utc)
+        if parsed.year < 2000 or parsed > datetime.now(timezone.utc) + timedelta(minutes=5):
+            raise ValueError()
+        return parsed.isoformat()
+    except (ValueError, OverflowError):
+        raise ValueError('Chekdagi haqiqiy to‘lov vaqti va vaqt zonasini ko‘rsating') from None
 
 
 def settings(con):
@@ -67,7 +82,8 @@ def post_entry(con, uid, value, kind, source, actor, reason):
 def topup_view(row, *, admin=False):
     result={'id':row['id'],'amountMinor':row['amount_minor'],'currency':'UZS',
             'qrVersion':row['qr_version'],'status':row['status'],'created':row['created'],
-            'reviewReason':row['review_reason'],'reviewedAt':row['reviewed_at']}
+            'reviewReason':row['review_reason'],'reviewedAt':row['reviewed_at'],
+            'payerReference':row['payer_reference'],'paidAt':row['paid_at']}
     if admin:
         result.update(userId=row['user_id'],transferReference=row['transfer_reference'])
     return result
@@ -156,6 +172,8 @@ def route(handler, con, uid, path, photo, environment):
         if not receipt: raise ValueError('Chek rasmi majburiy')
         digest=hashlib.sha256(base64.b64decode(receipt,validate=True)).hexdigest()
         request_id=text(data.get('requestId'),100)
+        payer_reference=text(data.get('payerReference',''),200,required=False)
+        paid_at=payment_time(data.get('paidAt'))
         version=data.get('qrVersion')
         if type(version) is not int: raise ValueError('QR versiyasi noto‘g‘ri')
         if data.get('acceptNonRefundable') is not True or data.get('termsVersion')!=TERMS_VERSION:
@@ -164,9 +182,12 @@ def route(handler, con, uid, path, photo, environment):
         require_sitter(con,uid)
         existing=con.execute('SELECT * FROM topup_requests WHERE user_id=? AND request_id=?',(uid,request_id)).fetchone()
         if existing:
-            if existing['amount_minor']!=value or existing['receipt_hash']!=digest or existing['qr_version']!=version:
+            if (existing['amount_minor']!=value or existing['receipt_hash']!=digest or existing['qr_version']!=version
+                    or existing['payer_reference']!=payer_reference or existing['paid_at']!=paid_at):
                 raise WalletError(409,'So‘rov identifikatori boshqa ma’lumot bilan ishlatilgan')
             handler.reply(200,{'topup':topup_view(existing)});return True
+        if not payer_reference and not paid_at:
+            raise WalletError(400,'Chekdagi to‘lov vaqtini yoki operatsiya ID raqamini kiriting')
         qr=con.execute('SELECT * FROM platform_settings WHERE version=?',(version,)).fetchone()
         if not qr or not qr['qr_image']: raise WalletError(409,'Balans to‘ldirish uchun QR hali berilmagan')
         # Historic active versions remain valid evidence after replacement or pause.
@@ -177,8 +198,8 @@ def route(handler, con, uid, path, photo, environment):
         if con.execute('SELECT 1 FROM topup_requests WHERE receipt_hash=?',(digest,)).fetchone():
             raise WalletError(409,'Bu chek avval yuborilgan. Yordam xizmatiga murojaat qiling.')
         topup=secrets.token_hex(16)
-        con.execute('INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                    (topup,uid,value,receipt,digest,version,TERMS_VERSION,request_id,'pending',now()))
+        con.execute('INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created,payer_reference,paid_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                    (topup,uid,value,receipt,digest,version,TERMS_VERSION,request_id,'pending',now(),payer_reference,paid_at))
         con.commit()
         handler.reply(201,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(topup,)).fetchone())})
         return True
