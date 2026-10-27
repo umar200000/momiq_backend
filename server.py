@@ -128,8 +128,10 @@ def default_account():
             "addresses": [], "notifications": {"orders": True, "chat": True, "video": True}, "language": "uz", "pets": [], "support": [], "sitterProfile": None}
 
 def validate_account(data):
+    if not isinstance(data,dict): raise ValueError('Hisob noto‘g‘ri')
     result = default_account()
     p = data.get("profile", {})
+    if not isinstance(p,dict): raise ValueError('Profil noto‘g‘ri')
     result["profile"] = {"first": string(p.get("first", "")), "last": string(p.get("last", "")), "photo": photo(p.get("photo"))}
     if not result["profile"]["first"] or not result["profile"]["last"]:
         raise ValueError("Ism va familiya majburiy")
@@ -140,16 +142,21 @@ def validate_account(data):
     addresses = data.get("addresses", [])
     if not isinstance(addresses, list) or len(addresses) > 30:
         raise ValueError("Manzillar soni noto‘g‘ri")
+    normalized_addresses, address_ids = [], set()
     for item in addresses:
         if not isinstance(item, dict):
             raise ValueError("Manzil noto‘g‘ri")
-        for key in ["id", "label", "address", "apartment"]:
-            string(item.get(key, ""), 500)
+        normalized = {key:string('' if item.get(key) is None else item[key],500) for key in ["id", "label", "address", "apartment"]}
+        if not normalized['id'] or normalized['id'] in address_ids or not normalized['address']: raise ValueError('Manzil ID yoki matni noto‘g‘ri')
+        address_ids.add(normalized['id'])
         lat, lon = item.get("lat"), item.get("lon")
-        if not isinstance(lat, (int,float)) or not isinstance(lon, (int,float)) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
+        if type(lat) not in (int,float) or type(lon) not in (int,float) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
             raise ValueError("Manzil koordinatalari noto‘g‘ri")
-    result["addresses"] = addresses
-    result["notifications"] = {k: data.get("notifications", {}).get(k, True) for k in ["orders", "chat", "video"]}
+        normalized_addresses.append(dict(normalized,lat=lat,lon=lon))
+    result["addresses"] = normalized_addresses
+    notifications = data.get('notifications', {})
+    if not isinstance(notifications,dict): raise ValueError('Sozlamalar noto‘g‘ri')
+    result["notifications"] = {k: notifications.get(k, True) for k in ["orders", "chat", "video"]}
     if any(type(v) is not bool for v in result["notifications"].values()):
         raise ValueError("Sozlama noto‘g‘ri")
     result["language"] = data.get("language", "uz")
@@ -157,16 +164,23 @@ def validate_account(data):
         raise ValueError("Til noto‘g‘ri")
     pets = data.get('pets', [])
     if not isinstance(pets, list) or len(pets) > 30: raise ValueError('Hayvonlar soni noto‘g‘ri')
+    normalized_pets = []
+    pet_ids = set()
     for pet in pets:
         if not isinstance(pet, dict) or pet.get('type') not in ['It','Mushuk','Boshqa']: raise ValueError('Hayvon turi noto‘g‘ri')
         if not photo(pet.get('photo')): raise ValueError('Hayvon rasmi majburiy')
-        for key in ['id','name','age','sex','breed','notes','otherType']:
-            string(pet.get(key,''),2000)
-        if pet['type'] == 'Boshqa' and not pet.get('otherType','').strip(): raise ValueError('Hayvon turini yozing')
-    result['pets'] = pets
+        item = {key:string('' if pet.get(key) is None else pet[key],100 if key=='id' else 2000) for key in ['id','name','age','sex','breed','notes','otherType']}
+        if not item['id'] or item['id'] in pet_ids: raise ValueError('Hayvon ID takrorlangan yoki bo‘sh')
+        pet_ids.add(item['id'])
+        if item['age'] and (not item['age'].isascii() or not item['age'].isdigit() or not 0<=int(item['age'])<=100): raise ValueError('Hayvon yoshi noto‘g‘ri')
+        if item['sex'] not in ['', 'Erkak', 'Urg‘ochi']: raise ValueError('Jins noto‘g‘ri')
+        if pet['type'] == 'Boshqa' and not item['otherType']: raise ValueError('Hayvon turini yozing')
+        normalized_pets.append(dict(item,type=pet['type'],photo=pet['photo']))
+    result['pets'] = normalized_pets
     support = data.get('support', [])
     if not isinstance(support,list) or len(support)>100: raise ValueError('Murojaatlar soni noto‘g‘ri')
     for item in support:
+        if not isinstance(item,dict): raise ValueError('Murojaat noto‘g‘ri')
         string(item['id'],100)
         string(item['text'],4000)
     sitter = data.get('sitterProfile')
@@ -175,11 +189,18 @@ def validate_account(data):
         years = sitter.get('years')
         if years is not None and (type(years) is not int or not 0 <= years <= 80): raise ValueError('Tajriba noto‘g‘ri')
         homes = sitter.get('homePhotos', [])
-        if not isinstance(homes, list) or len(homes) > 9: raise ValueError('Rasmlar soni noto‘g‘ri')
+        if not isinstance(homes, list) or len(homes) > 9 or any(v is None for v in homes): raise ValueError('Rasmlar soni noto‘g‘ri')
         housing = sitter.get('housing', 'apartment')
         if housing not in ['apartment','house']: raise ValueError('Uy turi noto‘g‘ri')
         result['sitterProfile'] = {'years': years, 'about': string(sitter.get('about',''),4000),
                                   'homePhotos': [photo(v) for v in homes], 'housing': housing}
+        schedule = sitter.get('schedule')
+        if schedule is not None:
+            if not isinstance(schedule,dict): raise ValueError('Jadval noto‘g‘ri')
+            days, start, end = schedule.get('days'), schedule.get('start'), schedule.get('end')
+            if not isinstance(days,list) or len(days)!=7 or any(type(v) is not bool for v in days): raise ValueError('Hafta kunlari noto‘g‘ri')
+            if type(start) is not int or type(end) is not int or not 0<=start<end<1440: raise ValueError('Ish vaqti noto‘g‘ri')
+            result['sitterProfile']['schedule'] = {'days':days,'start':start,'end':end,'timezone':'Asia/Tashkent'}
     result['support'] = support
     return result
 

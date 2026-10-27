@@ -27,6 +27,10 @@ The compare-and-increment and account mutation share a transaction. Polling does
 
 ## Upgrade compatibility
 
+Optional pet strings (`name`, `age`, `sex`, `breed`, `notes`, `otherType`) and address strings are normalized to strings on accepted writes, including missing/null optional values. Pet/address IDs must be non-empty and unique within the account. A pet age, when supplied, is an integer string in 0–100; sex is empty, `Erkak` or `Urg‘ochi`. Boolean coordinates and malformed nested objects are rejected. Media decoding/storage still has separate work outstanding.
+
+Sitter account preferences share `notifications` (`orders`, `chat`, `video`) and `language` (`uz`, `ru`, `en`) with the customer role. Optional `sitterProfile.schedule` has seven boolean `days` starting Monday and integer minute offsets `start < end`, both 0–1439, with server-owned timezone `Asia/Tashkent`. Overnight intervals, blackout dates and booking availability are not yet implemented. A successful settings save must use the returned account/revision; do not copy local mock settings over server data.
+
 This branch changes the write contract. Old applications/admin pages without `_revision` can read but cannot update profiles. Deploy the matching admin and mobile builds together in staging, then enforce a minimum supported app version before production rollout. Do not bypass the precondition to support old writers: that would restore lost-update bugs.
 
 ## Database upgrades

@@ -166,6 +166,36 @@ class ApiTests(unittest.TestCase):
         with server.db() as con:
             con.execute('UPDATE sessions SET expires=? WHERE user_id=?', (time.time()-1,other['userId']))
         self.req('/api/me',token=other['token'],expected=401)
+
+    def test_profile_shapes_defaults_and_sitter_preferences(self):
+        a=self.login('998909000005')
+        account=a['account']; account['profile'].update(first='Sitter',last='Preferences')
+        for key,value in [('profile',[]),('notifications',[]),('notifications',None),('support',[None])]:
+            with self.subTest(key=key,value=value):
+                self.req('/api/me','PUT',dict(account,**{key:value}),token=a['token'],expected=400)
+        png=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'example').decode()
+        pet={'id':'minimal','type':'Mushuk','photo':png,'notes':None}
+        account['pets']=[pet]
+        account['addresses']=[{'id':'home','label':None,'address':'Toshkent','lat':41.3,'lon':69.2}]
+        account['sitterProfile']={'years':1,'about':'Care','homePhotos':[],'housing':'house','schedule':{'days':[True]*5+[False]*2,'start':540,'end':1080}}
+        saved=self.req('/api/me','PUT',account,token=a['token'])['account']
+        self.assertEqual(saved['pets'][0]['notes'],'')
+        self.assertEqual(saved['pets'][0]['age'],'')
+        self.assertEqual(saved['addresses'][0]['apartment'],'')
+        self.assertEqual(saved['sitterProfile']['schedule']['timezone'],'Asia/Tashkent')
+        for bad_pet in [dict(pet,age=False),dict(pet,age='101'),dict(pet,id=''),dict(pet,sex='invalid')]:
+            self.req('/api/me','PUT',dict(saved,pets=[bad_pet]),token=a['token'],expected=400)
+        self.req('/api/me','PUT',dict(saved,pets=[pet,pet]),token=a['token'],expected=400)
+        invalid=json.loads(json.dumps(saved)); invalid['addresses'][0]['lat']=True
+        self.req('/api/me','PUT',invalid,token=a['token'],expected=400)
+        for schedule in [None,{'days':[True]*6,'start':0,'end':1},{'days':[True]*7,'start':1200,'end':500},{'days':[True]*7,'start':0,'end':1440}]:
+            if schedule is None: continue
+            invalid=json.loads(json.dumps(saved)); invalid['sitterProfile']['schedule']=schedule
+            self.req('/api/me','PUT',invalid,token=a['token'],expected=400)
+        saved['notifications']['video']=False; saved['language']='ru'
+        updated=self.req('/api/me','PUT',saved,token=a['token'])['account']
+        other=self.login('998909000005')
+        self.assertEqual(other['account'],updated)
     def test_chat_reply_isolation_and_idempotency(self):
         a=self.login('998903333333');b=self.login('998904444444')
         message={'sitter':'hoji','text':'Salom','requestId':'once'}
@@ -205,7 +235,7 @@ class ApiTests(unittest.TestCase):
         account['support']=[{'id':'support1','text':'Yordam kerak'}]
         self.req('/api/me','PUT',account,token=a['token'])
         again=self.login('998907777777')
-        self.assertEqual(again['account'],dict(account,_revision=account['_revision']+1))
+        self.assertEqual(again['account'],dict(server.validate_account(account),_revision=account['_revision']+1))
         self.req('/api/messages','POST',{'sitter':'hoji','image':png},token=a['token'])
         self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][0]['image'],png)
         self.req('/api/messages','POST',{'sitter':'hoji','image':base64.b64encode(b'html').decode()},token=a['token'],expected=400)
