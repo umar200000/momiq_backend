@@ -310,6 +310,44 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.req('/api/wallet/topups',token=a['token'])['topups'][0]['status'],'rejected')
         self.assertEqual(self.req('/api/admin/topups?status=pending',admin=True)['topups'],[])
 
+    def test_same_transfer_with_reencoded_receipts_cannot_credit_two_sitters(self):
+        from concurrent.futures import ThreadPoolExecutor
+        a=self.req('/api/auth/login','POST',{'phone':'998909000031','code':'111111','role':'sitter'})
+        b=self.req('/api/auth/login','POST',{'phone':'998909000032','code':'111111','role':'sitter'})
+        config=self.req('/api/admin/platform-settings',admin=True)
+        config=self.req('/api/admin/platform-settings','PUT',dict(config,qrImage=fixture_image('orange'),qrActive=True,recipientName='TEST ONLY',reason='TEST duplicate receipt'),admin=True)
+        png=fixture_image('#123456');jpeg=fixture_image('#123456',format='JPEG')
+        self.assertNotEqual(png,jpeg)
+        payload={'requestId':'same-payment','amountMinor':100,'qrVersion':config['version'],
+                 'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True,'payerReference':'TEST shared evidence'}
+        first=self.req('/api/wallet/topups','POST',dict(payload,receipt=png),token=a['token'],expected=201)['topup']
+        # Exact image reuse is blocked across owners, before operator review.
+        self.req('/api/wallet/topups','POST',dict(payload,receipt=png),token=b['token'],expected=409)
+        second=self.req('/api/wallet/topups','POST',dict(payload,receipt=jpeg),token=b['token'],expected=201)['topup']
+        operator=build_opener(HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        login=Request(self.base+'/api/admin/login',method='POST',headers={'Content-Type':'application/json'},data=json.dumps({'username':'admin','password':'test-admin-password'}).encode())
+        with operator.open(login) as response: self.assertEqual(response.status,200)
+        barrier=threading.Barrier(2)
+        def approve(args):
+            opener,tid,reference=args
+            body={'revision':0,'decision':'approve','fundsVerified':True,'receivedAmountMinor':100,
+                  'transferReference':reference,'reason':'TEST independently checked incoming transfer'}
+            request=Request(self.base+'/api/admin/topups/'+tid+'/review',method='POST',headers={'Content-Type':'application/json'},data=json.dumps(body).encode())
+            barrier.wait(timeout=5)
+            try: response=opener.open(request)
+            except HTTPError as error: response=error
+            with response: return response.status
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results=list(pool.map(approve,[(self.admin,first['id'],' TEST-ONE-INCOMING-TRANSFER '),
+                                          (operator,second['id'],'test-one-incoming-transfer')]))
+        self.assertEqual(sorted(results),[200,409])
+        balances=[self.req('/api/wallet',token=owner['token'])['balanceMinor'] for owner in (a,b)]
+        self.assertEqual(sorted(balances),[0,100])
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM wallet_entries WHERE user_id IN (?,?)',(a['userId'],b['userId'])).fetchone()[0],1)
+            statuses=[r[0] for r in con.execute('SELECT status FROM topup_requests WHERE id IN (?,?)',(first['id'],second['id']))]
+            self.assertEqual(sorted(statuses),['approved','pending'])
+
     def test_wallet_clarification_preserves_evidence_and_blocks_stale_credit(self):
         a=self.req('/api/auth/login','POST',{'phone':'998909000021','code':'111111','role':'sitter'})
         other=self.req('/api/auth/login','POST',{'phone':'998909000022','code':'111111','role':'sitter'})
