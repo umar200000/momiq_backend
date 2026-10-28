@@ -144,7 +144,10 @@ def validate_account(data):
     if not result["profile"]["first"] or not result["profile"]["last"]:
         raise ValueError("Ism va familiya majburiy")
     fav = data.get("favorites", [])
-    if not isinstance(fav, list) or any(x not in sitter_names() for x in fav):
+    if not isinstance(fav, list) or any(not isinstance(x, str) for x in fav):
+        raise ValueError("Enaga noto‘g‘ri")
+    known = sitter_names()
+    if any(x not in known for x in fav):
         raise ValueError("Enaga noto‘g‘ri")
     result["favorites"] = list(dict.fromkeys(fav))
     addresses = data.get("addresses", [])
@@ -190,10 +193,13 @@ def validate_account(data):
     result['pets'] = normalized_pets
     support = data.get('support', [])
     if not isinstance(support,list) or len(support)>100: raise ValueError('Murojaatlar soni noto‘g‘ri')
+    normalized_support, support_ids = [], set()
     for item in support:
         if not isinstance(item,dict): raise ValueError('Murojaat noto‘g‘ri')
-        string(item['id'],100)
-        string(item['text'],4000)
+        identity, body = string(item.get('id'),100), string(item.get('text'),4000)
+        if not identity or not body or identity in support_ids: raise ValueError('Murojaat ID yoki matni noto‘g‘ri')
+        support_ids.add(identity)
+        normalized_support.append({'id':identity,'text':body})
     sitter = data.get('sitterProfile')
     if sitter is not None:
         if not isinstance(sitter, dict): raise ValueError('Enaga profili noto‘g‘ri')
@@ -212,10 +218,11 @@ def validate_account(data):
             if not isinstance(days,list) or len(days)!=7 or any(type(v) is not bool for v in days): raise ValueError('Hafta kunlari noto‘g‘ri')
             if type(start) is not int or type(end) is not int or not 0<=start<end<1440: raise ValueError('Ish vaqti noto‘g‘ri')
             result['sitterProfile']['schedule'] = {'days':days,'start':start,'end':end,'timezone':'Asia/Tashkent'}
-    result['support'] = support
+    result['support'] = normalized_support
     return result
 
 def validate_listings(data):
+    if not isinstance(data,dict): raise ValueError('E’lonlar noto‘g‘ri')
     housing = data.get('housing')
     items = data.get('listings')
     if housing not in ['apartment','house'] or not isinstance(items,list) or len(items)>3:
@@ -450,7 +457,7 @@ class Handler(BaseHTTPRequestHandler):
                     # Old clients may omit archived pets or their new flag. A full
                     # profile save must not silently delete/restore those records.
                     old_pets = {p['id']:p for p in before.get('pets',[])}
-                    incoming_pets = {p['id']:p for p in data.get('pets',[])}
+                    incoming_pets = {p['id'].strip():p for p in data.get('pets',[])}
                     for pet in account['pets']:
                         old_pet = old_pets.get(pet['id'],{})
                         pet['archived'] = bool(old_pet.get('archived',False))

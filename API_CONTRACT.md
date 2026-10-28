@@ -27,6 +27,23 @@ The compare-and-increment and account mutation share a transaction. Polling does
 
 ## Upgrade compatibility
 
+### Canonical account shape
+
+Full-account writes use the same validator for owner and admin. Required text is trimmed and non-empty; limits below count Unicode code points before trimming. Unknown top-level/profile fields are not stored. Invalid types (including boolean-as-integer), missing required fields, duplicates and limits return 400 and leave both data and revision unchanged. Valid defaults below are materialized in the response, login and subsequent GET; creating a new login is the sole exception allowing an unfinished profile with empty first/last names.
+
+| Field | Accepted value / default |
+| --- | --- |
+| `profile` | Required object: `first` and `last` strings, each 1–100 after non-empty check; `photo` validated image or missing/null → null. Names allow Unicode, spaces, apostrophes and hyphens. |
+| `favorites` | Missing → []; array of known string sitter IDs, deduplicated in order. Archived/unavailable known contacts remain valid references, without granting booking eligibility. Null, objects and unknown IDs are rejected. |
+| `addresses` | Missing → []; at most 30 objects, unique non-empty `id`, non-empty `address`; id/label/address/apartment strings ≤500, omitted/null optional label/apartment → ''. Finite numeric lat −90…90, lon −180…180, never booleans. |
+| `notifications` | Missing → object; omitted orders/chat/video → true. Supplied values must be boolean; null object/flags rejected. |
+| `language` | Missing → uz; exactly uz/ru/en. |
+| `pets` | Missing → []; at most 30 including retained archived animals. Unique trimmed id ≤100; mandatory decoded photo and type It/Mushuk/Boshqa. Optional name/age/sex/breed/notes/otherType strings ≤2000; missing/null → ''. Other type requires non-empty otherType. Age/sex and care facts follow the rules below. archived defaults false on creation; existing archive state uses its dedicated endpoint. |
+| `sitterProfile` | Missing/null → null; otherwise object. years missing/null or integer 0–80; about missing → '', string ≤4000 (explicit null rejected); homePhotos missing → [], max 9 validated non-null images; housing missing → apartment, enum apartment/house. Optional schedule rules below. |
+| `support` | Legacy owner archive only, missing → []; max 100 objects with unique trimmed id (1–100) and non-empty trimmed text (≤4000). Unknown legacy fields are discarded, no delivery/admin status is inferred. New support messages use `/api/support`. |
+
+All container fields require the documented object/array type; explicit null is only accepted where stated. An omitted optional pet care field preserves its previous value during owner updates; explicit empty/null clears it. IDs are normalized before this merge, so surrounding whitespace cannot bypass preservation or cause a server error. Media byte/pixel/type limits are documented in the upload section. Sitter profile editing accepts unspecified experience/about without inventing experience; customer and sitter name editors enforce the 100-code-point limit before sending. Existing legacy media that fails decoding is not silently accepted.
+
 Optional pet strings (`name`, `age`, `sex`, `breed`, `notes`, `otherType`) and address strings are normalized to strings on accepted writes, including missing/null optional values. Pet/address IDs must be non-empty and unique within the account. A pet age, when supplied, is an integer string in 0–100; sex is empty, `Erkak` or `Urg‘ochi`. Boolean coordinates and malformed nested objects are rejected. Media decoding/storage still has separate work outstanding.
 
 Sitter account preferences share `notifications` (`orders`, `chat`, `video`) and `language` (`uz`, `ru`, `en`) with the customer role. Optional `sitterProfile.schedule` has seven boolean `days` starting Monday and integer minute offsets `start < end`, both 0–1439, with server-owned timezone `Asia/Tashkent`. Overnight intervals, blackout dates and booking availability are not yet implemented. A successful settings save must use the returned account/revision; do not copy local mock settings over server data.

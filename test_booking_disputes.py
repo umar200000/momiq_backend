@@ -108,7 +108,13 @@ class DisputeTests(unittest.TestCase):
         self.expect_error(409,lambda:self.report(active))
         case=self.report(active,self.payload(active,kind='service'))
         self.assertEqual(len(self.read(active,admin=True)['handoverConfirmations']),2)
-        with self.assertRaises(ValueError):self.resolve(active,self.decision(case,outcome='cancel_service',fault='none',refundMinor=15000001))
+        for invalid in [-1,True,0.5,'5000000',15000001]:
+            with self.subTest(refund=invalid):
+                with self.assertRaises(ValueError):self.resolve(active,self.decision(case,outcome='cancel_service',fault='none',refundMinor=invalid))
+                self.assertEqual(self.read(active)['case']['status'],'open')
+                with server.db() as con:
+                    self.assertEqual(wallet.balance(con,'abc'),85000000)
+                    self.assertEqual(con.execute("SELECT COUNT(*) FROM wallet_entries WHERE kind='commission_refund'").fetchone()[0],0)
         result=self.resolve(active,self.decision(case,outcome='cancel_service',fault='none',refundMinor=5000000))
         self.assertEqual(result['case']['refundMinor'],5000000)
         self.assertFalse(result['customerServicePaymentRefunded'])

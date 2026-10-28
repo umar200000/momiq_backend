@@ -234,6 +234,54 @@ class ApiTests(unittest.TestCase):
         other=self.login('998909000005')
         self.assertEqual(other['account'],updated)
 
+    def test_account_contract_rejects_malformed_nested_values_without_mutation(self):
+        a=self.login('998909080001')
+        payload=dict(a['account'],profile={'first':' Test ','last':' Owner ','photo':None})
+        saved=self.req('/api/me','PUT',payload,token=a['token'])['account']
+        malformed=[('favorites',[{}]),('favorites',[[]]),('favorites',[None]),
+                   ('support',[{}]),('support',[{'id':'x'}]),('support',[{'text':'x'}]),
+                   ('support',[{'id':'','text':'x'}]),('support',[{'id':'x','text':' '}]),
+                   ('support',[{'id':'x','text':'a'},{'id':' x ','text':'b'}]),
+                   ('profile',{'first':'x'*101,'last':'Owner'}),
+                   ('profile',{'first':None,'last':'Owner'})]
+        for key,value in malformed:
+            with self.subTest(key=key,value=value):
+                invalid=dict(saved,**{key:value})
+                self.req('/api/me','PUT',invalid,token=a['token'],expected=400)
+                self.req('/api/admin/users/'+a['userId'],'PUT',
+                         {'account':invalid,'_revision':saved['_revision']},admin=True,expected=400)
+                self.assertEqual(self.req('/api/me',token=a['token'])['account'],saved)
+        for invalid in [[],{'housing':'house','listings':[[]]}]:
+            self.req('/api/me/listings','PUT',invalid,token=a['token'],expected=400)
+
+    def test_account_contract_normalized_values_survive_roundtrip(self):
+        a=self.login('998909080002')
+        png=fixture_image()
+        payload={'_revision':a['account']['_revision'],
+                 'profile':{'first':'  O‘zbek 😀  ','last':' Яна ','photo':None},
+                 'favorites':['hoji','hoji'],
+                 'pets':[{'id':' cat ','type':'Mushuk','photo':png,'name':None,'allergies':' TEST '}],
+                 'addresses':[{'id':' home ','address':' Toshkent ','lat':41.3,'lon':69.2}],
+                 'support':[{'id':' legacy ','text':' Archive ','untrustedStatus':'approved'}],
+                 'sitterProfile':{'years':None,'about':''}}
+        saved=self.req('/api/me','PUT',payload,token=a['token'])['account']
+        self.assertEqual(saved['profile'],{'first':'O‘zbek 😀','last':'Яна','photo':None})
+        self.assertEqual(saved['favorites'],['hoji'])
+        self.assertEqual(saved['notifications'],{'orders':True,'chat':True,'video':True})
+        self.assertEqual(saved['language'],'uz')
+        self.assertEqual(saved['support'],[{'id':'legacy','text':'Archive'}])
+        self.assertEqual(saved['sitterProfile'],{'years':None,'about':'','homePhotos':[],'housing':'apartment'})
+        self.assertEqual(saved['pets'][0]['id'],'cat')
+        self.assertEqual(saved['pets'][0]['allergies'],'TEST')
+        self.assertEqual(saved['addresses'][0]['label'],'')
+        self.assertEqual(self.req('/api/me',token=a['token'])['account'],saved)
+        self.assertEqual(self.login('998909080002')['account'],saved)
+        # Trimmed IDs still retain newer care fields omitted by an old writer.
+        saved['pets'][0]['id']=' cat '
+        del saved['pets'][0]['allergies']
+        updated=self.req('/api/me','PUT',saved,token=a['token'])['account']
+        self.assertEqual(updated['pets'][0]['allergies'],'TEST')
+
     def test_platform_settings_history_is_private_paginated_and_immutable(self):
         login=self.login('998900000051')
         path='/api/admin/platform-settings/history'
