@@ -17,6 +17,7 @@ from urllib.parse import urlparse, parse_qs
 from config import Settings
 from migrations import migrate
 import wallet
+import request_json
 import catalog
 import sitter_availability
 import catalog_search
@@ -288,15 +289,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
     def body(self):
-        size = int(self.headers.get("Content-Length", "0"))
-        if size <= 0 or size > 32_000_000:
-            raise ApiError(413, "So‘rov hajmi noto‘g‘ri")
-        if not self.headers.get("Content-Type", "").startswith("application/json"):
-            raise ApiError(415, "JSON yuboring")
-        obj = json.loads(self.rfile.read(size))
-        if not isinstance(obj, dict):
-            raise ValueError("JSON obyekt yuboring")
-        return obj
+        try:
+            return request_json.read(self)
+        except (request_json.BodyError,ValueError):
+            # Never reuse an HTTP connection with unread/ambiguous request bytes.
+            self.close_connection=True
+            raise
     def auth(self, con, role="client"):
         token = self.headers.get("Authorization", "").removeprefix("Bearer ")
         if role == "admin":
@@ -604,7 +602,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):
         try: self.handle_request()
-        except (ApiError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError,booking_engine.BookingError) as e: self.reply(e.status,{'error':e.message})
+        except (ApiError,request_json.BodyError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError,booking_engine.BookingError) as e: self.reply(e.status,{'error':e.message})
         except (MediaBusy, VideoUnavailable) as e: self.reply(503,{'error':str(e)})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): pass

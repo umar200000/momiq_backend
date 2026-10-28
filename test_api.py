@@ -391,6 +391,17 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(restored['pets'][0]['name'],'TEST cat')
         self.assertEqual(self.login('998909000021')['account'],restored)
 
+    def test_ambiguous_json_login_rejected_over_http(self):
+        for raw in (b'{"username":"intruder","username":"admin","password":"test-admin-password"}',
+                    b'{"username":"admin","password":"test-admin-password","extra":NaN}',
+                    b'{"username":"admin","password":"test-admin-password","extra":'+b'['*64+b'0'+b']'*64+b'}'):
+            request=Request(self.base+'/api/admin/login',data=raw,headers={'Content-Type':'application/json'},method='POST')
+            with self.assertRaises(HTTPError) as caught:self.client.open(request)
+            with caught.exception as response:
+                self.assertEqual(response.status,400)
+                self.assertNotIn('Set-Cookie',response.headers)
+                self.assertNotIn(b'test-admin-password',response.read())
+
     def test_topup_corrections_admin_only_owner_history_and_pagination(self):
         import wallet
         a=self.req('/api/auth/login','POST',{'phone':'998909008065','code':'111111','role':'sitter'})
