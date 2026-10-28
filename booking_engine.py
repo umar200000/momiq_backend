@@ -1,0 +1,323 @@
+"""Booking transaction core. Not exposed by HTTP until the date policy is approved.
+
+The only policy currently supported is an explicit LOCAL TEST fixture. Production
+and hosted staging are rejected even if a caller accidentally selects that policy.
+Each mutation owns one transaction; callers use a connection context to commit or
+roll back. No function commits halfway through a booking/wallet change.
+"""
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
+import hashlib
+import json
+import re
+import secrets
+
+import booking_rules as rules
+import catalog
+import conversations
+import wallet
+
+
+class BookingError(Exception):
+    def __init__(self, status, message):
+        self.status, self.message = status, message
+        super().__init__(message)
+
+
+@dataclass(frozen=True)
+class TestDatePolicy:
+    """Fixture, not a product decision: inclusive dates in fixed UTC+05:00."""
+    version: str = 'TEST-inclusive-tashkent-v1'
+
+
+def stamp(value):
+    return rules.utc(value).isoformat(timespec='microseconds')
+
+
+def parse(value):
+    if not isinstance(value, str) or len(value) > 40:
+        raise ValueError('Explicit zoned timestamp required')
+    return rules.utc(datetime.fromisoformat(value))
+
+
+def encode(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+
+
+def begin(con):
+    if con.in_transaction:
+        raise RuntimeError('Booking operation requires a fresh transaction')
+    con.execute('BEGIN IMMEDIATE')
+
+
+def test_gate(con, environment):
+    actual = con.execute("SELECT value FROM runtime_metadata WHERE key='environment'").fetchone()
+    if environment not in ('local', 'test') or not actual or actual[0] not in ('local', 'test'):
+        raise BookingError(503, 'Bron siyosati hali tasdiqlanmagan')
+
+
+def account(con, user, role=None):
+    row = con.execute('SELECT account,blocked FROM users WHERE id=?', (user,)).fetchone()
+    if not row or row['blocked']:
+        raise BookingError(403, 'Hisob faol emas')
+    if role and not con.execute('SELECT 1 FROM user_roles WHERE user_id=? AND role=?', (user, role)).fetchone():
+        raise BookingError(403, 'Hisob roli mos emas')
+    return json.loads(row['account'])
+
+
+def listing(con, customer, listing_id, environment):
+    item = next((item for item in catalog.profiles(con, environment) if item['id'] == listing_id), None)
+    if not item or item['userId'] == customer or conversations.blocked_pair(con, customer, item['userId']):
+        raise BookingError(409, 'Enaga yangi buyurtma qabul qilmayapti')
+    return item
+
+
+def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
+                  policy, environment, now, instructions='', address=None):
+    """Read all prices/animals/settings on the server. No client price/day argument."""
+    if type(policy) is not TestDatePolicy or policy.version != 'TEST-inclusive-tashkent-v1':
+        raise BookingError(503, 'Tasdiqlangan sana siyosati kerak')
+    if (not isinstance(pet_ids, list) or not 1 <= len(pet_ids) <= 30
+            or any(not isinstance(p, str) or not p or len(p) > 100 for p in pet_ids)
+            or len(set(pet_ids)) != len(pet_ids)):
+        raise ValueError('Unique owned animals required')
+    start, end, current = parse(starts_at), parse(ends_at), rules.utc(now)
+    if start <= current or end <= start or end-start > timedelta(days=365):
+        raise ValueError('Invalid service interval')
+    if not isinstance(instructions, str) or len(instructions) > 4000:
+        raise ValueError('Invalid care instructions')
+    begin(con)
+    test_gate(con, environment)
+    owner = account(con, customer, 'customer')
+    profile = owner.get('profile', {})
+    if not profile.get('first', '').strip() or not profile.get('last', '').strip():
+        raise BookingError(409, 'Mijoz profilini to‘ldiring')
+    item = listing(con, customer, listing_id, environment)
+    service = catalog.SERVICES[item['service']]
+    # The daily visit schedule is not invented by this fixture.
+    if service == 'homeVisit':
+        raise BookingError(503, 'Kunlik tashrif jadvali hali kelishilmagan')
+    pets = {p['id']: p for p in owner.get('pets', []) if not p.get('archived', False)}
+    if any(p not in pets for p in pet_ids):
+        raise BookingError(404, 'Hayvon topilmadi')
+    if any(pets[p].get('type') not in item['pets'] for p in pet_ids):
+        raise BookingError(409, 'Enaga bu hayvon turini qabul qilmaydi')
+    capacity = rules.integer(item['capacity'], 1, 30)
+    if len(pet_ids) > capacity:
+        raise BookingError(409, 'Hayvonlar soni sig‘imdan ortiq')
+    # Both supported services use the listing's private handover address.
+    raw = json.loads(con.execute('SELECT data FROM listings WHERE user_id=?', (item['userId'],)).fetchone()[0])
+    private = next(v for v in raw['listings'] if v['type'] == service)['location']
+    if address is not None:
+        raise ValueError('Listing supplies the handover address for this service')
+    zone = timezone(timedelta(hours=5))
+    days = (end.astimezone(zone).date()-start.astimezone(zone).date()).days + 1
+    settings = wallet.settings(con)
+    price = rules.price_snapshot(service, [rules.AnimalRate(p, item['price']*100) for p in sorted(pet_ids)],
+                                 days, settings['commissionBps'], settings['version'])
+    detail = {
+        'price': asdict(price), 'listingId': listing_id, 'listingRevision': catalog.revision(con, item['userId']),
+        'sitterName': item['name'], 'customerName': profile['first']+' '+profile['last'][:1]+'.',
+        'pets': [{k: v for k, v in pets[p].items() if k != 'photo'} for p in sorted(pet_ids)],
+        'instructions': instructions.strip(), 'address': private, 'capacity': capacity,
+        'startsAt': stamp(start), 'endsAt': stamp(end), 'datePolicy': policy.version,
+        'testOnly': True, 'customerPaysSitterDirectly': True,
+    }
+    identity = secrets.token_hex(16)
+    con.execute('INSERT INTO booking_quotes VALUES(?,?,?,?,?,?,?,1)',
+                (identity, customer, item['userId'], service, encode(detail), stamp(current),
+                 stamp(min(current+timedelta(minutes=10), start))))
+    return quote_view(con, identity, customer)
+
+
+def quote_view(con, identity, customer):
+    row = con.execute('SELECT * FROM booking_quotes WHERE id=? AND customer_id=?', (identity, customer)).fetchone()
+    if not row:
+        raise BookingError(404, 'Narx taklifi topilmadi')
+    detail = json.loads(row['snapshot'])
+    # Exact private address is disclosed only after acceptance, not by a quote.
+    detail['address'] = {'address': 'Toshkent'}
+    return {'id': row['id'], 'created': row['created'], 'expiresAt': row['expires_at'], 'snapshot': detail}
+
+
+def owned(con, identity, user):
+    row = con.execute('SELECT * FROM bookings WHERE id=? AND (customer_id=? OR sitter_id=?)',
+                      (identity, user, user)).fetchone()
+    if not row:
+        raise BookingError(404, 'Buyurtma topilmadi')
+    return row
+
+
+def view(con, identity, user):
+    row = owned(con, identity, user)
+    detail = json.loads(con.execute('SELECT snapshot FROM booking_quotes WHERE id=?', (row['quote_id'],)).fetchone()[0])
+    if row['status'] not in ('accepted', 'active', 'completed', 'disputed'):
+        detail['address'] = {'address': 'Toshkent'}
+    events = [dict(e) for e in con.execute('SELECT revision,actor,action,reason,status,created FROM booking_events WHERE booking_id=? ORDER BY revision', (identity,))]
+    return {'id': row['id'], 'status': row['status'], 'revision': row['revision'],
+            'myRole': 'customer' if user == row['customer_id'] else 'sitter',
+            'replyDeadline': row['reply_deadline'], 'snapshot': detail, 'history': events}
+
+
+def record(con, row, actor, action, reason, current):
+    con.execute('INSERT INTO booking_events VALUES(?,?,?,?,?,?,?)',
+                (row['id'], row['revision'], actor, action, reason, row['status'], stamp(current)))
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                (actor, 'booking-'+action, encode({'id': row['id'], 'revision': row['revision'], 'reason': reason}), stamp(current)))
+
+
+def retry_key(request_id, payload):
+    if not isinstance(request_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,100}', request_id):
+        raise ValueError('Stable requestId required')
+    return hashlib.sha256(encode(payload).encode()).hexdigest()
+
+
+def previous(con, user, request_id, fingerprint):
+    row = con.execute('SELECT * FROM booking_requests WHERE actor=? AND request_id=?', (user, request_id)).fetchone()
+    if row and row['fingerprint'] != fingerprint:
+        raise BookingError(409, 'Request ID boshqa amal uchun ishlatilgan')
+    return view(con, row['booking_id'], user) if row else None
+
+
+def remember(con, user, request_id, fingerprint, identity):
+    con.execute('INSERT INTO booking_requests VALUES(?,?,?,?)', (user, request_id, fingerprint, identity))
+
+
+def request_booking(con, customer, quote_id, request_id, *, environment, now):
+    fingerprint = retry_key(request_id, {'action': 'request', 'quoteId': quote_id})
+    current = rules.utc(now)
+    begin(con)
+    test_gate(con, environment)
+    account(con, customer, 'customer')
+    old = previous(con, customer, request_id, fingerprint)
+    if old:
+        return old
+    quote = con.execute('SELECT * FROM booking_quotes WHERE id=? AND customer_id=?', (quote_id, customer)).fetchone()
+    if not quote:
+        raise BookingError(404, 'Narx taklifi topilmadi')
+    existing = con.execute('SELECT id FROM bookings WHERE quote_id=?', (quote_id,)).fetchone()
+    if existing:
+        remember(con, customer, request_id, fingerprint, existing['id'])
+        return view(con, existing['id'], customer)
+    if current >= parse(quote['expires_at']):
+        raise BookingError(409, 'Narx taklifi muddati tugagan')
+    detail = json.loads(quote['snapshot'])
+    listing(con, customer, detail['listingId'], environment)
+    # A quote pins the price, but removal/archive/type changes of selected pets
+    # must not create a request against animals the account no longer owns.
+    pets = {p['id']: p for p in account(con, customer).get('pets', []) if not p.get('archived', False)}
+    if any(p['id'] not in pets or p['type'] != pets[p['id']]['type'] for p in detail['pets']):
+        raise BookingError(409, 'Hayvon ma’lumoti o‘zgargan; yangi taklif oling')
+    identity = secrets.token_hex(16)
+    con.execute('INSERT INTO bookings(id,quote_id,customer_id,sitter_id,service,starts_at,ends_at,reply_deadline,status,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                (identity, quote_id, customer, quote['sitter_id'], quote['service'], detail['startsAt'], detail['endsAt'],
+                 stamp(rules.reply_deadline(current, parse(detail['startsAt']))), 'pending', stamp(current), stamp(current)))
+    for p in detail['pets']:
+        con.execute('INSERT INTO booking_animals VALUES(?,?,?)', (identity, customer, p['id']))
+    row = owned(con, identity, customer)
+    record(con, row, customer, 'request', '', current)
+    remember(con, customer, request_id, fingerprint, identity)
+    return view(con, identity, customer)
+
+
+def change(con, row, status, actor, action, reason, current):
+    con.execute('UPDATE bookings SET status=?,revision=revision+1,updated=? WHERE id=? AND revision=?',
+                (status, stamp(current), row['id'], row['revision']))
+    updated = owned(con, row['id'], row['customer_id'])
+    record(con, updated, actor, action, reason, current)
+    return updated
+
+
+def expire_due(con, *, environment, now, limit=200):
+    rules.integer(limit, 1, 1000)
+    begin(con)
+    test_gate(con, environment)
+    rows = con.execute("SELECT * FROM bookings WHERE status='pending' AND reply_deadline<=? ORDER BY reply_deadline LIMIT ?", (stamp(now), limit)).fetchall()
+    for row in rows:
+        change(con, row, 'expired', 'system', 'expire', 'Javob muddati tugadi', now)
+    return len(rows)
+
+
+def check_capacity(con, row, detail):
+    active = con.execute("SELECT * FROM bookings WHERE sitter_id=? AND id!=? AND status IN ('accepted','active','disputed') AND starts_at<? AND ends_at>?",
+                         (row['sitter_id'], row['id'], row['ends_at'], row['starts_at'])).fetchall()
+    # Until cross-service schedules are approved, differing services never overlap.
+    if any(b['service'] != row['service'] for b in active):
+        raise BookingError(409, 'Enaga boshqa xizmat bilan band')
+    current = json.loads(con.execute('SELECT data FROM listings WHERE user_id=?', (row['sitter_id'],)).fetchone()[0])
+    item = next((i for i in current['listings'] if i['type'] == row['service']), None)
+    if not item or not item['active']:
+        raise BookingError(409, 'E’lon faol emas')
+    cap = 1 if row['service'] == 'personal' else min(detail['capacity'], item['capacity'])
+    # Peak occupancy, not the sum of bookings that overlap different subintervals.
+    sweep = [(row['starts_at'], len(detail['pets'])), (row['ends_at'], -len(detail['pets']))]
+    for b in active:
+        count = con.execute('SELECT COUNT(*) FROM booking_animals WHERE booking_id=?', (b['id'],)).fetchone()[0]
+        sweep.extend([(max(row['starts_at'], b['starts_at']), count), (min(row['ends_at'], b['ends_at']), -count)])
+    occupancy = 0
+    for _, delta in sorted(sweep, key=lambda v: (v[0], v[1])):
+        occupancy += delta
+        if occupancy > cap:
+            raise BookingError(409, 'Tanlangan vaqtda bo‘sh joy yo‘q')
+    conflict = con.execute("SELECT 1 FROM bookings b JOIN booking_animals a ON a.booking_id=b.id JOIN booking_animals wanted ON wanted.customer_id=a.customer_id AND wanted.animal_id=a.animal_id WHERE wanted.booking_id=? AND b.id!=? AND b.status IN ('accepted','active','disputed') AND b.starts_at<? AND b.ends_at>? LIMIT 1",
+                           (row['id'], row['id'], row['ends_at'], row['starts_at'])).fetchone()
+    if conflict:
+        raise BookingError(409, 'Hayvon uchun shu vaqtda boshqa bron bor')
+
+
+def act(con, user, identity, action, revision, request_id, *, reason='', environment, now):
+    if action not in ('accept', 'reject', 'cancel'):
+        raise ValueError('Unsupported booking action')
+    if type(revision) is not int or revision < 0:
+        raise BookingError(428, 'Joriy buyurtma versiyasi kerak')
+    if not isinstance(reason, str) or len(reason) > 1000 or (action != 'accept' and not reason.strip()):
+        raise ValueError('Reason required')
+    reason = reason.strip()
+    fingerprint = retry_key(request_id, {'booking': identity, 'action': action, 'revision': revision, 'reason': reason})
+    current = rules.utc(now)
+    begin(con)
+    test_gate(con, environment)
+    account(con, user)
+    row = owned(con, identity, user)
+    if action in ('accept', 'reject') and user != row['sitter_id']:
+        raise BookingError(403, 'Faqat enaga qabul yoki rad etadi')
+    old = previous(con, user, request_id, fingerprint)
+    if old:
+        return old
+    if row['revision'] != revision:
+        raise BookingError(409, 'Buyurtma o‘zgargan; qayta yuklang')
+    if row['status'] == 'pending' and current >= parse(row['reply_deadline']):
+        # Commit the expiry as a normal result; throwing would roll it back.
+        change(con, row, 'expired', 'system', 'expire', 'Javob muddati tugadi', current)
+        remember(con, user, request_id, fingerprint, identity)
+        return view(con, identity, user)
+    detail = json.loads(con.execute('SELECT snapshot FROM booking_quotes WHERE id=?', (row['quote_id'],)).fetchone()[0])
+    price = detail['price']
+    commission = price['commission_minor']
+    if action == 'accept':
+        if row['status'] != 'pending':
+            raise BookingError(409, 'Buyurtmani qabul qilib bo‘lmaydi')
+        account(con, row['customer_id'], 'customer')
+        account(con, row['sitter_id'], 'sitter')
+        listing(con, row['customer_id'], detail['listingId'], environment)
+        check_capacity(con, row, detail)
+        if wallet.balance(con, user) < max(rules.MINIMUM_BALANCE_MINOR, commission):
+            raise BookingError(409, 'Balans minimum yoki komissiyaga yetmaydi')
+        if commission:
+            wallet.post_entry(con, user, -commission, 'commission', 'booking:'+identity+':commission', user, 'Buyurtma qabul qilindi')
+        status = 'accepted'
+    elif action == 'reject':
+        if row['status'] != 'pending':
+            raise BookingError(409, 'Faqat kutilayotgan so‘rov rad etiladi')
+        status = 'rejected'
+    else:
+        if row['status'] not in ('pending', 'accepted'):
+            raise BookingError(409, 'Buyurtmani bu holatda bekor qilib bo‘lmaydi')
+        if row['status'] == 'accepted' and current >= parse(row['starts_at']):
+            raise BookingError(409, 'Xizmat vaqti boshlandi; admin ko‘rigi kerak')
+        if row['status'] == 'accepted' and commission:
+            wallet.post_entry(con, row['sitter_id'], commission, 'commission_refund', 'booking:'+identity+':refund', user, reason)
+        status = 'cancelled'
+    change(con, row, status, user, action, reason, current)
+    remember(con, user, request_id, fingerprint, identity)
+    return view(con, identity, user)

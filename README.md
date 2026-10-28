@@ -33,13 +33,13 @@ Birinchi API sinovida appdan hisobdan chiqing, telefon bilan qayta kiring. Lokal
 - Mijoz autentifikatsiyasi: tasodifiy bearer token; server faqat token hashini saqlaydi, 7 kunlik amal qilish muddati.
 - Profil ismi/familiyasi/rasmi; hayvonlar rasmlari; manzillar; saqlangan enagalar; til va bildirishnoma afzalliklari; yordam murojaatlari.
 - Matn va rasm xabarlari SQLite bazada saqlanadi. Rasm JSON ichida base64 sifatida uzatiladi (PNG/JPEG/WebP, 3 MB gacha).
-- App va admin chat oynasi har 3 soniyada yangilanadi. Offline yuborish muvaffaqiyat sifatida ko‘rsatilmaydi; foydalanuvchi qayta urinadi.
-- Admin: mijozlarni qidirish, profilni tahrirlash, bloklash/ochish, murojaatlarni ko‘rish, enaga nomidan matn/rasm javobi, xabarni moderatsiya qilish. Admin amallari `audit` jadvalida.
+- Ishtirokchilar chati sahifalangan: ochiq suhbat 5 soniyada delta, ochiq inbox 10 soniyada yangilanadi; background/yopiq route polling qilmaydi. Yuboriladigan so‘rov shifrlanib, retry uchun bir xil ID bilan saqlanadi.
+- Admin: mijozlarni qidirish, profilni tahrirlash, bloklash/ochish, murojaatlarni ko‘rish, Momiq yordam xizmati nomidan matn/rasm javobi, xabarni moderatsiya qilish. Admin amallari `audit` jadvalida.
 - Mijoz boshqa hisobning xabarlariga kira olmaydi. Admin sessiyasi HttpOnly/SameSite cookie orqali ishlaydi.
 
 Bu branchda enaga autentifikatsiyasi, profil/afzalliklar va Paynet Xolis chek orqali balans to‘ldirish ulangan. Admin QR/foizni versiya bilan saqlaydi, chek va haqiqiy tushumni tekshiradi; faqat tasdiqdan keyin atomar kredit yoziladi. Tafsilotlar `API_CONTRACT.md`da. Bu o‘zgarishlar hali productionga chiqarilmagan.
 
-Buyurtmalar va komissiya yechish/qaytarish hali ulanmagan. Enaga e’lonlari serverga saqlanadi; mijoz katalogiga moderatsiya orqali nashr qilish hali alohida bajariladi. Push/SMS/MyID hali ulanmagan. Hozirgi mijoz–admin chatini haqiqiy mijoz–enaga suhbatiga aylantirish ham qolgan.
+Enaga e’lonlari serverga saqlanadi va test moderatsiyasi orqali katalogda ko‘rinadi; bu haqiqiy MyID tasdig‘i emas. Haqiqiy mijoz–enaga chati, blok/shikoyat va auditli moderatsiya ishlaydi. Bron va komissiya uchun ichki atomar core hamda migration 10 test qilindi; sana siyosati tasdiqlanmagani sabab HTTP/mobil bron yo‘li hali ochilmagan. Push/SMS/MyID hali ulanmagan.
 
 Backendga ulangan rejimda hayvonlar serverda saqlanadi. Eski offline/test mock rejimida hayvonlar session ichida saqlanish qoidasi qoladi.
 
@@ -121,4 +121,4 @@ Migration 7 rebuilds the top-up table transactionally to add `needs_info` and re
 Admin review requires the loaded `revision` and supports `approve`, `reject`, `request_info`. Identical decision retries remain idempotent. A sitter may resubmit only a `needs_info` or `rejected` request through `POST /api/wallet/topups/<id>/amend`, providing a fresh action `requestId`, original QR version, loaded revision, full evidence and renewed consent. Resubmission returns it to `pending` without credit. Stale reviews/amendments fail with 409. Owner-scoped `GET /api/wallet/topups/<id>` and `/history?before=<revision>` expose status/history; historical images use `/history/<revision>/receipt`. Admin history uses the corresponding `/api/admin/topups/...` path and includes the actor. Deploy the revision-aware admin together with this API; older review forms fail closed with 428.
 
 
-Participant chat uses `/api/conversations` for authenticated customer/sitter inboxes, cursor/delta pages, private attachment access and monotonic read acknowledgements. The app retains legacy admin replies as separately labelled support history. Migration 8 adds conversation tables without rewriting old data. See API_CONTRACT.md for exact gates, quotas, retries and remaining moderation/booking/push limitations.
+Participant chat uses `/api/conversations` for authenticated customer/sitter inboxes, cursor/delta pages, private attachment access and monotonic read acknowledgements. The app retains legacy admin replies as separately labelled support history. Migration 8 adds conversation tables without rewriting old data. See API_CONTRACT.md for exact gates, quotas, retries and remaining booking/push/operator-role limitations.

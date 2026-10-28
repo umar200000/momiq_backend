@@ -59,6 +59,8 @@ def seed(directory, mode='local', clean=False):
                 for uid in ids:
                     if con.execute('SELECT 1 FROM conversations WHERE customer_id=? OR sitter_id=? LIMIT 1',(uid,uid)).fetchone():
                         raise ValueError('Fixture has conversation history; cleanup refused. Use a new isolated preview directory.')
+                    if con.execute('SELECT 1 FROM booking_quotes WHERE customer_id=? OR sitter_id=? LIMIT 1',(uid,uid)).fetchone():
+                        raise ValueError('Fixture has booking history; cleanup refused. Use a new isolated preview directory.')
                     if con.execute('SELECT 1 FROM topup_requests WHERE user_id=? LIMIT 1',(uid,)).fetchone() or con.execute('SELECT 1 FROM wallet_entries WHERE user_id=? LIMIT 1',(uid,)).fetchone():
                         raise ValueError('Fixture has financial history; cleanup refused. Use a new isolated preview directory.')
                 for row in con.execute('SELECT id,account FROM users'):

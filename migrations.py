@@ -81,6 +81,24 @@ MIGRATIONS = (
         "CREATE TRIGGER chat_report_history_no_update BEFORE UPDATE ON chat_report_history BEGIN SELECT RAISE(ABORT, 'Chat review history is immutable'); END",
         "CREATE TRIGGER chat_report_history_no_delete BEFORE DELETE ON chat_report_history BEGIN SELECT RAISE(ABORT, 'Chat review history is immutable'); END",
     )),
+    (10, 'immutable booking quotes and transactional reservations', (
+        'CREATE TABLE booking_quotes(id TEXT PRIMARY KEY, customer_id TEXT NOT NULL REFERENCES users(id), sitter_id TEXT NOT NULL REFERENCES users(id), service TEXT NOT NULL, snapshot TEXT NOT NULL, created TEXT NOT NULL, expires_at TEXT NOT NULL, test_only INTEGER NOT NULL CHECK(test_only=1))',
+        "CREATE TRIGGER booking_quotes_no_update BEFORE UPDATE ON booking_quotes BEGIN SELECT RAISE(ABORT, 'Booking quote is immutable'); END",
+        "CREATE TRIGGER booking_quotes_no_delete BEFORE DELETE ON booking_quotes BEGIN SELECT RAISE(ABORT, 'Booking quote is immutable'); END",
+        "CREATE TABLE bookings(seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, quote_id TEXT NOT NULL UNIQUE REFERENCES booking_quotes(id), customer_id TEXT NOT NULL REFERENCES users(id), sitter_id TEXT NOT NULL REFERENCES users(id), service TEXT NOT NULL CHECK(service IN ('boarding','homeVisit','personal')), starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, reply_deadline TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('pending','accepted','rejected','expired','cancelled','active','completed','disputed')), revision INTEGER NOT NULL DEFAULT 0 CHECK(revision>=0), created TEXT NOT NULL, updated TEXT NOT NULL, CHECK(customer_id!=sitter_id), CHECK(starts_at<ends_at))",
+        'CREATE INDEX bookings_customer ON bookings(customer_id,seq)',
+        'CREATE INDEX bookings_sitter ON bookings(sitter_id,status,starts_at,ends_at)',
+        "CREATE INDEX bookings_due ON bookings(reply_deadline) WHERE status='pending'",
+        'CREATE TABLE booking_animals(booking_id TEXT NOT NULL REFERENCES bookings(id), customer_id TEXT NOT NULL REFERENCES users(id), animal_id TEXT NOT NULL, PRIMARY KEY(booking_id,animal_id))',
+        'CREATE INDEX booking_animals_owner ON booking_animals(customer_id,animal_id)',
+        "CREATE TRIGGER booking_animals_no_update BEFORE UPDATE ON booking_animals BEGIN SELECT RAISE(ABORT, 'Booking animals are immutable'); END",
+        "CREATE TRIGGER booking_animals_no_delete BEFORE DELETE ON booking_animals BEGIN SELECT RAISE(ABORT, 'Booking animals are immutable'); END",
+        'CREATE TABLE booking_events(booking_id TEXT NOT NULL REFERENCES bookings(id), revision INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, created TEXT NOT NULL, PRIMARY KEY(booking_id,revision))',
+        "CREATE TRIGGER booking_events_no_update BEFORE UPDATE ON booking_events BEGIN SELECT RAISE(ABORT, 'Booking history is immutable'); END",
+        "CREATE TRIGGER booking_events_no_delete BEFORE DELETE ON booking_events BEGIN SELECT RAISE(ABORT, 'Booking history is immutable'); END",
+        'CREATE TABLE booking_requests(actor TEXT NOT NULL REFERENCES users(id), request_id TEXT NOT NULL, fingerprint TEXT NOT NULL, booking_id TEXT NOT NULL REFERENCES bookings(id), PRIMARY KEY(actor,request_id))',
+        "CREATE TRIGGER booking_identity_immutable BEFORE UPDATE OF quote_id,customer_id,sitter_id,service,starts_at,ends_at,reply_deadline,created ON bookings BEGIN SELECT RAISE(ABORT, 'Booking agreement is immutable'); END",
+    )),
 )
 
 
