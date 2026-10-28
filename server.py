@@ -19,6 +19,7 @@ from migrations import migrate
 import wallet
 import catalog
 import pet_safety
+import sitter_dashboard
 import notifications
 import conversations
 import chat_moderation
@@ -425,6 +426,9 @@ class Handler(BaseHTTPRequestHandler):
                 row = con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
                 con.commit()
                 self.reply(200,{'account':account_snapshot(con,row)})
+                return
+            if path == '/api/me/dashboard' and self.command == 'GET':
+                self.reply(200,sitter_dashboard.overview(con,user,datetime.fromisoformat(now())))
                 return
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":

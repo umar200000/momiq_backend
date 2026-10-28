@@ -266,6 +266,39 @@ class BookingEngineTests(unittest.TestCase):
         self.expect_error(409, lambda: self.act(boarding))
         with server.db() as con: self.assertEqual(wallet.balance(con, 'abc'), 85000000)
 
+    def test_dashboard_active_care_overdue_and_tashkent_midnight(self):
+        import sitter_dashboard
+        start=self.start.replace(hour=19,minute=0,second=0,microsecond=0)
+        booking=self.act(self.request(self.quote(start=start,end=start+timedelta(hours=2))))
+        with server.db() as con:
+            before=sitter_dashboard.overview(con,'abc',start-timedelta(microseconds=1))
+        self.assertEqual(before['today']['items'],[])
+        with server.db() as con:
+            today=sitter_dashboard.overview(con,'abc',start)
+        self.assertEqual(today['localDate'],(start+timedelta(hours=5)).date().isoformat())
+        self.assertEqual(today['today']['items'][0]['id'],booking['id'])
+        booking=self.act(booking,'start','abc',now=start)
+        booking=self.act(booking,'start','customer',now=start)
+        with server.db() as con:
+            active=sitter_dashboard.overview(con,'abc',start+timedelta(days=1))
+        self.assertEqual(active['activePetCount'],1)
+        self.assertEqual(active['activeBookingCount'],1)
+        self.assertTrue(active['today']['items'][0]['overdue'])
+
+    def test_dashboard_bounded_upcoming_and_expired_pending_exclusion(self):
+        import sitter_dashboard
+        expected=[]
+        for i in range(7):
+            start=self.start+timedelta(days=i*4)
+            expected.append(self.act(self.request(self.quote(start=start,end=start+timedelta(days=1))))['id'])
+        unanswered=self.request(self.quote(start=self.start+timedelta(days=40),end=self.start+timedelta(days=41)))
+        with server.db() as con:
+            data=sitter_dashboard.overview(con,'abc',self.now+timedelta(hours=3))
+            self.assertEqual(engine.view(con,unanswered['id'],'abc')['status'],'pending')
+        self.assertEqual(data['pendingCount'],0)
+        self.assertEqual([b['id'] for b in data['upcoming']['items']],expected[:5])
+        self.assertTrue(data['upcoming']['hasMore'])
+
     def test_parallel_home_visits_and_cross_service_limits(self):
         data=copy.deepcopy(self.listing)
         data['listings'].append(dict(data['listings'][0],type='homeVisit',capacity=None,location=None))

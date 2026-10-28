@@ -177,3 +177,9 @@ Care facts are frozen in each new booking quote and stay unchanged after profile
 ### Platform settings audit history
 
 `GET /api/admin/platform-settings/history?before=<version>` requires the existing admin session and returns at most 20 version-descending records plus `nextCursor`. Each record has `version`, `commissionBps`, `actor`, `reason`, UTC `effectiveAt`, `testOnly`, and `qrActive`; no QR image, receipt or payer details are returned. Invalid, repeated or unknown cursor parameters are rejected. Settings changes take effect immediately for new quotes; existing agreed rates remain frozen. Commission accepts integer basis points 0–10000 (0–100%, precision 0.01%), with nonempty reason and current-version CAS. Migration 12 makes historical platform settings rows immutable; changes append a new version.
+
+### Sitter overview
+
+`GET /api/me/dashboard` requires a sitter role and derives its response from one DB read snapshot. It includes `asOf`, the Asia/Tashkent `localDate`, profile presence, per-service moderation/test status and missing fields, balance/threshold eligibility, pending/active/disputed counters, and active animal count. An elapsed pending deadline is excluded from the pending counter without claiming that the overview itself performs an expiry mutation. Accepted bookings are not counted as actual active care.
+
+`today` and `upcoming` each contain at most five chronological metadata items and `hasMore`; the main bookings index remains the full list. Today uses UTC+05 day boundaries and also keeps overdue active care visible for resolution. Items include stored participant display name, service, status, animal names, dates and overdue flag, without addresses, care notes, contact information or media. Low balance hides no existing obligation. Identity status is explicitly `not_integrated` until the deferred MyID work, and TEST listing approval is not identity verification.

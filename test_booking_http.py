@@ -33,6 +33,36 @@ class BookingHttpTests(unittest.TestCase):
     def book(self):
         return self.req('/api/bookings','POST',{'quoteId':self.quote()['id'],'requestId':secrets.token_hex(16)})
 
+    def test_sitter_dashboard_scopes_counts_dates_and_private_metadata(self):
+        self.req('/api/me/dashboard',status=403)
+        self.req('/api/me/dashboard',user='stranger',status=403)
+        empty=self.req('/api/me/dashboard',user='abc')
+        self.assertEqual(empty['pendingCount'],0)
+        self.assertEqual(empty['identityVerification'],'not_integrated')
+        self.assertTrue(empty['profilePresent'])
+        self.assertTrue(empty['listings'][0]['testOnly'])
+        a=self.book()
+        self.assertEqual(self.req('/api/me/dashboard',user='abc')['pendingCount'],1)
+        self.req('/api/bookings/'+a['id']+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        upcoming=self.req('/api/me/dashboard',user='abc')
+        self.assertEqual(upcoming['pendingCount'],0)
+        self.assertEqual(upcoming['upcoming']['items'][0]['id'],a['id'])
+        self.assertEqual(upcoming['today']['items'],[])
+        self.assertNotIn('PRIVATE',json.dumps(upcoming));self.assertNotIn('snapshot',upcoming['upcoming']['items'][0])
+        # At the exact service start the booking moves from upcoming to today's list.
+        start=datetime.fromisoformat(self.payload['startsAt'])
+        with patch.object(server,'now',return_value=start.isoformat()):
+            today=self.req('/api/me/dashboard',user='abc')
+        self.assertEqual(today['upcoming']['items'],[])
+        self.assertEqual(today['today']['items'][0]['id'],a['id'])
+        self.assertEqual(today['activePetCount'],0)  # accepted is not claimed as actual care
+        with server.db() as con: con.execute("UPDATE wallet_accounts SET balance_minor=1499999 WHERE user_id='abc'")
+        low=self.req('/api/me/dashboard',user='abc')
+        self.assertFalse(low['balanceEligible'])
+        self.assertEqual(low['upcoming']['items'][0]['id'],a['id'])
+        other=self.req('/api/me/dashboard',user='sitteronly')
+        self.assertEqual(other['upcoming']['items'],[])
+
     def test_care_facts_are_immutable_and_emergency_contact_is_scoped(self):
         values={'vaccinations':'PRIVATE vaccine note', 'allergies':'PRIVATE allergy',
                 'medications':'PRIVATE instruction', 'behavior':'PRIVATE behavior',
