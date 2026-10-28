@@ -33,6 +33,44 @@ class BookingHttpTests(unittest.TestCase):
     def book(self):
         return self.req('/api/bookings','POST',{'quoteId':self.quote()['id'],'requestId':secrets.token_hex(16)})
 
+    def test_review_http_completed_ownership_public_projection_and_admin_gate(self):
+        import booking_http, hashlib, time
+        from urllib.request import Request, urlopen
+        b=self.book();path='/api/bookings/'+b['id']
+        review={'stars':4,'text':'TEST public review','revision':0,'action':'save','requestId':secrets.token_hex(16)}
+        self.req(path+'/review','POST',review,status=409)
+        self.assertFalse(self.req(path+'/review')['canCreate'])
+        b=self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        start=datetime.fromisoformat(self.payload['startsAt'])
+        with patch.object(booking_http,'datetime') as clock:
+            clock.now.return_value=start
+            for user in ['customer','abc']:
+                b=self.req(path+'/start','POST',{'revision':b['revision'],'requestId':secrets.token_hex(16)},user=user)
+            clock.now.return_value=start+timedelta(hours=1)
+            for user in ['customer','abc']:
+                b=self.req(path+'/complete','POST',{'revision':b['revision'],'requestId':secrets.token_hex(16)},user=user)
+        saved=self.req(path+'/review','POST',review)['review'];rid=saved['id']
+        self.req(path+'/review',user='stranger',status=404)
+        self.req(path+'/review','POST',{**review,'revision':1,'requestId':secrets.token_hex(16),'text':'edited'},status=409)
+        with urlopen(self.base+'/api/sitters/abc%3Aboarding/reviews') as response:
+            page=json.load(response)
+        self.assertEqual(page['items'][0]['text'],'TEST public review');self.assertEqual(page['count'],0)
+        self.assertNotIn('bookingId',page['items'][0])
+        self.req('/api/admin/reviews',status=401)
+        self.req('/api/admin/reviews/'+rid+'/moderate','POST',{},status=401)
+        token=secrets.token_hex(32)
+        with server.db() as con:con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
+        def admin(target,body=None):
+            req=Request(self.base+target,data=json.dumps(body).encode() if body else None,
+                        headers={'Cookie':'momiq_admin='+token,'Content-Type':'application/json'})
+            with urlopen(req) as response:return json.load(response)
+        self.assertEqual(admin('/api/admin/reviews')['items'][0]['id'],rid)
+        admin('/api/admin/reviews/'+rid+'/moderate',{'hidden':True,'revision':1,'reason':'TEST reason','requestId':secrets.token_hex(16)})
+        self.assertEqual(self.req('/api/sitters/abc:boarding/reviews')['items'],[])
+        self.assertEqual(len(admin('/api/admin/reviews/'+rid+'/history')['items']),2)
+        self.req('/api/sitters/abc:boarding/reviews?before=0',status=400)
+        self.req('/api/sitters/unknown:boarding/reviews',status=404)
+
     def test_care_http_is_participant_scoped_and_rejects_invalid_methods_and_queries(self):
         booking=self.book(); path='/api/bookings/'+booking['id']
         self.req(path+'/care',status=409)

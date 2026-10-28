@@ -164,12 +164,14 @@ def profiles(con,environment):
             location=item.get('location')
             # Only an approximate discovery point; never expose the private street.
             public_location=({'lat':round(location['lat'],2),'lon':round(location['lon'],2),'address':'Toshkent'} if location else None)
+            import booking_reviews
+            reputation=booking_reviews.summary(con,row['id'],item['type'])
             result.append({'id':row['id']+':'+item['type'],'userId':row['id'],
                 'name':(profile.get('first','')+' '+profile.get('last','')[:1]+'.').strip(),
                 'service':SERVICES.index(item['type']),'price':item['price'],'priceUnit':'animal_day',
                 'pets':[PET_LABELS[p] for p in item['pets']],
                 'capacity':1 if item['type']=='personal' else item.get('capacity'),
-                'rating':0,'reviews':0,'years':sitter.get('years',0),'about':sitter.get('about',''),
+                'rating':reputation['rating'],'reviews':reputation['count'],'years':sitter.get('years',0),'about':sitter.get('about',''),
                 'photo':media['photo'],'homePhotos':media['homePhotos'],
                 'location':public_location,'testOnly':True,'identityVerified':False,
                 'availabilityKnown':False,'bookingEnabled':environment in ('local','test')})

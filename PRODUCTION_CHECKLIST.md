@@ -4,6 +4,7 @@ Holat: foydalanuvchi barcha qolgan takliflarni tasdiqladi, bosqichma-bosqich ama
 
 **Foydalanuvchi tasdiqlagan mahsulot qarorlari**
 
+- 2026-10-28 tasdiq: mijoz tugallangan buyurtmaga bitta 1–5 yulduzli sharh yozadi; yuborilgan sharh matni va yulduzi tahrirlanmaydi.
 - Birinchi reliz Android va iOS uchun. Production signing ikkala platformada ham yakuniy bosqichda; hozir funksional ish va mavjud vositalar bilan test davom ettiriladi.
 - Dastlabki hudud Toshkent; uchala xizmat ham chiqariladi. Toshkent chegarasining aniq xarita poligoni alohida belgilanadi.
 - Har uchala xizmatda narx bir hayvon uchun bir kunga belgilanadi; har xizmatning tarifini enaga alohida kiritadi. Bir xil tarifdagi hayvonlar uchun jami = kunlik tarif × hayvonlar soni × kunlar soni. Turli tariflar bo‘lsa har hayvonning kunlik tarifi yig‘iladi. Uyga borib qarash ham kunlik, bitta tashrif narxi emas.
@@ -46,6 +47,8 @@ Mock/test ma’lumotlari qo‘shish va keyingi ish davomida zarur deploy uchun f
 Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda belgilanadi. Ish boshlanganda mas’ul, bog‘liqlik, commit/PR va test dalili shu ID ostida yoziladi. Shartli vazifa faqat mahsulot qarori yozilgandan keyin qo‘llanmaydi deb yopiladi; jimgina tashlab ketilmaydi. Quyidagi ro‘yxat auditda ma’lum bo‘lgan ko‘lamni qamraydi; ish davomida topilgan yangi holatlar yangi ID bilan qo‘shiladi.
 
 **Bajarilish jurnali — 2026-10-27**
+
+- 2026-10-28, M131 diagnostika: API 37 Pixel emulatorida yangilashdan keyin GeolocatorLocationService startup timeout ANR takrorlandi. DropBox trace’da asosiy thread Flutter/native clock_gettime va yuqori guest kernel CPU ko‘rindi; bu dalil pluginning o‘zi ildiz sabab ekanini isbotlamaydi. Ilova kodi bilan ANR yashirilmadi. Emulatorda ma’lumotni o‘chirmasdan `-no-snapshot-load` bilan toza qayta yuklash, install oldidan force-stop va ADB reverse tiklash bajarildi. Yangilangan APK cold start 4901 ms, keyingi bir necha daqiqada yangi am_anr yo‘q, TEST sessiya/balans saqlangan (`.local/native-after-coldboot.png`). Bu amaliy tiklash, universal tuzatish yoki M131 to‘liq yopilishi emas.
 
 - 2026-10-28, M074/M075/M076 yopildi: backend `b032699` va app `fac99af` CI success (130 server, 198 Flutter, Android ARM64 va iOS simulator); lokal analyzer toza va Android x64 build o‘tdi. Native Androidda mavjud cancelled TEST bronidan kundalik sahifa/hayvon/ko‘rsatma, 5 bo‘limning “Hali qayd yo‘q” holati, tahrir tugmasi yo‘qligi va bo‘sh tarix ko‘rildi. Dalillar `.local/native-care-readonly.png`, `.local/native-care-history.png`, `.local/native-care-proof.json`; preview schema 14, integrity ok. Oldin/keyin 2 bron/quote/hayvon bog‘lanishi, 5 hodisa, 1 rasm, balans va 3 chat xabari aynan teng; care_entries=0. Faol yozish/parallel tuzatish/retry/kun almashishi/egalikni server va widget fixturelari tekshirdi; faol bron yaratadigan bloklangan native test bajarilmadi. Hisobot kunlik kategoriya xulosasi, mustaqil xizmat tasdig‘i emas; har tashrif uchun avtomatik jadval/video/eslatma M077–M080 da ochiq. Jami 38/139.
 
@@ -199,6 +202,10 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 - Tekshiruv: `python -m unittest -q` — 23 test o‘tdi; backend GitHub CI ham o‘tdi (`9c32975`). Flutter analyze va to‘liq Linux CI testlari o‘tdi (`00b28e5`). Lokal API integration testi 8081 portda o‘tdi. Windows’da ayrim suite jarayonlari uzilishi qayd etildi; alohida processlar ham hammasini bartaraf etmadi, M126 Windows qismi ochiq.
 - M015 yopildi: Git Credential Manager orqali yozish huquqli hisob tekshirildi, ikkala branch push qilindi va draft PR’lar ochildi. GitHub connector boshqa hisob bilan faqat o‘qiy oladi. Ikkala main branch hozir himoyalanmagan — M109 ochiq. PR’lar: https://github.com/umar200000/momiq_backend/pull/1 va https://github.com/umar200000/momiq_app/pull/1. Main merge/deploy bajarilmadi.
 
+- 2026-10-28, M086/M087 tekshiruvi: foydalanuvchi sharhni tahrirlashni taqiqladi. Migration 15 bir tugallangan buyurtmaga bitta 1–5 yulduzli sharh, API va DB darajasida o‘zgarmas matn/yulduz, account-scoped idempotency va revision tekshiruvini qo‘shdi. Mijoz o‘z sharhining ko‘rinishini yashirish/tiklash orqali boshqaradi; bu tahrir emas, admin cheklovini chetlab o‘tmaydi. Admin sabab bilan faqat ko‘rinishni o‘zgartiradi, qaror tarixi o‘zgarmas. Server sahifalash va haqiqiy reyting hisobini boshqaradi; TEST yozuvlar hech qachon reytingga kirmaydi. Apellyatsiya/umumiy shikoyatlar M090 ostida ochiq.
+- Sharhlar dalili: 138 Python testi, 209 Flutter testi (+ avvaldan skip 1), analyzer xatosiz, 16 admin testi, Android x64 debug APK build/install muvaffaqiyatli. 8 ta alohida mobil sharh testi uzilgan javob/restart, disk xatosi, sessiya almashishi, majburiy tasdiq, tahrir yo‘qligi va pagination/TEST hisobini tekshirdi. Lokal preview migration 15 oldidan `.local/preview/before-reviews.sqlite3` olindi; eski buyurtmalar, wallet va chat o‘zgarmagan, integrity=ok (`.local/reviews-migration-proof.json`). Admin bo‘sh sharhlar sahifasi brauzerda tekshirildi (`.local/native-admin-reviews-empty.png`). Jonli previewda tugallangan buyurtma yaratilmagan, native sharh yuborish bajarildi deb belgilanmaydi; M055 bloklangan test o‘z holida qoldi.
+- Oldingi chat/parvarish xabarlari commitlari `d064cda`/`a21b1b1` GitHub CI’da ham muvaffaqiyatli o‘tdi. Sharhlar app `87dca28` va admin `ebceabd` branchga push qilindi; main/deploy emas, yangi CI natijasi alohida kuzatiladi.
+
 **Tekshirilgan boshlang‘ich holat**
 
 - Profil, hisob sozlamalari, e’lon saqlash, mijoz/admin chatining asosiy API’lari mavjud. Buyurtma yaratish va bekor qilish hozir xato qaytaradi.
@@ -338,7 +345,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 
 **L. Sharhlar, murojaatlar va ishonch**
 
-- [ ] M086 — Sharh yozish huquqini haqiqiy tugallangan buyurtmaga bog‘lash: bir buyurtmaga belgilangan miqdor, reyting chegarasi, tahrir muddati; o‘ziga yoki bo‘lmagan buyurtmaga sharh yo‘q.
+- [ ] M086 — Sharh yozish huquqini haqiqiy tugallangan buyurtmaga bog‘lash: bir buyurtmaga belgilangan miqdor, reyting chegarasi, yuborilgandan keyin tahrir taqiqlanishi; o‘ziga yoki bo‘lmagan buyurtmaga sharh yo‘q.
 - [ ] M087 — Umumiy reyting va sharhlar ro‘yxatini serverdan ko‘rsatish: sahifalash, son/o‘rtacha hisob, moderatsiya/o‘chirishdan keyingi qayta hisob; mock sharh hisobga kirmaydi.
 - [ ] M088 — Mijoz va enaga yordam murojaatini yagona ticket oqimiga ulash: mavzu, buyurtma, matn/media, javoblar va holat; yuborilgan murojaat qayta ochilganda ko‘rinadi.
 - [ ] M089 — Nizo va takroriy holatlarni boshqarish: 30 kun ichida 3 ta kech bekor/tasdiqlangan kelmaslik admin ko‘rigiga, favqulodda vaziyat va yagona hodisa hisobi; kelmaslik nizosi 48 soatda ko‘riladi, xizmat boshlanmagan bo‘lsa komissiya balansga qaytadi, mijozning xizmat puli qaytarilmaydi.

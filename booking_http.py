@@ -7,6 +7,7 @@ import booking_engine as engine
 import booking_chat
 import booking_index
 import booking_care
+import booking_reviews
 
 
 def body(handler, allowed):
@@ -22,6 +23,18 @@ def route(handler, con, user, path, environment):
     engine.test_gate(con, environment)
     now = datetime.now(timezone.utc)
     if booking_care.route(handler, con, user, path, now):
+        return True
+    review = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/review', path)
+    if review:
+        if handler.command == 'GET':
+            con.execute('BEGIN')
+            result = booking_reviews.owner_view(con, review[1], user, now)
+        elif handler.command == 'POST':
+            result = booking_reviews.write(con, review[1], user, handler.body(), now)
+            con.commit()
+        else:
+            raise engine.BookingError(404, 'Topilmadi')
+        handler.reply(200, result)
         return True
     if path == '/api/bookings/policy' and handler.command == 'GET':
         handler.reply(200, {'version': 'elapsed-24h-v1', 'billingUnit': 'animal_started_24h',

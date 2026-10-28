@@ -120,6 +120,16 @@ MIGRATIONS = (
         "CREATE TRIGGER care_entries_no_update BEFORE UPDATE ON care_entries BEGIN SELECT RAISE(ABORT, 'Care history is immutable'); END",
         "CREATE TRIGGER care_entries_no_delete BEFORE DELETE ON care_entries BEGIN SELECT RAISE(ABORT, 'Care history is immutable'); END",
     )),
+    (15, 'completed booking reviews and immutable revision history', (
+        "CREATE TABLE booking_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT, booking_id TEXT NOT NULL UNIQUE REFERENCES bookings(id), customer_id TEXT NOT NULL REFERENCES users(id), sitter_id TEXT NOT NULL REFERENCES users(id), service TEXT NOT NULL, author_name TEXT NOT NULL, stars INTEGER NOT NULL CHECK(stars BETWEEN 1 AND 5), text TEXT NOT NULL, test_only INTEGER NOT NULL CHECK(test_only IN (0,1)), hidden INTEGER NOT NULL DEFAULT 0 CHECK(hidden IN (0,1)), withdrawn INTEGER NOT NULL DEFAULT 0 CHECK(withdrawn IN (0,1)), revision INTEGER NOT NULL, created TEXT NOT NULL, updated TEXT NOT NULL)",
+        'CREATE INDEX review_catalog ON booking_reviews(sitter_id,service,hidden,withdrawn,test_only,id)',
+        'CREATE TABLE review_history(review_id INTEGER NOT NULL REFERENCES booking_reviews(id), revision INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, payload TEXT NOT NULL, created TEXT NOT NULL, PRIMARY KEY(review_id,revision))',
+        "CREATE TRIGGER review_history_no_update BEFORE UPDATE ON review_history BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END",
+        "CREATE TRIGGER review_history_no_delete BEFORE DELETE ON review_history BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END",
+        'CREATE TABLE review_requests(actor TEXT NOT NULL, request_id TEXT NOT NULL, fingerprint TEXT NOT NULL, review_id INTEGER NOT NULL REFERENCES booking_reviews(id), revision INTEGER NOT NULL, PRIMARY KEY(actor,request_id))',
+        "CREATE TRIGGER review_identity_immutable BEFORE UPDATE OF booking_id,customer_id,sitter_id,service,author_name,test_only,created ON booking_reviews BEGIN SELECT RAISE(ABORT, 'Review identity is immutable'); END",
+        "CREATE TRIGGER review_content_immutable BEFORE UPDATE OF stars,text ON booking_reviews BEGIN SELECT RAISE(ABORT, 'Submitted reviews cannot be edited'); END",
+    )),
 )
 
 
