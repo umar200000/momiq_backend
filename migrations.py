@@ -114,6 +114,12 @@ MIGRATIONS = (
     (13, 'participant delivery acknowledgements', (
         'CREATE TABLE conversation_deliveries(conversation_id TEXT NOT NULL REFERENCES conversations(id), user_id TEXT NOT NULL REFERENCES users(id), last_message_id INTEGER NOT NULL CHECK(last_message_id>0), PRIMARY KEY(conversation_id,user_id))',
     )),
+    (14, 'immutable booking care instructions and daily reports', (
+        "CREATE TABLE care_entries(id INTEGER PRIMARY KEY AUTOINCREMENT, booking_id TEXT NOT NULL REFERENCES bookings(id), pet_id TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('instructions','report')), day TEXT NOT NULL, category TEXT NOT NULL, revision INTEGER NOT NULL, actor TEXT NOT NULL REFERENCES users(id), request_id TEXT NOT NULL, fingerprint TEXT NOT NULL, payload TEXT NOT NULL, created TEXT NOT NULL, UNIQUE(actor,request_id), UNIQUE(booking_id,pet_id,kind,day,category,revision))",
+        'CREATE INDEX care_lookup ON care_entries(booking_id,kind,day,pet_id,category,revision)',
+        "CREATE TRIGGER care_entries_no_update BEFORE UPDATE ON care_entries BEGIN SELECT RAISE(ABORT, 'Care history is immutable'); END",
+        "CREATE TRIGGER care_entries_no_delete BEFORE DELETE ON care_entries BEGIN SELECT RAISE(ABORT, 'Care history is immutable'); END",
+    )),
 )
 
 

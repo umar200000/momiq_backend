@@ -33,6 +33,26 @@ class BookingHttpTests(unittest.TestCase):
     def book(self):
         return self.req('/api/bookings','POST',{'quoteId':self.quote()['id'],'requestId':secrets.token_hex(16)})
 
+    def test_care_http_is_participant_scoped_and_rejects_invalid_methods_and_queries(self):
+        booking=self.book(); path='/api/bookings/'+booking['id']
+        self.req(path+'/care',status=409)
+        self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        payload={'petId':'owned','kind':'instructions','day':'','category':'','revision':0,
+                 'requestId':secrets.token_hex(16),'payload':{'food':'TEST 08:00','water':'','walk':'','medicine':'','other':'','reason':'TEST new instructions'}}
+        self.req(path+'/care','POST',payload,user='abc',status=403)
+        self.req(path+'/care','POST',payload,user='stranger',status=404)
+        saved=self.req(path+'/care','POST',payload)
+        self.assertEqual(self.req(path+'/care','POST',payload),saved)
+        current=self.req(path+'/care',user='abc')
+        self.assertEqual(current['pets'][0]['instructions']['payload']['food'],'TEST 08:00')
+        self.assertEqual(self.req(path+'/care/history',user='abc')['items'][0],saved)
+        self.req(path+'/care/history',user='stranger',status=404)
+        for suffix in ['?day=bad','?day=2026-01-01&day=2026-01-02','?other=1','/history?before=0','/history?before=']:
+            self.req(path+'/care'+suffix,status=400)
+        self.req(path+'/care','DELETE',status=404)
+        self.req(path+'/care/history','POST',{},status=404)
+        self.req(path+'/care','POST',{**payload,'admin':True},status=400)
+
     def test_sitter_dashboard_scopes_counts_dates_and_private_metadata(self):
         self.req('/api/me/dashboard',status=403)
         self.req('/api/me/dashboard',user='stranger',status=403)

@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlparse, unquote
 import booking_engine as engine
 import booking_chat
 import booking_index
+import booking_care
 
 
 def body(handler, allowed):
@@ -20,6 +21,8 @@ def route(handler, con, user, path, environment):
         return False
     engine.test_gate(con, environment)
     now = datetime.now(timezone.utc)
+    if booking_care.route(handler, con, user, path, now):
+        return True
     if path == '/api/bookings/policy' and handler.command == 'GET':
         handler.reply(200, {'version': 'elapsed-24h-v1', 'billingUnit': 'animal_started_24h',
                             'services': ['boarding', 'homeVisit', 'personal'], 'homeVisitAvailable': True,
