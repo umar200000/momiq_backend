@@ -165,12 +165,18 @@ def archive(con,uid,kind,expected):
 
 def completeness(account,item):
     profile=account.get('profile') or {};sitter=account.get('sitterProfile') or {}
+    if not isinstance(profile,dict) or not isinstance(sitter,dict): return ['profil formati']
     missing=[]
-    if not profile.get('first') or not profile.get('last'): missing.append('ism va familiya')
+    if any(not isinstance(profile.get(key),str) or not profile[key].strip() or len(profile[key])>100 for key in ('first','last')):
+        missing.append('ism va familiya')
     if not profile.get('photo'): missing.append('profil rasmi')
-    if type(sitter.get('years')) is not int: missing.append('tajriba')
-    if not str(sitter.get('about','')).strip(): missing.append('tavsif')
-    if item['type']!='homeVisit' and not sitter.get('homePhotos'): missing.append('uy rasmi')
+    if type(sitter.get('years')) is not int or not 0<=sitter['years']<=80: missing.append('tajriba')
+    about=sitter.get('about')
+    if not isinstance(about,str) or not about.strip() or len(about)>4000: missing.append('tavsif')
+    homes=sitter.get('homePhotos',[])
+    if (not isinstance(homes,list) or len(homes)>9 or any(not isinstance(photo,str) or not photo for photo in homes)
+            or (item['type']!='homeVisit' and not homes)): missing.append('uy rasmi')
+    if sitter.get('housing','apartment') not in ('apartment','house'):missing.append('uy turi')
     return missing
 
 
@@ -196,7 +202,7 @@ def review(con,uid,kind,data,actor,environment):
     status={'approve':'approved','reject':'rejected','suspend':'suspended'}[decision]
     digest=fingerprint(account,current['housing'],item) if decision=='approve' else None
     media = json.dumps({'photo':public_photo(account['profile']['photo']),
-        'homePhotos':[public_photo(p) for p in account['sitterProfile']['homePhotos']]}) if decision=='approve' else None
+        'homePhotos':[public_photo(p) for p in (account['sitterProfile'].get('homePhotos') or [])]}) if decision=='approve' else None
     con.execute('INSERT INTO listing_moderation(user_id,service,status,approved_hash,test_only,reason,reviewed_by,reviewed_at,public_media) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,service) DO UPDATE SET status=excluded.status,approved_hash=excluded.approved_hash,test_only=excluded.test_only,reason=excluded.reason,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at,public_media=excluded.public_media',
                 (uid,kind,status,digest,int(test_only),reason.strip(),actor,now(),media))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(actor,'listing-'+decision,json.dumps({'id':uid+':'+kind,'revision':revision(con,uid),'reason':reason.strip(),'testOnly':test_only}),now()))

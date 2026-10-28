@@ -64,6 +64,8 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Bajarilish jurnali — 2026-10-27**
 
+- 2026-10-29 M032 yopildi (nashrga o‘tish sharti; MyID integratsiyasi M038 ochiq): admin approve serverda ism/familiya/profil rasmi, 0–80 yil tajriba, bo‘sh bo‘lmagan4000gacha tavsif, uy turi va boarding/personal uchun uy rasmlarini tekshiradi. Legacy noto‘g‘ri type/uzunlik/diapazon qiymatlari ham qayta ko‘riladi; faqat frontendga ishonilmaydi. Uyga borib qarashda uy rasmi shart emas; eski homePhotos maydoni yo‘q profilni tasdiqlashdagi KeyError tuzatildi. Noto‘liq profil409: revision/audit/notice o‘zgarmaydi, katalogga chiqmaydi; keyin haqiqiy to‘ldirish bilan tasdiqlash mumkin. TEST tasdiq MyID deb ko‘rsatilmaydi va production approval/catalog hali yopiq. 38 maqsadli regression, keyin barcha234 Python testi o‘tdi (`.local/m032-profile-publication-tests.log`, `.local/m032-full-backend.log`). Jami75/139; MyID, native yakuniy qabul va hosted rollout bajarildi degani emas.
+
 - 2026-10-29 M127 yopildi: mavjud biznes/API regressionlari band talabi bo‘yicha qayta xaritalandi. `test_booking_rules/engine/http` tasdiqlangan3mln narx namunasi, har boshlangan24soat/µs, personal1hayvon, komissiya yaxlitlashi/snapshot, half-open sig‘im, deadline/status va rolni tekshiradi. `test_api` malformed/null/nested qiymat, owner/admin, legacy care preservation va roundtrip; `test_migrations` eski yozuvni1–21sxemaga yo‘qotishsiz/idempotent ko‘chirish, rollback/checksum/FK; `test_wallet_corrections`, dispute/care/video/chat testlari dublikat/poyga/noaniq javob/rollback va private evidence’ni mustaqil kutilgan summalar/holatlar bilan tekshiradi. Eng so‘nggi232 Python full run success; bu faqat test qo‘shish/ishlash bandining yakuni. Native M055/M128, yangi SMS/MyID/push provider contractlari va M129–M131 yig‘ma operatsion/device sinovlari yopilgani emas. Jami74/139.
 - 2026-10-29 M009 qisman: hosted staging/production build `MOMIQ_API_ENABLED=false` orqali API o‘chiq preview xulqiga o‘ta olmasligi startup validatsiyasida mustahkamlandi. Local test preview ruxsatli, local release oldingi kabi rad; 5 environment testi va analyzer toza (`app/.local/m009-api-gate-*`). SMS/MyID/signing va final release acceptance hali oxirgi bosqichda. Backendfd78692/run40755429690 hashed dependency/advisory CI success; app7b31ecb CI davom etmoqda, secret-gate o‘zgarishlari yangi pushda tekshiriladi.
 
@@ -360,7 +362,7 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 
 **E. Enaga xizmatini e’lon qilish**
 
-- [ ] M032 — Enaga profili to‘liqligi va tasdiqlash talablarini qo‘llash: tajriba, tavsif, uy turi, rasmlar va tekshiruv holati kelishilgan mezonga mos bo‘lmasa nashrga o‘tmaydi.
+- [x] M032 — Enaga profili to‘liqligi va tasdiqlash talablarini qo‘llash: tajriba, tavsif, uy turi, rasmlar va tekshiruv holati kelishilgan mezonga mos bo‘lmasa nashrga o‘tmaydi.
 - [x] M033 — E’lon holatlarini joriy etish: draft, ko‘rib chiqilmoqda, tasdiqlangan, rad etilgan, to‘xtatilgan/arxivlangan; sabab va qayta yuborish foydalanuvchiga ko‘rinadi.
 - [x] M034 — listings va sitters katalogini yagona bog‘langan modelga keltirish: tasdiqlangan faol e’lon avtomatik qidiruvda paydo bo‘ladi; o‘chirilgan/bloklangan e’lon yo‘qoladi, dublikat bo‘lmaydi.
 - [x] M035 — Uch xizmat validatsiyasini birlashtirish: cat/dog/Boshqa mosligi, narx, manzil, sig‘im va shaxsiy enaga ziddiyatlari barcha kirish yo‘llarida tekshiriladi.

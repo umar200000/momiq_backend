@@ -40,6 +40,37 @@ class CatalogTests(unittest.TestCase):
             con.execute('BEGIN')
             return catalog.profiles(con,environment)
 
+    def test_incomplete_sitter_never_publishes_or_advances_review_revision(self):
+        self.save()
+        for section,key,value in [('profile','first',''),('profile','last',''),('profile','photo',None),
+                                  ('profile','first',True),('profile','last','x'*101),
+                                  ('sitterProfile','years',None),('sitterProfile','years',True),
+                                  ('sitterProfile','years',-1),('sitterProfile','years',81),
+                                  ('sitterProfile','about','  '),('sitterProfile','about',123),
+                                  ('sitterProfile','about','x'*4001),('sitterProfile','homePhotos',[]),
+                                  ('sitterProfile','homePhotos','not a list'),('sitterProfile','housing','other')]:
+            account=copy.deepcopy(self.account);account[section][key]=value
+            with server.db() as con:con.execute("UPDATE users SET account=? WHERE id='abc'",(json.dumps(account),))
+            with self.subTest(key=key,value=value),self.assertRaises(catalog.CatalogError) as caught:self.review()
+            self.assertEqual(caught.exception.status,409)
+            self.assertEqual(self.public(),[])
+            with server.db() as con:
+                self.assertEqual(catalog.revision(con,'abc'),1)
+                self.assertEqual(con.execute('SELECT COUNT(*) FROM notifications').fetchone()[0],0)
+                self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action='listing-approve'").fetchone()[0],0)
+        with server.db() as con:con.execute("UPDATE users SET account=? WHERE id='abc'",(json.dumps(self.account),))
+        self.review();self.assertEqual(len(self.public()),1)
+
+    def test_legacy_home_visit_does_not_require_sitter_home_photos(self):
+        account=copy.deepcopy(self.account);account['sitterProfile'].pop('homePhotos')
+        self.listing['listings'][0]['type']='homeVisit';self.listing['listings'][0]['location']=None
+        with server.db() as con:con.execute("UPDATE users SET account=? WHERE id='abc'",(json.dumps(account),))
+        self.save()
+        with server.db() as con:
+            catalog.review(con,'abc','homeVisit',{'decision':'approve','reason':'TEST home visit','testOnly':True,'_revision':1},'admin','local')
+        [entry]=self.public();self.assertEqual(entry['homePhotos'],[])
+        self.assertFalse(entry['identityVerified']);self.assertEqual(self.public('production'),[])
+
     def test_review_required_and_public_address_is_approximate(self):
         self.save()
         self.assertEqual(self.public(),[])
