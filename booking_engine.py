@@ -18,6 +18,7 @@ import conversations
 import wallet
 import notifications
 import sitter_availability
+import booking_capacity
 from media_validation import validate_photo
 
 
@@ -69,7 +70,7 @@ def account(con, user, role=None):
 
 
 def listing(con, customer, listing_id, environment):
-    item = next((item for item in catalog.profiles(con, environment) if item['id'] == listing_id), None)
+    item = next((item for item in catalog.iter_profiles(con, environment) if item['id'] == listing_id), None)
     if not item or item['userId'] == customer or conversations.blocked_pair(con, customer, item['userId']):
         raise BookingError(409, 'Enaga yangi buyurtma qabul qilmayapti')
     return item
@@ -311,31 +312,14 @@ def expire_due(con, *, environment, now, limit=200, owner=None, identity=None):
 
 
 def check_capacity(con, row, detail, current):
-    if con.execute("SELECT 1 FROM bookings WHERE sitter_id=? AND id!=? AND status='active' AND ends_at<=? LIMIT 1",
-                   (row['sitter_id'], row['id'], stamp(current))).fetchone():
-        raise BookingError(409, 'Avval muddati o‘tgan parvarishni yakunlang yoki admin bilan bog‘laning')
-    active = con.execute("SELECT * FROM bookings WHERE sitter_id=? AND id!=? AND status IN ('accepted','active','disputed') AND starts_at<? AND ends_at>?",
-                         (row['sitter_id'], row['id'], row['ends_at'], row['starts_at'])).fetchall()
-    # Until cross-service schedules are approved, differing services never overlap.
-    if any(b['service'] != row['service'] for b in active):
-        raise BookingError(409, 'Enaga boshqa xizmat bilan band')
-    if row['service'] == 'homeVisit' and active:
-        raise BookingError(409, 'Enaga shu vaqtda boshqa uyga borish bilan band')
     current_listing = json.loads(con.execute('SELECT data FROM listings WHERE user_id=?', (row['sitter_id'],)).fetchone()[0])
     item = next((i for i in current_listing['listings'] if i['type'] == row['service']), None)
     if not item or not item['active']:
         raise BookingError(409, 'E’lon faol emas')
     cap = 30 if row['service'] == 'homeVisit' else (1 if row['service'] == 'personal' else min(detail['capacity'], item['capacity']))
-    # Peak occupancy, not the sum of bookings that overlap different subintervals.
-    sweep = [(row['starts_at'], len(detail['pets'])), (row['ends_at'], -len(detail['pets']))]
-    for b in active:
-        count = con.execute('SELECT COUNT(*) FROM booking_animals WHERE booking_id=?', (b['id'],)).fetchone()[0]
-        sweep.extend([(max(row['starts_at'], b['starts_at']), count), (min(row['ends_at'], b['ends_at']), -count)])
-    occupancy = 0
-    for _, delta in sorted(sweep, key=lambda v: (v[0], v[1])):
-        occupancy += delta
-        if occupancy > cap:
-            raise BookingError(409, 'Tanlangan vaqtda bo‘sh joy yo‘q')
+    if len(detail['pets']) > booking_capacity.remaining(con,row['sitter_id'],row['service'],
+            parse(row['starts_at']),parse(row['ends_at']),cap,current,exclude=row['id']):
+        raise BookingError(409, 'Tanlangan vaqtda bo‘sh joy yo‘q yoki oldingi parvarish tugamagan')
     conflict = con.execute("SELECT 1 FROM bookings b JOIN booking_animals a ON a.booking_id=b.id JOIN booking_animals wanted ON wanted.customer_id=a.customer_id AND wanted.animal_id=a.animal_id WHERE wanted.booking_id=? AND b.id!=? AND b.status IN ('accepted','active','disputed') AND ((b.starts_at<? AND b.ends_at>?) OR (b.status='active' AND b.ends_at<=?)) LIMIT 1",
                            (row['id'], row['id'], row['ends_at'], row['starts_at'], stamp(current))).fetchone()
     if conflict:

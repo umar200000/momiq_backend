@@ -19,6 +19,7 @@ from migrations import migrate
 import wallet
 import catalog
 import sitter_availability
+import catalog_search
 import pet_safety
 import sitter_dashboard
 import notifications
@@ -351,9 +352,9 @@ class Handler(BaseHTTPRequestHandler):
             if booking_reviews.public_route(self,con,path,ENVIRONMENT):
                 return
             if path == "/api/sitters" and self.command == "GET":
-                interval = sitter_availability.interval(parse_qs(urlparse(self.path).query, keep_blank_values=True))
-                con.execute('BEGIN')
-                self.reply(200, {"sitters": catalog.profiles(con, ENVIRONMENT, interval=interval)})
+                params = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+                owner = self.auth(con) if params.get('favorites') == ['1'] else None
+                self.reply(200, catalog_search.page(con, ENVIRONMENT, params, user=owner))
                 return
             if path == "/api/health" and self.command == "GET":
                 self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})

@@ -206,13 +206,18 @@ def review(con,uid,kind,data,actor,environment):
 
 
 def profiles(con,environment,*,interval=None):
-    result=[]
-    rows=con.execute("SELECT u.id,u.account,l.data FROM users u JOIN listings l ON l.user_id=u.id JOIN wallet_accounts w ON w.user_id=u.id WHERE u.blocked=0 AND w.balance_minor>=? AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role='sitter') ORDER BY u.id",(MINIMUM_BALANCE_MINOR,)).fetchall()
+    return list(iter_profiles(con,environment,interval=interval))
+
+
+def iter_profiles(con,environment,*,interval=None,after=''):
+    after_key=tuple(after.split(':',1)) if after else ('','')
+    rows=con.execute("SELECT u.id,u.account,l.data FROM users u JOIN listings l ON l.user_id=u.id JOIN wallet_accounts w ON w.user_id=u.id WHERE u.blocked=0 AND u.id>=? AND w.balance_minor>=? AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role='sitter') ORDER BY u.id",(after.split(':')[0],MINIMUM_BALANCE_MINOR))
     for row in rows:
         account=json.loads(row['account']);data=json.loads(row['data'])
         if interval and sitter_availability.reason(account,*interval): continue
         profile=account.get('profile') or {};sitter=account.get('sitterProfile') or {}
-        for item in data['listings']:
+        for item in sorted(data['listings'],key=lambda value:value['type']):
+            if (row['id'],item['type'])<=after_key:continue
             moderation=con.execute("SELECT * FROM listing_moderation WHERE user_id=? AND service=? AND status='approved'",(row['id'],item['type'])).fetchone()
             if not item['active'] or not moderation or moderation['approved_hash']!=fingerprint(account,data['housing'],item): continue
             if environment=='production' or not moderation['test_only']: continue
@@ -222,7 +227,7 @@ def profiles(con,environment,*,interval=None):
             public_location=({'lat':round(location['lat'],2),'lon':round(location['lon'],2),'address':'Toshkent'} if location else None)
             import booking_reviews
             reputation=booking_reviews.summary(con,row['id'],item['type'])
-            result.append({'id':row['id']+':'+item['type'],'userId':row['id'],
+            yield {'id':row['id']+':'+item['type'],'userId':row['id'],
                 'name':(profile.get('first','')+' '+profile.get('last','')[:1]+'.').strip(),
                 'service':SERVICES.index(item['type']),'price':item['price'],'priceUnit':'animal_day',
                 'pets':[PET_LABELS[p] for p in item['pets']],
@@ -231,8 +236,7 @@ def profiles(con,environment,*,interval=None):
                 'photo':media['photo'],'homePhotos':media['homePhotos'],
                 'location':public_location,'testOnly':True,'identityVerified':False,
                 'availabilityKnown':False,'availability':sitter_availability.public(account),
-                'bookingEnabled':environment in ('local','test')})
-    return result
+                'bookingEnabled':environment in ('local','test')}
 
 
 def known_names(con):

@@ -260,10 +260,15 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 - Backup shu serverda saqlanadi. Android release debug kaliti bilan imzolanadi, applicationId hali com.example.momiq_app.
 - Backendning 14 testi o‘tdi. To‘liq Flutter test to‘plami yakuni tasdiqlanmagan. Emulatorda hayvonning notes maydoni yo‘q bo‘lsa sahifa yiqilishi qayta hosil qilindi.
 
+- 2026-10-28, M040 yopildi: katalog serverda 20 tadan barqaror (userId, service) cursor bilan sahifalanadi; xizmat, it/mushuk, narx, hayvonlar soni, kelish/ketish, ism, reyting va haqiqiy MyID filtri qo‘shildi. TEST tasdiq MyID deb hisoblanmaydi. Saqlanganlar client auth bilan faqat egasining to‘liq server ro‘yxatidan filtrlanadi — birinchi sahifada bo‘lmagan favorite yo‘qolmaydi. Cursor filtr/hisobga bog‘langan; har page bitta read snapshot, eski/nomuvofiq query 400. Qabul qilish va qidiruv bitta peak-capacity hisobidan foydalanadi; pending joy band qilmaydi, accepted/active/disputed, boshqa xizmat, homeVisit eksklyuzivligi va overdue active hisobga olinadi. Ilova server freeCapacity’ni ko‘rsatadi, on-demand yana yuklaydi, ID dedup va filter/session generation saqlanadi; page xatosi oldingi natijani o‘chirmaydi. Masofa/radius M041 ochiq.
+- M040 dalil: 172 backend full test, 37 sig‘im/jadval/catalog regressioni, yakuniy 4 yangi HTTP/core test; 239 Flutter full test + 1 mavjud opt-in skip, 22 maqsadli test, analyzer toza. Dastlab authsiz test helper None kalitini qo‘llamagani uchun fixture xatosi bo‘ldi; noto‘g‘ri token bilan haqiqiy HTTP 401 tekshiruviga tuzatildi. Cursor tuple tartibi uzunligi turli IDlar uchun ham moslashtirildi. Preview GET sanali qidiruv 3 bo‘sh joy qaytardi, mavjud 2 booking/2 quote/3 ledger/3 top-up aynan qoldi, integrity ok; yangi live bron/pul amali yo‘q. Dalillar `.local/catalog-search-full-backend.log`, `.local/catalog-search-backend-cursor.log`, `.local/catalog-preview-proof.json`, app `.local/catalog-search-full-mobile.log`, `.local/catalog-search-mobile-final.log`, `.local/catalog-search-analyze-final.log`.
+- M044 audit bilan yopildi: enaga sahifasida real service tarifi / hayvon / kun, server jadvali va sanali mavjudlik, haqiqiy media/reyting/sharhlar, TEST/MyID farqi bor; aniq uy manzili public/quote’da ochilmaydi (faqat Toshkent va yumaloqlangan koordinata). M035/M036/M040/M086/M087 va catalog privacy regression dalillari birgalikda tekshirildi; native oldingi real TEST profil/public sharh proof saqlangan. Bu MyID integratsiyasi tugagan degani emas.
+- M002 audit bilan yopildi: uchala xizmat faqat it/mushuk; alohida hayvon/kun tarifi, homeVisit uchun qat’iy tashrif soni/daqiqasi yo‘q, personal bitta hayvon va ustma-ust boshqa xizmat yo‘q. M003/M035/M037/M048/M049 va uch xizmat quote/capacity testlari UI/server mosligini tasdiqlaydi. Jami 59/139. M036 backend86c6fb0/app14e6fd3 CI success (Android/iOS build ham), to‘liq mobile235 testi ham tasdiqlandi. M055 bloklangan test o‘z holida qoldi.
+
 **A. Ish boshlashdan oldingi mahsulot qarorlari**
 
 - [ ] M001 — Tasdiqlangan reliz ko‘lamini bajarish: Android va iOS, Toshkent, uchala xizmat; tillar va aniq hudud chegarasi yakunlanadi, hududdan tashqaridagi bron rad etiladi, signing oxirida bajariladi.
-- [ ] M002 — Uch xizmatning aniq qoidalarini tasdiqlash: hayvon turlari, sig‘im, uyga tashrif davomiyligi/soni, shaxsiy enaga eksklyuzivligi; UI va server bir xil qoidani qo‘llaydi.
+- [x] M002 — Uch xizmatning aniq qoidalarini tasdiqlash: hayvon turlari, sig‘im, uyga tashrif davomiyligi/soni, shaxsiy enaga eksklyuzivligi; UI va server bir xil qoidani qo‘llaydi.
 - [x] M003 — Har xizmat uchun enaga kiritadigan bir hayvon/bir kun tarifini bajarish: hayvonlar kunlik tariflari yig‘indisi × kunlar soni; shaxsiy enagada faqat 1 hayvon, alohida paket yoki qo‘shimcha hayvon chegirmasi yo‘q; har boshlangan 24 soat bir kun.
 - [ ] M004 — Buyurtma holatlari va muddatlarini tasdiqlash: qabul/rad, javobsiz so‘rov, boshlash/yakunlash, bekor qilish, no-show, uzaytirish va nizo; har o‘tishning egasi belgilanadi.
 - [x] M005 — Tasdiqlangan hisob-kitob modelini bajarish: enaga balans to‘ldiradi, admin belgilaydigan komissiya (boshlang‘ich 10%) balansdan yechiladi, 15 000 so‘mdan past balansda yangi mijoz berilmaydi; yechish hodisasi/bazasi va qaytarish takliflari kelishiladi.
@@ -318,11 +323,11 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 
 **F. Qidiruv, xarita va tanlash**
 
-- [ ] M040 — Katalogni sahifalab olish va serverda filtrlash: xizmat, hayvon turi, narx, sanalar, sig‘im va tekshiruv holati; tartiblash barqaror va natijalar takrorlanmaydi.
+- [x] M040 — Katalogni sahifalab olish va serverda filtrlash: xizmat, hayvon turi, narx, sanalar, sig‘im va tekshiruv holati; tartiblash barqaror va natijalar takrorlanmaydi.
 - [ ] M041 — Yaqinlik qidiruvini haqiqiy koordinatalarga ulash: masofa va xizmat radiusi serverda hisoblanadi; joylashuv berilmaganda tanlangan hudud bilan qidirish ishlaydi.
 - [ ] M042 — MapKit va geokodlash sozlamalarini tugatish: muhit/ilova bilan cheklangan kalit, kvota va provider xatosi; kalit yo‘qligi sahifani yiqitmaydi.
 - [ ] M043 — Joylashuv ruxsati rad etilishi, GPS o‘chiqligi va past aniqlikni boshqarish: majburlashsiz qo‘lda manzil tanlash, qayta urinish va sozlamaga o‘tish mavjud.
-- [ ] M044 — Enaga tafsilotlarini real ma’lumot bilan to‘ldirish: xizmat narxi birligi, mavjud sanalar, tasdiq holati, haqiqiy rasmlar va sharhlar; aniq uy manzilini ochish siyosati bajariladi.
+- [x] M044 — Enaga tafsilotlarini real ma’lumot bilan to‘ldirish: xizmat narxi birligi, mavjud sanalar, tasdiq holati, haqiqiy rasmlar va sharhlar; aniq uy manzilini ochish siyosati bajariladi.
 - [x] M045 — Saqlanganlar va qidiruv holatlarini yakunlash: o‘chgan enaga, bo‘sh natija, yuklash/xato, sahifaga qaytish va filtrni tozalash; faol bo‘lmagan e’lonni bron qilib bo‘lmaydi.
 - [x] M046 — Soxta qiymatlar va uzilgan navigatsiyani tozalash: Oybek manzili/koordinatasi, sun’iy reyting/bo‘sh sana; enaga profilidan chat va buyurtmaga to‘g‘ri o‘tiladi.
 
