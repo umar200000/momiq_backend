@@ -13,7 +13,7 @@ class NotificationError(Exception):
 def publish(con, user, source, kind, target, status, reason):
     if not con.in_transaction:
         raise RuntimeError('Notice must share the business transaction')
-    if kind not in ('wallet_topup', 'listing', 'booking', 'conversation', 'care'):
+    if kind not in ('wallet_topup', 'listing', 'booking', 'conversation', 'care', 'support'):
         raise ValueError('Unsupported notice kind')
     payload = json.dumps({'kind': kind, 'targetId': target, 'status': status, 'reason': reason}, sort_keys=True)
     existing = con.execute('SELECT user_id,payload FROM notifications WHERE source_key=?', (source,)).fetchone()

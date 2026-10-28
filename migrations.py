@@ -130,6 +130,16 @@ MIGRATIONS = (
         "CREATE TRIGGER review_identity_immutable BEFORE UPDATE OF booking_id,customer_id,sitter_id,service,author_name,test_only,created ON booking_reviews BEGIN SELECT RAISE(ABORT, 'Review identity is immutable'); END",
         "CREATE TRIGGER review_content_immutable BEFORE UPDATE OF stars,text ON booking_reviews BEGIN SELECT RAISE(ABORT, 'Submitted reviews cannot be edited'); END",
     )),
+    (16, 'private support tickets and immutable messages', (
+        "CREATE TABLE support_tickets(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT NOT NULL UNIQUE,owner_id TEXT NOT NULL REFERENCES users(id),booking_id TEXT REFERENCES bookings(id),subject TEXT NOT NULL,topic TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('open','waiting_user','resolved')),revision INTEGER NOT NULL,created TEXT NOT NULL,updated TEXT NOT NULL)",
+        'CREATE INDEX support_owner ON support_tickets(owner_id,seq)',
+        'CREATE INDEX support_queue ON support_tickets(status,seq)',
+        "CREATE TABLE support_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT NOT NULL REFERENCES support_tickets(id),revision INTEGER NOT NULL,actor TEXT NOT NULL,author_role TEXT NOT NULL CHECK(author_role IN ('owner','support')),action TEXT NOT NULL,text TEXT NOT NULL,image TEXT,created TEXT NOT NULL,UNIQUE(ticket_id,revision))",
+        "CREATE TRIGGER support_messages_no_update BEFORE UPDATE ON support_messages BEGIN SELECT RAISE(ABORT, 'Support history is immutable'); END",
+        "CREATE TRIGGER support_messages_no_delete BEFORE DELETE ON support_messages BEGIN SELECT RAISE(ABORT, 'Support history is immutable'); END",
+        'CREATE TABLE support_requests(actor TEXT NOT NULL,request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,ticket_id TEXT NOT NULL REFERENCES support_tickets(id),PRIMARY KEY(actor,request_id))',
+        "CREATE TRIGGER support_identity_immutable BEFORE UPDATE OF id,owner_id,booking_id,subject,topic,created ON support_tickets BEGIN SELECT RAISE(ABORT, 'Support identity is immutable'); END",
+    )),
 )
 
 
