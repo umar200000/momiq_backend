@@ -33,6 +33,29 @@ class BookingHttpTests(unittest.TestCase):
     def book(self):
         return self.req('/api/bookings','POST',{'quoteId':self.quote()['id'],'requestId':secrets.token_hex(16)})
 
+    def test_listing_and_profile_edits_preserve_accepted_care_and_revisions(self):
+        import copy, hashlib, time
+        from urllib.request import Request, urlopen
+        from urllib.error import HTTPError
+        booking=self.book();path='/api/bookings/'+booking['id']
+        self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        listing=self.req('/api/me/listings',user='abc')
+        changed=copy.deepcopy(listing);changed['listings'][0]['location']['address']='NEW TEST location'
+        self.req('/api/me/listings','PUT',changed,user='abc',status=409)
+        self.assertEqual(self.req('/api/me/listings',user='abc'),listing)
+        account=self.req('/api/me',user='abc')['account']
+        changed=copy.deepcopy(account);changed['sitterProfile']['housing']='apartment'
+        self.req('/api/me','PUT',changed,user='abc',status=409)
+        self.assertEqual(self.req('/api/me',user='abc')['account'],account)
+        token=secrets.token_hex(32)
+        with server.db() as con:con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
+        request=Request(self.base+'/api/admin/users/abc',method='PUT',
+                        data=json.dumps({'account':changed,'_revision':account['_revision']}).encode(),
+                        headers={'Cookie':'momiq_admin='+token,'Content-Type':'application/json'})
+        with self.assertRaises(HTTPError) as caught:urlopen(request)
+        self.assertEqual(caught.exception.code,409);caught.exception.close()
+        self.assertEqual(self.req('/api/me',user='abc')['account'],account)
+
     def test_review_http_completed_ownership_public_projection_and_admin_gate(self):
         import booking_http, hashlib, time
         from urllib.request import Request, urlopen

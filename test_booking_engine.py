@@ -79,6 +79,32 @@ class BookingEngineTests(unittest.TestCase):
             self.assertEqual([x['action'] for x in engine.view(con, booking['id'], 'customer')['history']], ['request', 'accept'])
         self.assertEqual(self.quote()['snapshot']['price']['commission_bps'], 2000)
 
+    def test_each_service_uses_its_own_tariff_per_animal_and_started_day(self):
+        with server.db() as con:
+            owner=json.loads(con.execute("SELECT account FROM users WHERE id='customer'").fetchone()[0])
+            owner['addresses']=[{'id':'home','address':'TEST address','lat':41.3,'lon':69.2}]
+            con.execute("UPDATE users SET account=? WHERE id='customer'",(json.dumps(owner),))
+        revision=2
+        for service,tariff in [('boarding',500000),('homeVisit',80000),('personal',700000)]:
+            data=copy.deepcopy(self.listing)
+            item=data['listings'][0];item.update(type=service,price=tariff)
+            if service!='boarding':item['capacity']=None
+            if service=='homeVisit':item['location']=None
+            self.save(server.validate_listings(data),revision)
+            with server.db() as con:
+                catalog.review(con,'abc',service,{'decision':'approve','reason':'TEST tariff','testOnly':True,'_revision':revision+1},'admin','local')
+            revision+=2
+            pets=['cat-a'] if service=='personal' else ['cat-a','cat-b']
+            address={'address':'home'} if service=='homeVisit' else {}
+            for duration,days in [(timedelta(hours=16),1),(timedelta(hours=24),1),(timedelta(hours=24,microseconds=1),2)]:
+                quote=self.quote(listing='abc:'+service,pets=pets,end=self.start+duration,**address)
+                price=quote['snapshot']['price']
+                self.assertEqual(price['billable_days'],days)
+                self.assertEqual(price['service_total_minor'],tariff*100*len(pets)*days)
+                self.assertEqual([r['daily_minor'] for r in price['rates']],[tariff*100]*len(pets))
+            if service=='personal':
+                self.expect_error(409,lambda:self.quote(listing='abc:personal',pets=['cat-a','cat-b']))
+
     def test_request_retry_quote_reuse_and_foreign_ownership(self):
         quote = self.quote(); key = secrets.token_hex(16)
         booking = self.request(quote, request=key)

@@ -206,6 +206,10 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 - Sharhlar dalili: 138 Python testi, 209 Flutter testi (+ avvaldan skip 1), analyzer xatosiz, 16 admin testi, Android x64 debug APK build/install muvaffaqiyatli. 8 ta alohida mobil sharh testi uzilgan javob/restart, disk xatosi, sessiya almashishi, majburiy tasdiq, tahrir yo‘qligi va pagination/TEST hisobini tekshirdi. Lokal preview migration 15 oldidan `.local/preview/before-reviews.sqlite3` olindi; eski buyurtmalar, wallet va chat o‘zgarmagan, integrity=ok (`.local/reviews-migration-proof.json`). Admin bo‘sh sharhlar sahifasi brauzerda tekshirildi (`.local/native-admin-reviews-empty.png`). Jonli previewda tugallangan buyurtma yaratilmagan, native sharh yuborish bajarildi deb belgilanmaydi; M055 bloklangan test o‘z holida qoldi.
 - Oldingi chat/parvarish xabarlari commitlari `d064cda`/`a21b1b1` GitHub CI’da ham muvaffaqiyatli o‘tdi. Sharhlar app `87dca28` va admin `ebceabd` branchga push qilindi; main/deploy emas, yangi CI natijasi alohida kuzatiladi.
 
+- 2026-10-28, M086/M087 yopildi: backend `6d98ef4`, app `87dca28`, admin `ebceabd` CI success; app Android ARM64 va iOS simulator buildlari ham o‘tdi. Native mijoz katalogi → TEST enaga → sharhlar sahifasida serverning bo‘sh ro‘yxati tekshirildi (`.local/native-public-reviews-empty.png`). Lokal previewga yangi tugallangan buyurtma yoki sharh yozilmadi; yuborish/moderatsiya izolyatsiyalangan HTTP va UI testlarida tekshirildi. Jami 40/139.
+- 2026-10-28, M037 yopildi: e’lon save va buyurtma accept bir DB write lock bilan ishlaydi. Accepted/active/disputed majburiyatlar mavjud bo‘lsa uy turi, kelishilgan parvarish manzili va peak occupancy’dan past sig‘im o‘zgarishi 409. Profil/admin orqali uy turini almashtirish ham shu himoyadan o‘tadi; rad etilgan o‘zgarish revisionni sarflamaydi. E’lon narxini kelajak uchun tahrirlash/to‘xtatish/arxivlash eski narx/manzil/buyurtmani o‘zgartirmaydi va parvarishni yakunlashni to‘smaydi. Arxivdan qayta qo‘shish ham eski majburiyatni chetlab o‘tmaydi. 4 ta alohida regression, HTTP client+admin rollback va parallel accept/edit testi o‘tdi; backend jami 143 test o‘tdi. Mobil server-409 testi saqlangan uy turi/narx/holat qolishini tekshirdi. Yechim: yangi sharoitga ko‘chish mavjud majburiyatlar yakunlanguncha rad etiladi; avtomatik eski bronni ko‘chirish yoki bekor qilish yo‘q.
+- 2026-10-28, M003 yopildi: uch xizmatning alohida 500 000/80 000/700 000 TEST tariflari server quote orqali 16 soat, aynan 24 soat va 24 soat+1 mikrosoniya bilan tekshirildi. Har hayvon tarifi × hayvon soni × boshlangan kunlar; personal ikki hayvonni rad etadi. Bu qiymatlar faqat vaqtinchalik test fixture, standart narx emas. Oldingi snapshot/yaxlitlash/soxta client totalni rad etish testlari va mobil server quote ko‘rsatishi saqlangan. Qo‘shimcha regression o‘tdi (`.local/three-service-prices.log`); yangi branch CI natijasi alohida qayd qilinadi. Jami 42/139; M055 bloklangan test ochiq va takrorlanmagan.
+
 **Tekshirilgan boshlang‘ich holat**
 
 - Profil, hisob sozlamalari, e’lon saqlash, mijoz/admin chatining asosiy API’lari mavjud. Buyurtma yaratish va bekor qilish hozir xato qaytaradi.
@@ -219,7 +223,7 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 
 - [ ] M001 — Tasdiqlangan reliz ko‘lamini bajarish: Android va iOS, Toshkent, uchala xizmat; tillar va aniq hudud chegarasi yakunlanadi, hududdan tashqaridagi bron rad etiladi, signing oxirida bajariladi.
 - [ ] M002 — Uch xizmatning aniq qoidalarini tasdiqlash: hayvon turlari, sig‘im, uyga tashrif davomiyligi/soni, shaxsiy enaga eksklyuzivligi; UI va server bir xil qoidani qo‘llaydi.
-- [ ] M003 — Har xizmat uchun enaga kiritadigan bir hayvon/bir kun tarifini bajarish: hayvonlar kunlik tariflari yig‘indisi × kunlar soni; shaxsiy enagada faqat 1 hayvon, alohida paket yoki qo‘shimcha hayvon chegirmasi taxmin qilinmaydi, kun chegarasi kelishiladi.
+- [x] M003 — Har xizmat uchun enaga kiritadigan bir hayvon/bir kun tarifini bajarish: hayvonlar kunlik tariflari yig‘indisi × kunlar soni; shaxsiy enagada faqat 1 hayvon, alohida paket yoki qo‘shimcha hayvon chegirmasi yo‘q; har boshlangan 24 soat bir kun.
 - [ ] M004 — Buyurtma holatlari va muddatlarini tasdiqlash: qabul/rad, javobsiz so‘rov, boshlash/yakunlash, bekor qilish, no-show, uzaytirish va nizo; har o‘tishning egasi belgilanadi.
 - [ ] M005 — Tasdiqlangan hisob-kitob modelini bajarish: enaga balans to‘ldiradi, admin belgilaydigan komissiya (boshlang‘ich 10%) balansdan yechiladi, 15 000 so‘mdan past balansda yangi mijoz berilmaydi; yechish hodisasi/bazasi va qaytarish takliflari kelishiladi.
 - [ ] M006 — MyID orqali tekshirish talabini saqlash: integratsiya kelishuv tugagach yakuniy bosqichda; tekshirish/moderatsiya alohida holatlar, testga haqiqiy MyID tasdig‘i berilmaydi.
@@ -267,7 +271,7 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 - [x] M034 — listings va sitters katalogini yagona bog‘langan modelga keltirish: tasdiqlangan faol e’lon avtomatik qidiruvda paydo bo‘ladi; o‘chirilgan/bloklangan e’lon yo‘qoladi, dublikat bo‘lmaydi.
 - [ ] M035 — Uch xizmat validatsiyasini birlashtirish: cat/dog/Boshqa mosligi, narx, manzil, sig‘im va shaxsiy enaga ziddiyatlari barcha kirish yo‘llarida tekshiriladi.
 - [ ] M036 — Ish haftasi, vaqt oralig‘i, ta’til va yopiq sanalarni serverda saqlash: kalendar va qidiruv shu ma’lumotga tayanadi; timezone va tungi chegaralar kelishilgan qoidaga mos.
-- [ ] M037 — E’lonni tahrirlash/to‘xtatish/arxivlash ta’sirini boshqarish: oldingi buyurtmaning narxi/manzili o‘zgarmaydi; faol majburiyatlar sig‘im yoki uy turi o‘zgarishidan buzilmaydi.
+- [x] M037 — E’lonni tahrirlash/to‘xtatish/arxivlash ta’sirini boshqarish: oldingi buyurtmaning narxi/manzili o‘zgarmaydi; faol majburiyatlar sig‘im yoki uy turi o‘zgarishidan buzilmaydi.
 - [ ] M038 — MyID integratsiyasini yakuniy bosqichda bajarish: kelishuv/kalitlardan keyin callback, takroriy javob, rad/timeout, foydalanuvchiga bog‘lash va minimal hujjat saqlash tekshiriladi; hozir test chegarasi ajratiladi, integratsiya boshlanmaydi.
 - [x] M039 — Enaga bosh sahifasini haqiqiy ma’lumotga ulash: profil/e’lon holati, yangi so‘rov, yaqin buyurtma, bugungi parvarish va kerakli ogohlantirishlar; sun’iy raqamlar bo‘lmaydi.
 
@@ -345,8 +349,8 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 
 **L. Sharhlar, murojaatlar va ishonch**
 
-- [ ] M086 — Sharh yozish huquqini haqiqiy tugallangan buyurtmaga bog‘lash: bir buyurtmaga belgilangan miqdor, reyting chegarasi, yuborilgandan keyin tahrir taqiqlanishi; o‘ziga yoki bo‘lmagan buyurtmaga sharh yo‘q.
-- [ ] M087 — Umumiy reyting va sharhlar ro‘yxatini serverdan ko‘rsatish: sahifalash, son/o‘rtacha hisob, moderatsiya/o‘chirishdan keyingi qayta hisob; mock sharh hisobga kirmaydi.
+- [x] M086 — Sharh yozish huquqini haqiqiy tugallangan buyurtmaga bog‘lash: bir buyurtmaga belgilangan miqdor, reyting chegarasi, yuborilgandan keyin tahrir taqiqlanishi; o‘ziga yoki bo‘lmagan buyurtmaga sharh yo‘q.
+- [x] M087 — Umumiy reyting va sharhlar ro‘yxatini serverdan ko‘rsatish: sahifalash, son/o‘rtacha hisob, moderatsiya/o‘chirishdan keyingi qayta hisob; mock sharh hisobga kirmaydi.
 - [ ] M088 — Mijoz va enaga yordam murojaatini yagona ticket oqimiga ulash: mavzu, buyurtma, matn/media, javoblar va holat; yuborilgan murojaat qayta ochilganda ko‘rinadi.
 - [ ] M089 — Nizo va takroriy holatlarni boshqarish: 30 kun ichida 3 ta kech bekor/tasdiqlangan kelmaslik admin ko‘rigiga, favqulodda vaziyat va yagona hodisa hisobi; kelmaslik nizosi 48 soatda ko‘riladi, xizmat boshlanmagan bo‘lsa komissiya balansga qaytadi, mijozning xizmat puli qaytarilmaydi.
 - [ ] M090 — E’lon, profil, sharh va mediaga shikoyat/moderatsiya qo‘shish: sabab, ko‘rib chiqish, yashirish, apellyatsiya; qoidabuzarlik va operator harakati kuzatiladi.

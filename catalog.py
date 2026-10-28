@@ -68,6 +68,7 @@ def save(con,uid,data,expected):
     con.execute('BEGIN IMMEDIATE')
     account,blocked=account_for(con,uid)
     if blocked or not account.get('sitterProfile'): raise CatalogError(403,'Avval enaga profilini to‘ldiring')
+    protect_commitments(con,uid,data)
     claim(con,uid,expected)
     existing={r['service']:r for r in con.execute('SELECT * FROM listing_moderation WHERE user_id=?',(uid,))}
     present=set()
@@ -85,7 +86,44 @@ def save(con,uid,data,expected):
     return document(con,uid)
 
 
+def outstanding_care(con,uid):
+    return con.execute("SELECT b.*,COUNT(a.animal_id) animal_count FROM bookings b JOIN booking_animals a ON a.booking_id=b.id WHERE b.sitter_id=? AND b.status IN ('accepted','active','disputed') GROUP BY b.id",(uid,)).fetchall()
+
+
+def protect_commitments(con,uid,data):
+    """Listing edits share the acceptance write lock; old obligations survive pause/archive."""
+    obligations=outstanding_care(con,uid)
+    if not obligations:return
+    old=con.execute('SELECT data FROM listings WHERE user_id=?',(uid,)).fetchone()
+    old=json.loads(old[0]) if old else {}
+    residential=any(b['service']!='homeVisit' for b in obligations)
+    if residential and old.get('housing')!=data['housing']:
+        raise CatalogError(409,'Qabul qilingan parvarish tugamaguncha uy turini o‘zgartirib bo‘lmaydi')
+    for item in data['listings']:
+        related=[b for b in obligations if b['service']==item['type']]
+        if not related:continue
+        if item['type']!='homeVisit':
+            # Compare with each agreement, including an archived/re-added listing.
+            for booking in related:
+                snapshot=json.loads(con.execute('SELECT snapshot FROM booking_quotes WHERE id=?',(booking['quote_id'],)).fetchone()[0])
+                if item.get('location')!=snapshot['address']:
+                    raise CatalogError(409,'Qabul qilingan buyurtmaning parvarish manzili o‘zgarmaydi; avval mavjud majburiyatni yakunlang')
+        if item['type']=='boarding':
+            sweep=[]
+            for b in related:sweep.extend([(b['starts_at'],b['animal_count']),(b['ends_at'],-b['animal_count'])])
+            occupancy=0
+            for _,delta in sorted(sweep,key=lambda v:(v[0],v[1])):
+                occupancy+=delta
+                if occupancy>item['capacity']:
+                    raise CatalogError(409,'Sig‘im qabul qilingan buyurtmalardagi hayvonlar sonidan kamaymasin')
+
+
 def invalidate_profile(con,uid,before,after):
+    old_sitter=before.get('sitterProfile') or {};new_sitter=after.get('sitterProfile') or {}
+    if old_sitter.get('housing')!=new_sitter.get('housing') or (old_sitter and not new_sitter):
+        obligations=outstanding_care(con,uid)
+        if obligations and (not new_sitter or any(b['service']!='homeVisit' for b in obligations)):
+            raise CatalogError(409,'Qabul qilingan parvarish davomida enaga profili yoki uy turini almashtirib bo‘lmaydi')
     if public_inputs(before)==public_inputs(after): return
     con.execute("UPDATE listing_moderation SET status='pending',reason='Profil o‘zgargan; qayta tekshiruv kerak' WHERE user_id=? AND status='approved'",(uid,))
     if con.execute('SELECT 1 FROM listings WHERE user_id=?',(uid,)).fetchone():

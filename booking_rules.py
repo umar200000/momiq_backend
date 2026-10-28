@@ -1,7 +1,7 @@
-"""Approved booking arithmetic/deadlines, independent of unresolved day policy.
+"""Approved booking arithmetic/deadlines used by the transactional booking API.
 
-No public booking endpoint calls this module yet. Billable days must eventually
-come from the server's explicitly approved date/visit policy, never the client.
+The server calculates each started 24-hour period; no client-supplied total,
+package, extra-animal discount or home-visit minute charge changes the price.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
