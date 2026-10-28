@@ -1,5 +1,11 @@
 # Current API contract
 
+## Audited booking oversight
+
+`GET /api/admin/bookings` is admin-cookie-only and accepts the same strict `status`, `bucket`, `q` and `before` filters as participant booking indexes. It returns at most 20 rows in descending immutable sequence order. Search matches booking ID and frozen party names; it does not index private addresses, care notes, contact data or media. Customer/sitter tokens cannot use this surface.
+
+`GET /api/admin/bookings/{id}` returns read-only frozen terms, role identities, current state/revision/deadline, the latest 30 booking events, related commission debit/refund journal entries and an optional dispute reference. It never impersonates a participant or enables generic state/amount editing. Exact addresses follow the existing booking status visibility policy. `/history?before=revision` and `/care?before=id` each page 30 immutable records; care is explicitly owner/sitter-reported information, not independently verified care. Authorized oversight remains possible when a participant has been blocked. Detail/history/care access appends actor/action/booking-ID/time to the audit, without copying private content; the read and audit share a transaction. POST/PUT/DELETE on these routes return 405 without changing bookings, balances or care. Policy-bound dispute decisions remain in the separate dispute API; permission separation beyond the existing admin login remains M092.
+
 This document describes implemented behavior, not future checklist items. JSON API responses use `Cache-Control: no-store`; private media routes return authorized binary content. Errors use `{ "error": "user-facing message" }`; callers branch on HTTP status, not translated text. Timestamps are UTC ISO-8601; care-calendar days use Asia/Tashkent. Wallet amounts use integer minor units; customer service payments remain outside Momiq.
 
 ## Session lifecycle

@@ -24,6 +24,7 @@ import notifications
 import conversations
 import chat_moderation
 import booking_engine
+import admin_bookings
 import booking_reviews
 import support_tickets
 import booking_disputes
@@ -331,7 +332,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if self.command == "GET" and not path.startswith("/api/"):
-            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/reviews.js": "reviews.js", "/admin/support.js": "support.js", "/admin/disputes.js": "disputes.js", "/admin/style.css": "style.css"}.get(path)
+            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/reviews.js": "reviews.js", "/admin/support.js": "support.js", "/admin/disputes.js": "disputes.js", "/admin/bookings.js": "bookings.js", "/admin/style.css": "style.css"}.get(path)
             if not name or not (ADMIN / name).is_file():
                 raise ApiError(404, "Topilmadi")
             raw = (ADMIN / name).read_bytes()
@@ -389,6 +390,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
+            if admin_bookings.route(self,con,user,path):
+                return
             if support_tickets.route(self,con,user,path,photo):
                 return
             if booking_disputes.route(self,con,user,path,photo,ENVIRONMENT):
