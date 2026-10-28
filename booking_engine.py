@@ -1,12 +1,12 @@
-"""Booking transaction core. Not exposed by HTTP until the date policy is approved.
+"""Booking transaction core. HTTP/mobile integration is not yet enabled.
 
-The only policy currently supported is an explicit LOCAL TEST fixture. Production
-and hosted staging are rejected even if a caller accidentally selects that policy.
+Started-24-hour pricing was approved on 2026-10-28. Production and hosted staging
+are still rejected until the remaining service lifecycle is integrated.
 Each mutation owns one transaction; callers use a connection context to commit or
 roll back. No function commits halfway through a booking/wallet change.
 """
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import hashlib
 import json
 import re
@@ -25,9 +25,9 @@ class BookingError(Exception):
 
 
 @dataclass(frozen=True)
-class TestDatePolicy:
-    """Fixture, not a product decision: inclusive dates in fixed UTC+05:00."""
-    version: str = 'TEST-inclusive-tashkent-v1'
+class DailyPolicy:
+    """Approved: every started 24 hours, independent of calendar boundaries."""
+    version: str = 'elapsed-24h-v1'
 
 
 def stamp(value):
@@ -53,7 +53,7 @@ def begin(con):
 def test_gate(con, environment):
     actual = con.execute("SELECT value FROM runtime_metadata WHERE key='environment'").fetchone()
     if environment not in ('local', 'test') or not actual or actual[0] not in ('local', 'test'):
-        raise BookingError(503, 'Bron siyosati hali tasdiqlanmagan')
+        raise BookingError(503, 'Bron xizmati hozir faqat local/test muhitida')
 
 
 def account(con, user, role=None):
@@ -75,7 +75,7 @@ def listing(con, customer, listing_id, environment):
 def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
                   policy, environment, now, instructions='', address=None):
     """Read all prices/animals/settings on the server. No client price/day argument."""
-    if type(policy) is not TestDatePolicy or policy.version != 'TEST-inclusive-tashkent-v1':
+    if type(policy) is not DailyPolicy or policy.version != 'elapsed-24h-v1':
         raise BookingError(503, 'Tasdiqlangan sana siyosati kerak')
     if (not isinstance(pet_ids, list) or not 1 <= len(pet_ids) <= 30
             or any(not isinstance(p, str) or not p or len(p) > 100 for p in pet_ids)
@@ -94,24 +94,28 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
         raise BookingError(409, 'Mijoz profilini to‘ldiring')
     item = listing(con, customer, listing_id, environment)
     service = catalog.SERVICES[item['service']]
-    # The daily visit schedule is not invented by this fixture.
-    if service == 'homeVisit':
-        raise BookingError(503, 'Kunlik tashrif jadvali hali kelishilmagan')
     pets = {p['id']: p for p in owner.get('pets', []) if not p.get('archived', False)}
     if any(p not in pets for p in pet_ids):
         raise BookingError(404, 'Hayvon topilmadi')
     if any(pets[p].get('type') not in item['pets'] for p in pet_ids):
         raise BookingError(409, 'Enaga bu hayvon turini qabul qilmaydi')
-    capacity = rules.integer(item['capacity'], 1, 30)
+    capacity = 30 if service == 'homeVisit' else rules.integer(item['capacity'], 1, 30)
     if len(pet_ids) > capacity:
         raise BookingError(409, 'Hayvonlar soni sig‘imdan ortiq')
-    # Both supported services use the listing's private handover address.
+    # Visiting uses an owned saved address, never a client-supplied arbitrary
+    # address object. Other services use the sitter's private listing address.
     raw = json.loads(con.execute('SELECT data FROM listings WHERE user_id=?', (item['userId'],)).fetchone()[0])
-    private = next(v for v in raw['listings'] if v['type'] == service)['location']
-    if address is not None:
-        raise ValueError('Listing supplies the handover address for this service')
-    zone = timezone(timedelta(hours=5))
-    days = (end.astimezone(zone).date()-start.astimezone(zone).date()).days + 1
+    if service == 'homeVisit':
+        if not isinstance(address, str) or not address or len(address)>100:
+            raise ValueError('Owned address ID required')
+        private = next((a for a in owner.get('addresses', []) if a['id']==address), None)
+        if not private:
+            raise BookingError(404, 'Manzil topilmadi')
+    else:
+        private = next(v for v in raw['listings'] if v['type'] == service)['location']
+        if address is not None:
+            raise ValueError('Listing supplies the handover address for this service')
+    days = rules.billable_days(start, end)
     settings = wallet.settings(con)
     price = rules.price_snapshot(service, [rules.AnimalRate(p, item['price']*100) for p in sorted(pet_ids)],
                                  days, settings['commissionBps'], settings['version'])
@@ -122,6 +126,7 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
         'instructions': instructions.strip(), 'address': private, 'capacity': capacity,
         'startsAt': stamp(start), 'endsAt': stamp(end), 'datePolicy': policy.version,
         'testOnly': True, 'customerPaysSitterDirectly': True,
+        'visitTerms': {'durationAffectsPrice': False, 'fixedVisitCount': None, 'fixedVisitMinutes': None} if service == 'homeVisit' else None,
     }
     identity = secrets.token_hex(16)
     con.execute('INSERT INTO booking_quotes VALUES(?,?,?,?,?,?,?,1)',
@@ -184,6 +189,8 @@ def remember(con, user, request_id, fingerprint, identity):
 
 
 def request_booking(con, customer, quote_id, request_id, *, environment, now):
+    if not isinstance(quote_id, str) or not re.fullmatch(r'[a-f0-9]{32}', quote_id):
+        raise ValueError('Valid quote ID required')
     fingerprint = retry_key(request_id, {'action': 'request', 'quoteId': quote_id})
     current = rules.utc(now)
     begin(con)
@@ -195,6 +202,7 @@ def request_booking(con, customer, quote_id, request_id, *, environment, now):
     quote = con.execute('SELECT * FROM booking_quotes WHERE id=? AND customer_id=?', (quote_id, customer)).fetchone()
     if not quote:
         raise BookingError(404, 'Narx taklifi topilmadi')
+    conversations.quota(con, customer, 'booking_request', 20)
     existing = con.execute('SELECT id FROM bookings WHERE quote_id=?', (quote_id,)).fetchone()
     if existing:
         remember(con, customer, request_id, fingerprint, existing['id'])
@@ -244,11 +252,13 @@ def check_capacity(con, row, detail):
     # Until cross-service schedules are approved, differing services never overlap.
     if any(b['service'] != row['service'] for b in active):
         raise BookingError(409, 'Enaga boshqa xizmat bilan band')
+    if row['service'] == 'homeVisit' and active:
+        raise BookingError(409, 'Enaga shu vaqtda boshqa uyga borish bilan band')
     current = json.loads(con.execute('SELECT data FROM listings WHERE user_id=?', (row['sitter_id'],)).fetchone()[0])
     item = next((i for i in current['listings'] if i['type'] == row['service']), None)
     if not item or not item['active']:
         raise BookingError(409, 'E’lon faol emas')
-    cap = 1 if row['service'] == 'personal' else min(detail['capacity'], item['capacity'])
+    cap = 30 if row['service'] == 'homeVisit' else (1 if row['service'] == 'personal' else min(detail['capacity'], item['capacity']))
     # Peak occupancy, not the sum of bookings that overlap different subintervals.
     sweep = [(row['starts_at'], len(detail['pets'])), (row['ends_at'], -len(detail['pets']))]
     for b in active:

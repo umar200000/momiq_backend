@@ -21,6 +21,8 @@ import catalog
 import notifications
 import conversations
 import chat_moderation
+import booking_engine
+import booking_http
 from media_validation import validate_photo, MediaBusy
 
 ROOT = Path(__file__).resolve().parent
@@ -176,7 +178,9 @@ def validate_account(data):
         if item['age'] and (not item['age'].isascii() or not item['age'].isdigit() or not 0<=int(item['age'])<=100): raise ValueError('Hayvon yoshi noto‘g‘ri')
         if item['sex'] not in ['', 'Erkak', 'Urg‘ochi']: raise ValueError('Jins noto‘g‘ri')
         if pet['type'] == 'Boshqa' and not item['otherType']: raise ValueError('Hayvon turini yozing')
-        normalized_pets.append(dict(item,type=pet['type'],photo=pet['photo']))
+        archived = pet.get('archived', False)
+        if type(archived) is not bool: raise ValueError('Hayvon arxiv holati noto‘g‘ri')
+        normalized_pets.append(dict(item,type=pet['type'],photo=pet['photo'],archived=archived))
     result['pets'] = normalized_pets
     support = data.get('support', [])
     if not isinstance(support,list) or len(support)>100: raise ValueError('Murojaatlar soni noto‘g‘ri')
@@ -372,6 +376,8 @@ class Handler(BaseHTTPRequestHandler):
             user = self.auth(con,"admin" if admin else "client")
             if wallet.route(self,con,user,path,photo,ENVIRONMENT):
                 return
+            if booking_http.route(self,con,user,path,ENVIRONMENT):
+                return
             if chat_moderation.route(self,con,user,path):
                 return
             if conversations.route(self,con,user,path,photo,ENVIRONMENT):
@@ -393,12 +399,45 @@ class Handler(BaseHTTPRequestHandler):
                 con.commit()
                 self.reply(200,{"ok":True}, "momiq_admin=; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=0" if admin else None)
                 return
+            if path == '/api/me/pets/archive' and self.command == 'POST':
+                data = self.body()
+                if type(data.get('archived')) is not bool: raise ValueError('Arxiv holati majburiy')
+                pet_id = string(data.get('petId'),100)
+                con.execute('BEGIN IMMEDIATE')
+                revision_row = con.execute('SELECT revision FROM account_revisions WHERE user_id=?',(user,)).fetchone()
+                current_revision = revision_row[0] if revision_row else 0
+                current = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                pet = next((p for p in current.get('pets',[]) if p['id']==pet_id),None)
+                if (pet and type(data.get('_revision')) is int and data['_revision']==current_revision-1
+                        and bool(pet.get('archived',False))==data['archived']):
+                    row = con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
+                    con.commit()
+                    self.reply(200,{'account':account_snapshot(con,row)})
+                    return
+                claim_account_revision(con,user,data.get('_revision'))
+                if not pet: raise ApiError(404,'Hayvon topilmadi')
+                pet['archived'] = data['archived']
+                con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(current),user))
+                con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                            (user,'pet-archive' if data['archived'] else 'pet-restore',pet_id,now()))
+                row = con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
+                con.commit()
+                self.reply(200,{'account':account_snapshot(con,row)})
+                return
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":
                     data = self.body()
                     account = validate_account(data)
                     claim_account_revision(con, user, data.get('_revision'))
                     before = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                    # Old clients may omit archived pets or their new flag. A full
+                    # profile save must not silently delete/restore those records.
+                    old_pets = {p['id']:p for p in before.get('pets',[])}
+                    for pet in account['pets']:
+                        pet['archived'] = bool(old_pets.get(pet['id'],{}).get('archived',False))
+                    retained_ids = {p['id'] for p in account['pets']}
+                    account['pets'].extend(p for key,p in old_pets.items() if key not in retained_ids)
+                    if len(account['pets'])>30: raise ValueError('Arxiv bilan birga hayvonlar soni 30 dan oshmasin')
                     catalog.invalidate_profile(con,user,before,account)
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
@@ -506,7 +545,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):
         try: self.handle_request()
-        except (ApiError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError) as e: self.reply(e.status,{'error':e.message})
+        except (ApiError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError,booking_engine.BookingError) as e: self.reply(e.status,{'error':e.message})
         except MediaBusy as e: self.reply(503,{'error':str(e)})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): pass

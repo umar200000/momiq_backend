@@ -234,6 +234,32 @@ class ApiTests(unittest.TestCase):
         other=self.login('998909000005')
         self.assertEqual(other['account'],updated)
 
+    def test_pet_archive_restore_ownership_revision_and_legacy_saves(self):
+        login=self.login('998909000021'); token=login['token']
+        other=self.login('998909000022')
+        account=login['account']; account['profile'].update(first='TEST',last='Pet')
+        account['pets']=[{'id':'owned-pet','type':'Mushuk','photo':fixture_image(),'name':'TEST cat'}]
+        saved=self.req('/api/me','PUT',account,token=token)['account']
+        body={'petId':'owned-pet','archived':True,'_revision':saved['_revision']}
+        self.req('/api/me/pets/archive','POST',dict(body,_revision=other['account']['_revision']),token=other['token'],expected=404)
+        self.req('/api/me/pets/archive','POST',dict(body,archived=1),token=token,expected=400)
+        self.req('/api/me/pets/archive','POST',{'petId':'owned-pet','archived':True},token=token,expected=428)
+        archived=self.req('/api/me/pets/archive','POST',body,token=token)['account']
+        self.assertTrue(archived['pets'][0]['archived'])
+        self.assertEqual(self.req('/api/me/pets/archive','POST',body,token=token)['account'],archived)
+        self.req('/api/me/pets/archive','POST',dict(body,archived=False),token=token,expected=409)
+        # Old clients must not drop an archived animal by serializing active only.
+        legacy=dict(archived,pets=[])
+        retained=self.req('/api/me','PUT',legacy,token=token)['account']
+        self.assertTrue(retained['pets'][0]['archived'])
+        retained['pets'][0].pop('archived')
+        retained=self.req('/api/me','PUT',retained,token=token)['account']
+        self.assertTrue(retained['pets'][0]['archived'])
+        restored=self.req('/api/me/pets/archive','POST',dict(body,archived=False,_revision=retained['_revision']),token=token)['account']
+        self.assertFalse(restored['pets'][0]['archived'])
+        self.assertEqual(restored['pets'][0]['name'],'TEST cat')
+        self.assertEqual(self.login('998909000021')['account'],restored)
+
     def test_manual_topup_verification_idempotency_and_access(self):
         from concurrent.futures import ThreadPoolExecutor
         a=self.req('/api/auth/login','POST',{'phone':'998909000006','code':'111111','role':'sitter'})

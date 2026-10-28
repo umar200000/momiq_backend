@@ -85,6 +85,16 @@ def reply_deadline(created_at, starts_at):
     return min(created + timedelta(hours=2), start)
 
 
+def billable_days(starts_at, ends_at):
+    """Each started 24 hours is one day; exact integer microsecond arithmetic."""
+    duration = utc(ends_at) - utc(starts_at)
+    if duration <= timedelta(0) or duration > timedelta(days=366):
+        raise ValueError('Service must last between zero and 366 days')
+    micros = (duration.days*86400 + duration.seconds)*1_000_000 + duration.microseconds
+    day = 86400*1_000_000
+    return (micros + day - 1)//day
+
+
 def expired(deadline, now):
     return utc(now) >= utc(deadline)
 

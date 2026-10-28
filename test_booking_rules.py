@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from booking_rules import (AnimalRate, Incident, acceptance_requirement,
+                           billable_days,
                            balance_after_acceptance, cancellation_commission_refund,
                            expired, incidents_for_review, late_cancellation,
                            no_show_review_deadline, no_show_stage, price_snapshot,
@@ -14,6 +15,16 @@ class BookingRuleTests(unittest.TestCase):
         self.now = datetime(2026,10,28,12,tzinfo=timezone(timedelta(hours=5)))
         self.rates = [AnimalRate('cat-one',50_000_000), AnimalRate('cat-two',50_000_000)]
         self.quote = price_snapshot('boarding',self.rates,3,1000,7)
+
+    def test_each_started_24_hours_not_calendar_dates(self):
+        for duration, expected in [(timedelta(hours=16),1), (timedelta(hours=24),1),
+                                   (timedelta(hours=24,microseconds=1),2), (timedelta(hours=25),2),
+                                   (timedelta(hours=72),3)]:
+            self.assertEqual(billable_days(self.now,self.now+duration),expected)
+        start=datetime(2026,11,1,18,tzinfo=timezone(timedelta(hours=5)))
+        self.assertEqual(billable_days(start,start+timedelta(hours=16)),1)
+        for end in [self.now,self.now-timedelta(seconds=1)]:
+            with self.assertRaises(ValueError): billable_days(self.now,end)
 
     def test_approved_three_million_example_and_frozen_snapshot(self):
         self.assertEqual(self.quote.service_total_minor,300_000_000)  # 3,000,000 UZS

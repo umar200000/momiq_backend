@@ -23,7 +23,7 @@ class BookingEngineTests(unittest.TestCase):
         self.save(); self.review()
         self.now = datetime(2026, 10, 28, 12, tzinfo=timezone.utc)
         self.start = self.now + timedelta(days=3)
-        self.end = self.start + timedelta(days=2)
+        self.end = self.start + timedelta(days=3)
         with server.db() as con:
             for index, user in enumerate(('customer', 'other', 'stranger')):
                 account = server.default_account()
@@ -38,7 +38,7 @@ class BookingEngineTests(unittest.TestCase):
         with server.db() as con:
             return engine.prepare_quote(con, user, listing, pets or ['cat-a'],
                 (start or self.start).isoformat(), (end or self.end).isoformat(),
-                policy=engine.TestDatePolicy(), environment=kwargs.pop('environment', 'local'), now=self.now, **kwargs)
+                policy=engine.DailyPolicy(), environment=kwargs.pop('environment', 'local'), now=self.now, **kwargs)
 
     def request(self, quote=None, user='customer', request=None, now=None):
         if quote is None: quote = self.quote(user)
@@ -286,3 +286,34 @@ class BookingEngineTests(unittest.TestCase):
             self.assertEqual(wallet.balance(con, 'abc'), 85000000)
             self.assertEqual(engine.view(con, booking['id'], 'customer')['status'], 'accepted')
             self.assertEqual(con.execute("SELECT COUNT(*) FROM wallet_entries WHERE kind='commission_refund'").fetchone()[0], 0)
+
+    def test_archived_pet_cannot_make_new_request_but_existing_agreement_survives(self):
+        booking = self.request(); quote = self.quote()
+        with server.db() as con:
+            account = json.loads(con.execute("SELECT account FROM users WHERE id='customer'").fetchone()[0])
+            account['pets'][0]['archived'] = True
+            con.execute("UPDATE users SET account=? WHERE id='customer'", (json.dumps(account),))
+        self.expect_error(404, self.quote)
+        self.expect_error(409, lambda: self.request(quote))
+        accepted = self.act(booking)
+        self.assertEqual(accepted['snapshot']['pets'][0]['name'], 'customer cat')
+
+    def test_home_visit_daily_fixed_price_and_owned_address_snapshot(self):
+        data = copy.deepcopy(self.listing)
+        data['listings'].append(dict(data['listings'][0], type='homeVisit', capacity=None, location=None))
+        self.save(data, revision=2)
+        with server.db() as con:
+            catalog.review(con, 'abc', 'homeVisit', {'decision':'approve','reason':'TEST','testOnly':True,'_revision':3}, 'admin', 'local')
+        with server.db() as con:
+            account = json.loads(con.execute("SELECT account FROM users WHERE id='customer'").fetchone()[0])
+            account['addresses'] = [{'id':'home','address':'PRIVATE CUSTOMER STREET','lat':41.3,'lon':69.2}]
+            con.execute("UPDATE users SET account=? WHERE id='customer'", (json.dumps(account),))
+        with self.assertRaises(ValueError): self.quote(listing='abc:homeVisit')
+        self.expect_error(404, lambda: self.quote(listing='abc:homeVisit', address='foreign-address'))
+        quote = self.quote(listing='abc:homeVisit', address='home', pets=['cat-a','cat-b'])
+        self.assertEqual(quote['snapshot']['price']['service_total_minor'],300000000)
+        self.assertFalse(quote['snapshot']['visitTerms']['durationAffectsPrice'])
+        self.assertIsNone(quote['snapshot']['visitTerms']['fixedVisitCount'])
+        self.assertNotIn('PRIVATE CUSTOMER STREET',json.dumps(quote))
+        accepted = self.act(self.request(quote))
+        self.assertEqual(accepted['snapshot']['address']['address'],'PRIVATE CUSTOMER STREET')
