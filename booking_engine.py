@@ -400,5 +400,8 @@ def act(con, user, identity, action, revision, request_id, *, reason='', environ
         late_cancel(con, row, user, current)
         status = 'cancelled'
     change(con, row, status, user, action, reason, current)
+    if action == 'start' and status == 'active':
+        from video_followup import schedule
+        schedule(con,row,current)
     remember(con, user, request_id, fingerprint, identity)
     return view(con, identity, user)

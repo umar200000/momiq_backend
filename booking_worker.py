@@ -5,6 +5,7 @@ import threading
 
 import booking_engine as engine
 import notifications
+import video_followup
 
 
 def remind_due(con, environment, current, stage, limit):
@@ -53,6 +54,11 @@ def run_once(db_factory, environment, *, now=None, batch_size=200, max_batches=5
                 changed=remind_due(con,environment,current,stage,batch_size)
             total+=changed
             if changed<batch_size:break
+    for _ in range(max_batches):
+        with db_factory() as con:
+            changed=video_followup.tick(con,environment,current,batch_size)
+        total+=changed
+        if changed<batch_size:break
     return total
 
 

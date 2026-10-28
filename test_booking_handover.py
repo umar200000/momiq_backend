@@ -66,9 +66,15 @@ class HandoverTests(unittest.TestCase):
             engine.change(con,engine.owned(con,active['id'],'customer'),'disputed','admin','dispute','TEST dispute',self.start)
             disputed=engine.view(con,active['id'],'customer')
         self.expect_error(409,lambda:self.confirm(disputed,'complete','customer'))
-        self.assertEqual(booking_worker.run_once(server.db,'local',now=self.end+timedelta(days=1)),0)
+        with server.db() as con:
+            before=con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0]
+        # Background video checks may be consumed, but disputed care must not
+        # finish, move money, or send obligations starting after the dispute.
+        booking_worker.run_once(server.db,'local',now=self.end+timedelta(days=1))
         with server.db() as con:
             self.assertEqual(engine.view(con,active['id'],'customer')['status'],'disputed')
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0],before)
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE source_key LIKE 'video-followup:%'").fetchone()[0],0)
 
     def test_parallel_confirmations_do_not_lose_either_party(self):
         accepted=self.act(self.request()); barrier=threading.Barrier(2)

@@ -33,6 +33,30 @@ class BookingHttpTests(unittest.TestCase):
     def book(self):
         return self.req('/api/bookings','POST',{'quoteId':self.quote()['id'],'requestId':secrets.token_hex(16)})
 
+    def test_private_video_explanation_http_contract_and_retry(self):
+        import booking_http, booking_videos
+        start=datetime.fromisoformat(self.payload['startsAt']).replace(hour=12,minute=0,second=0,microsecond=0)
+        self.payload.update(startsAt=start.isoformat(),endsAt=(start+timedelta(days=1)).isoformat())
+        b=self.book();path='/api/bookings/'+b['id']
+        self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        with patch.object(booking_http,'datetime') as clock:
+            clock.now.return_value=start
+            self.req(path+'/start','POST',{'revision':1,'requestId':secrets.token_hex(16)})
+            self.req(path+'/start','POST',{'revision':2,'requestId':secrets.token_hex(16)},user='abc')
+        data={'petId':'owned','day':start.date().isoformat(),'slot':'evening','reason':'TEST private reason','emergency':True,'requestId':secrets.token_hex(16)}
+        with patch.object(booking_videos,'datetime') as clock:
+            clock.now.return_value=start+timedelta(hours=5)
+            endpoint=path+'/videos/explanations'
+            self.req(endpoint,'POST',data,status=403)
+            self.req(endpoint,'POST',data,user='stranger',status=404)
+            self.req(endpoint,'POST',dict(data,slot=[]),user='abc',status=400)
+            self.assertTrue(self.req(endpoint,'POST',data,user='abc')['ok'])
+            self.assertTrue(self.req(endpoint,'POST',data,user='abc')['ok'])
+            self.req(endpoint,'POST',dict(data,reason='changed'),user='abc',status=409)
+            view=self.req(path+'/videos?day='+data['day'])
+            self.assertEqual(view['followups'][0]['explanations'][0]['reason'],data['reason'])
+            self.req(path+'/videos?day='+data['day'],user='stranger',status=404)
+
     def test_balance_gate_covers_stale_quotes_new_contacts_and_keeps_existing_care(self):
         import copy
         listing=copy.deepcopy(self.listing);listing['listings'][0]['price']=10000

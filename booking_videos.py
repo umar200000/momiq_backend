@@ -22,6 +22,7 @@ import notifications
 import video_media as media
 import video_policy as policy
 import video_retention
+import video_followup
 
 _uploads = threading.BoundedSemaphore(2)
 
@@ -38,7 +39,7 @@ def options(data):
     if not isinstance(data['petId'], str) or not 1 <= len(data['petId']) <= 120:
         raise ValueError('Invalid pet')
     care.day_value(data['day'])
-    if data['slot'] not in policy.SLOTS:
+    if not isinstance(data['slot'],str) or data['slot'] not in policy.SLOTS:
         raise ValueError('Invalid video slot')
     engine.retry_key(data['requestId'], data)
     return data
@@ -84,6 +85,7 @@ def overview(con, identity, user, day, now, *, admin=False):
             'serviceAvailable': media.available(),
             'pets': [{'id': p['id'], 'name': p.get('name') or p['type']} for p in booking['snapshot']['pets']],
             'retentionDays': 30,
+            'followups': video_followup.overview(con,identity,user,day,now,booking['myRole']),
             'items': [dict(metadata(row),**video_retention.status(con,row,now)) for row in rows]}
 
 
@@ -217,6 +219,11 @@ def admin_route(handler, con, user, path, root):
 
 
 def route(handler, con, user, path, root, clock=lambda: datetime.now(timezone.utc)):
+    explanation=re.fullmatch(r'/api/bookings/([a-f0-9]{32})/videos/explanations',path)
+    if explanation:
+        if handler.command!='POST' or urlparse(handler.path).query:raise engine.BookingError(405,'Invalid explanation method')
+        result=video_followup.explain(con,explanation[1],user,handler.body(),clock())
+        con.commit();handler.reply(200,result);return True
     match = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/videos(?:/([a-f0-9]{32})/(playback|poster))?',path)
     if not match:
         return False

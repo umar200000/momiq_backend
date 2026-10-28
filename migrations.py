@@ -169,6 +169,15 @@ MIGRATIONS = (
         "CREATE TRIGGER video_retirement_identity BEFORE UPDATE OF video_id,expired_at ON video_retirements BEGIN SELECT RAISE(ABORT,'Video retirement identity is immutable'); END",
         "CREATE TRIGGER video_retirement_no_delete BEFORE DELETE ON video_retirements BEGIN SELECT RAISE(ABORT,'Video retirement is immutable'); END",
     )),
+    (20, 'durable video deadlines and private sitter explanations', (
+        'CREATE TABLE video_schedules(booking_id TEXT PRIMARY KEY REFERENCES bookings(id),created TEXT NOT NULL)',
+        "CREATE TABLE video_checks(booking_id TEXT NOT NULL REFERENCES bookings(id),day TEXT NOT NULL,slot TEXT NOT NULL CHECK(slot IN ('morning','evening')),opens_at TEXT NOT NULL,due_at TEXT NOT NULL,remind_at TEXT NOT NULL,reminded INTEGER NOT NULL DEFAULT 0 CHECK(reminded IN (0,1)),checked INTEGER NOT NULL DEFAULT 0 CHECK(checked IN (0,1)),PRIMARY KEY(booking_id,day,slot))",
+        'CREATE INDEX video_checks_reminder ON video_checks(reminded,remind_at)',
+        'CREATE INDEX video_checks_deadline ON video_checks(checked,due_at)',
+        "CREATE TABLE video_explanations(booking_id TEXT NOT NULL,pet_id TEXT NOT NULL,day TEXT NOT NULL,slot TEXT NOT NULL,actor TEXT NOT NULL REFERENCES users(id),request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,reason TEXT NOT NULL,emergency INTEGER NOT NULL CHECK(emergency IN (0,1)),created TEXT NOT NULL,PRIMARY KEY(booking_id,pet_id,day,slot),UNIQUE(actor,request_id),FOREIGN KEY(booking_id,pet_id) REFERENCES booking_animals(booking_id,animal_id),FOREIGN KEY(booking_id,day,slot) REFERENCES video_checks(booking_id,day,slot))",
+        "CREATE TRIGGER video_explanations_no_update BEFORE UPDATE ON video_explanations BEGIN SELECT RAISE(ABORT,'Video explanation is immutable'); END",
+        "CREATE TRIGGER video_explanations_no_delete BEFORE DELETE ON video_explanations BEGIN SELECT RAISE(ABORT,'Video explanation is immutable'); END",
+    )),
 )
 
 
