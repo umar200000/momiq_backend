@@ -107,6 +107,10 @@ MIGRATIONS = (
         "CREATE TRIGGER booking_quote_media_no_update BEFORE UPDATE ON booking_quote_media BEGIN SELECT RAISE(ABORT, 'Booking evidence reference is immutable'); END",
         "CREATE TRIGGER booking_quote_media_no_delete BEFORE DELETE ON booking_quote_media BEGIN SELECT RAISE(ABORT, 'Booking evidence reference is immutable'); END",
     )),
+    (12, 'immutable platform settings history', (
+        "CREATE TRIGGER platform_settings_no_update BEFORE UPDATE ON platform_settings BEGIN SELECT RAISE(ABORT, 'Platform settings history is immutable'); END",
+        "CREATE TRIGGER platform_settings_no_delete BEFORE DELETE ON platform_settings BEGIN SELECT RAISE(ABORT, 'Platform settings history is immutable'); END",
+    )),
 )
 
 

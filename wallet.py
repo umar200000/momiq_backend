@@ -149,6 +149,21 @@ def route(handler, con, uid, path, photo, environment):
         handler.reply(200,{'receipt':row['receipt'],'revision':row['revision'],'paymentSnapshot':{'version':row['version'],
             'qrImage':row['qr_image'],'recipientName':row['recipient_name'],
             'paymentInstructions':row['payment_instructions'],'testOnly':bool(row['test_only'])}});return True
+    if path == '/api/admin/platform-settings/history' and method == 'GET':
+        query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+        if set(query)-{'before'} or any(len(v)!=1 for v in query.values()):
+            raise ValueError('Tarix filtri noto‘g‘ri')
+        before=query.get('before',[None])[0]
+        if before is not None and not re.fullmatch(r'[1-9][0-9]{0,17}',before):
+            raise ValueError('Tarix cursori noto‘g‘ri')
+        rows=con.execute('SELECT version,commission_bps,actor,reason,created,test_only,qr_active FROM platform_settings'+
+                         (' WHERE version<?' if before else '')+' ORDER BY version DESC LIMIT 21',
+                         (int(before),) if before else ()).fetchall()
+        items=[{'version':r['version'],'commissionBps':r['commission_bps'],'actor':r['actor'],
+                'reason':r['reason'],'effectiveAt':datetime.fromisoformat(r['created']).replace(tzinfo=timezone.utc).isoformat(),
+                'testOnly':bool(r['test_only']),'qrActive':bool(r['qr_active'])} for r in rows[:20]]
+        handler.reply(200,{'items':items,'nextCursor':str(rows[19]['version']) if len(rows)>20 else None})
+        return True
     if path == '/api/admin/platform-settings' and method in ('GET','PUT'):
         if method=='PUT':
             data=handler.body()

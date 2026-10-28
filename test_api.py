@@ -234,6 +234,41 @@ class ApiTests(unittest.TestCase):
         other=self.login('998909000005')
         self.assertEqual(other['account'],updated)
 
+    def test_platform_settings_history_is_private_paginated_and_immutable(self):
+        login=self.login('998900000051')
+        path='/api/admin/platform-settings/history'
+        self.req(path,expected=401)
+        self.req(path,token=login['token'],expected=401)
+        config=self.req('/api/admin/platform-settings',admin=True)
+        for rate in [-1,10001,True,10.5,'1000']:
+            self.req('/api/admin/platform-settings','PUT',dict(version=config['version'],commissionBps=rate,reason='TEST'),admin=True,expected=400)
+        self.req('/api/admin/platform-settings','PUT',dict(version=config['version'],commissionBps=1000,reason=''),admin=True,expected=400)
+        original=config['commissionBps']
+        for rate in [0,10000,1234,original]:
+            config=self.req('/api/admin/platform-settings','PUT',dict(version=config['version'],commissionBps=rate,reason='TEST rate boundary'),admin=True)
+            self.assertEqual(config['commissionBps'],rate)
+        with server.db() as con:
+            for i in range(23):
+                con.execute("INSERT INTO platform_settings(commission_bps,qr_image,test_only,actor,reason,created) VALUES(?,NULL,1,'admin',?,?)",(original,'TEST history '+str(i),server.now()))
+        first=self.req(path,admin=True)
+        self.assertEqual(len(first['items']),20)
+        self.assertTrue(first['nextCursor'])
+        self.assertNotIn('qrImage',str(first)); self.assertNotIn('receipt',str(first))
+        self.assertEqual(first['items'][0]['actor'],'admin')
+        self.assertTrue(first['items'][0]['effectiveAt'].endswith('+00:00'))
+        # New settings during pagination do not repeat or displace older entries.
+        with server.db() as con:
+            con.execute("INSERT INTO platform_settings(commission_bps,qr_image,test_only,actor,reason,created) VALUES(?,NULL,1,'admin','TEST newer',?)",(original,server.now()))
+        second=self.req(path+'?before='+first['nextCursor'],admin=True)
+        self.assertTrue(second['items'])
+        self.assertFalse(set(i['version'] for i in first['items']) & set(i['version'] for i in second['items']))
+        self.assertTrue(all(i['version']<int(first['nextCursor']) for i in second['items']))
+        for query in ['?before=','?before=-1','?before=0','?before=1&before=2','?unknown=1','?before=1%20OR%201=1']:
+            self.req(path+query,admin=True,expected=400)
+        for statement in ['UPDATE platform_settings SET commission_bps=1','DELETE FROM platform_settings']:
+            with self.assertRaises(sqlite3.IntegrityError):
+                with server.db() as con: con.execute(statement)
+
     def test_pet_safety_validation_legacy_roundtrip_and_owner_scope(self):
         a=self.login('998900000041');other=self.login('998900000042')
         a['account']['profile'].update(first='TEST',last='Care')
