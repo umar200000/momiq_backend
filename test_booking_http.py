@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import json
 import secrets
+from urllib.parse import urlencode
 import unittest
 from unittest.mock import patch
 
@@ -85,7 +86,9 @@ class BookingHttpTests(unittest.TestCase):
         index='/api/conversations/'+chat['id']+'/bookings'
         related=self.req(index)
         self.assertEqual([x['id'] for x in related['items']],[booking['id']])
-        self.assertEqual(self.req(index,user='abc'),related)
+        sitter_index=self.req(index,user='abc')
+        self.assertEqual([x['id'] for x in sitter_index['items']],[booking['id']])
+        self.assertEqual(sitter_index['items'][0]['myRole'],'sitter')
         self.assertNotIn('PRIVATE',json.dumps(related))
         self.assertNotIn('snapshot',json.dumps(related))
         self.req(index,user='stranger',status=404)
@@ -108,6 +111,58 @@ class BookingHttpTests(unittest.TestCase):
         self.req(path+'/conversation','POST',{},status=409)
         with server.db() as con:
             self.assertEqual(con.execute('SELECT COUNT(*) FROM conversations').fetchone()[0],0)
+
+    def test_search_is_unicode_literal_private_and_participant_scoped(self):
+        with server.db() as con:
+            account=json.loads(con.execute("SELECT account FROM users WHERE id='customer'").fetchone()[0])
+            account['pets'][0].update(name='МомиҚ_%',notes='SECRET_CARE_SEARCH')
+            con.execute("UPDATE users SET account=? WHERE id='customer'",(json.dumps(account),))
+        booking=self.book(); identity=booking['id']
+        path='/api/bookings?'+urlencode({'q':'мОмИқ_%'})
+        found=self.req(path)['items']
+        self.assertEqual([x['id'] for x in found],[identity])
+        self.assertEqual(found[0]['service'],'boarding')
+        self.assertEqual(found[0]['pets'],[{'name':'МомиҚ_%','type':'Mushuk'}])
+        self.assertNotIn('PRIVATE',json.dumps(found))
+        self.assertNotIn('SECRET_CARE_SEARCH',json.dumps(found))
+        self.assertEqual(self.req(path,user='stranger')['items'],[])
+        self.assertEqual(self.req('/api/bookings?'+urlencode({'q':'SECRET_CARE_SEARCH'}))['items'],[])
+        self.assertEqual(self.req('/api/bookings?'+urlencode({'q':"%' OR 1=1 --"}))['items'],[])
+        self.assertEqual(self.req('/api/bookings?q='+identity[:8])['items'][0]['id'],identity)
+        self.assertEqual(self.req('/api/bookings?'+urlencode({'q':'Test c.'}),user='abc')['items'][0]['id'],identity)
+        self.assertEqual(self.req('/api/bookings?'+urlencode({'q':'Test c.'}))['items'],[])
+        chat=self.req('/api/bookings/'+identity+'/conversation','POST',{})
+        self.assertEqual(self.req('/api/conversations/'+chat['id']+'/bookings?'+urlencode({'q':'момиҚ_%'}))['items'][0]['id'],identity)
+        for query in ['bucket=invalid','status=pending&status=accepted','q='+('a'*81),'unknown=1','before=0']:
+            self.req('/api/bookings?'+query,status=400)
+
+    def test_status_buckets_search_and_pagination_compose(self):
+        pending=self.book(); rejected=self.book(); accepted=self.book()
+        self.req('/api/bookings/'+rejected['id']+'/reject','POST',{'revision':0,'requestId':secrets.token_hex(16),'reason':'TEST'},user='abc')
+        self.req('/api/bookings/'+accepted['id']+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        for bucket, identity in [('pending',pending['id']),('ongoing',accepted['id']),('history',rejected['id'])]:
+            self.assertEqual([x['id'] for x in self.req('/api/bookings?bucket='+bucket+'&q=TEST')['items']],[identity])
+        self.assertEqual(self.req('/api/bookings?bucket=history&status=accepted')['items'],[])
+        self.assertEqual([x['id'] for x in self.req('/api/bookings?before=3')['items']],[rejected['id'],pending['id']])
+
+    def test_agreement_changes_and_extensions_are_explicitly_refused(self):
+        policy=self.req('/api/bookings/policy')
+        self.assertFalse(policy['agreementEditable'])
+        self.assertEqual(policy['amendmentMode'],'new_quote_and_request')
+        self.assertFalse(policy['newRequestCancelsPrevious'])
+        booking=self.book(); path='/api/bookings/'+booking['id']
+        changes={'startsAt':'2030-01-01T00:00:00Z','petIds':['someone-else'], 'service':'personal', 'price':1}
+        for method,suffix in [('PUT',''),('PATCH',''),('DELETE',''),('POST','/change'),('POST','/extend')]:
+            for user in ['customer','abc']:
+                response=self.req(path+suffix,method,changes,user=user,status=409)
+                self.assertIn('Yangi so‘rov eskisini bekor qilmaydi',response['error'])
+            self.req(path+suffix,method,changes,user='stranger',status=404)
+        self.assertEqual(self.req(path),booking)
+        following=self.book()
+        self.assertNotEqual(following['id'],booking['id'])
+        self.assertEqual(self.req(path),booking)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0],0)
 
     def test_two_party_handover_and_completion_http(self):
         booking=self.book(); path='/api/bookings/'+booking['id']

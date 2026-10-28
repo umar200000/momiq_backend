@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse, unquote
 
 import booking_engine as engine
 import booking_chat
-import conversations
+import booking_index
 
 
 def body(handler, allowed):
@@ -25,6 +25,8 @@ def route(handler, con, user, path, environment):
                             'services': ['boarding', 'homeVisit', 'personal'], 'homeVisitAvailable': True,
                             'homeVisitTerms': {'durationAffectsPrice': False, 'fixedVisitCount': None, 'fixedVisitMinutes': None},
                             'testOnly': True, 'customerPaysSitterDirectly': True,
+                            'agreementEditable': False, 'amendmentMode': 'new_quote_and_request',
+                            'newRequestCancelsPrevious': False,
                             'quoteValiditySeconds': 600})
         return True
     chat = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/conversation', path)
@@ -51,29 +53,18 @@ def route(handler, con, user, path, environment):
         return True
     if path == '/api/bookings' and handler.command == 'GET':
         query = parse_qs(urlparse(handler.path).query)
-        status = query.get('status', ['all'])[0]
-        if status not in ('all', 'pending', 'accepted', 'cancelled', 'rejected', 'expired', 'active', 'completed', 'disputed'):
-            raise ValueError('Invalid booking status')
-        cursor = query.get('before', [None])[0]
-        before = conversations.number(cursor) if cursor is not None else None
-        # Expiry is lazy, durable and bounded. Explicit worker scheduling remains
-        # separate; a stale pending action still expires itself atomically.
+        booking_index.options(query)
+        # Read-time catch-up complements the bounded background expiry worker.
         engine.expire_due(con, environment=environment, now=now, owner=user)
         con.commit()
         con.execute('BEGIN')
-        args = [user, user]; clause = '(customer_id=? OR sitter_id=?)'
-        if before is not None:
-            clause += ' AND seq<?'; args.append(before)
-        if status != 'all':
-            clause += ' AND status=?'; args.append(status)
-        rows = con.execute('SELECT id,seq FROM bookings WHERE '+clause+' ORDER BY seq DESC LIMIT 21', args).fetchall()
-        # List excludes private agreement/address; details require a separate GET.
-        items = []
-        for row in rows[:20]:
-            item = engine.view(con, row['id'], user)
-            items.append({k: item[k] for k in ('id', 'status', 'revision', 'myRole', 'replyDeadline')})
-        handler.reply(200, {'items': items, 'nextCursor': str(rows[19]['seq']) if len(rows)>20 else None})
+        handler.reply(200, booking_index.page(con, user, query))
         return True
+    amendment = re.fullmatch(r'/api/bookings/([a-f0-9]{32})(?:/(change|extend))?', path)
+    if amendment and ((amendment[2] and handler.command == 'POST') or
+                      (not amendment[2] and handler.command in ('PUT', 'PATCH', 'DELETE'))):
+        engine.owned(con, amendment[1], user)
+        raise engine.BookingError(409, 'Kelishilgan buyurtma o‘zgartirilmaydi. O‘zgartirish yoki uzaytirish uchun yangi narx taklifi va alohida so‘rov kerak. Yangi so‘rov eskisini bekor qilmaydi.')
     media = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/pets/([^/]{1,300})/(photo|passport)', path)
     if media and handler.command == 'GET':
         identity, pet, kind = media.groups()

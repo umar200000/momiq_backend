@@ -168,7 +168,7 @@ def route(handler, con, user, path, validate_photo, environment):
     related = re.fullmatch(r'/api/conversations/([a-f0-9]{32})/bookings', path)
     if related and handler.command == 'GET':
         import booking_chat
-        handler.reply(200, booking_chat.related(con, related[1], user, environment, query.get('before', [None])[0]))
+        handler.reply(200, booking_chat.related(con, related[1], user, environment, query))
         return True
     match = re.fullmatch(r'/api/conversations/([a-f0-9]{32})(?:/(messages|read)(?:/([1-9][0-9]{0,17})/image)?)?', path)
     if not match:

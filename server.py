@@ -552,7 +552,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             print(type(e).__name__)
             self.reply(500,{'error':'Server xatosi'})
-    do_GET = do_POST = do_PUT = do_DELETE = dispatch
+    do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = dispatch
 
 if __name__ == '__main__':
     setup()

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import booking_engine as engine
 import conversations
+import booking_index
 
 
 def open_chat(con, identity, user, environment):
@@ -35,21 +36,13 @@ def open_chat(con, identity, user, environment):
     return conversations.summary(con, conversations.participant(con, chat_id, user), user)
 
 
-def related(con, identity, user, environment, before=None):
+def related(con, identity, user, environment, query=None):
+    query = query or {}
+    booking_index.options(query)
     engine.test_gate(con, environment)
     conversations.participant(con, identity, user)
     engine.expire_due(con, environment=environment, now=datetime.now(timezone.utc), owner=user)
     con.commit()
     con.execute('BEGIN')
     chat = conversations.participant(con, identity, user)
-    args = [chat['customer_id'], chat['sitter_id'], chat['service']]
-    clause = ''
-    if before is not None:
-        clause = ' AND seq<?'
-        args.append(conversations.number(before))
-    rows = con.execute('SELECT id,seq,status,starts_at,ends_at FROM bookings '
-                       'WHERE customer_id=? AND sitter_id=? AND service=?'+clause+' ORDER BY seq DESC LIMIT 21', args).fetchall()
-    # No private address, pet media or care notes in the conversation index.
-    return {'items': [{'id': r['id'], 'status': r['status'], 'startsAt': r['starts_at'], 'endsAt': r['ends_at']}
-                      for r in rows[:20]],
-            'nextCursor': str(rows[19]['seq']) if len(rows)>20 else None}
+    return booking_index.page(con, user, query, chat)
