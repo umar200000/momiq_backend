@@ -34,6 +34,9 @@ install -m 644 "$src/momiq-media-retention.timer" /etc/systemd/system/momiq-medi
 install -m 644 "$src/momiq-backup-retention.service" /etc/systemd/system/momiq-backup-retention.service
 install -m 644 "$src/momiq-backup-retention.timer" /etc/systemd/system/momiq-backup-retention.timer
 install -m 644 "$src/nginx.conf" /etc/nginx/sites-available/momiq
+(umask 027; touch /var/log/nginx/momiq-access.log)
+chown root:adm /var/log/nginx/momiq-access.log
+chmod 640 /var/log/nginx/momiq-access.log
 install -m 644 "$src/momiq-proxy.conf" /etc/nginx/snippets/momiq-proxy.conf
 ln -sfn /etc/nginx/sites-available/momiq /etc/nginx/sites-enabled/momiq
 nginx -t

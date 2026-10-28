@@ -271,8 +271,11 @@ class ApiError(Exception):
 class Handler(BaseHTTPRequestHandler):
     server_version = "MomiqLocal/1"
     def log_message(self, fmt, *args):
-        # Never log request bodies, credentials or tokens.
-        print(self.address_string(), fmt % args)
+        # BaseHTTPRequestHandler diagnostics can contain the raw request line.
+        print('http diagnostic')
+    def log_request(self, code='-', size='-'):
+        from request_logging import access_record
+        print(access_record(getattr(self,'command',''),getattr(self,'path',''),code))
     def reply(self, status, body, cookie=None):
         raw = json.dumps(body, ensure_ascii=False).encode()
         self.send_response(status)

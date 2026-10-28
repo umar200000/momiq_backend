@@ -53,3 +53,14 @@ Flutter CI checks analysis/tests. App API default is the hosted HTTPS endpoint. 
 `GET /api/sitters` reads active rows from SQLite `sitters`; the table is created empty. There is no automatic demo seed. Real sitter registration/publication is not implemented by this change. Admin chat is unavailable until real sitter records exist.
 
 One-time migration: `sudo python3 /opt/momiq/current/backend/deploy/cleanup_demo_data.py /var/lib/momiq/momiq.sqlite3 /var/backups/momiq`. It first creates a verified backup, removes messages/favorites for the five former hardcoded demo contacts and removes the known deployment test account only when its phone and profile match. Other accounts and uploaded pets/addresses are retained. The command is idempotent and not part of normal deployments.
+
+
+## Access-log privacy
+
+The local HTTP transport records only a whitelisted method, coarse route group and response code. Raw paths, query strings, client IPs, cookies, headers and malformed request lines are not printed. This prevents proximity coordinates and admin phone/name searches appearing in ordinary access logs.
+
+Gunicorn explicitly loads `gunicorn.conf.py`; its access format contains response status, bytes and elapsed seconds only. Each Momiq Nginx virtual host overrides inherited combined access logging with a timestamp/status/bytes/duration format. Bootstrap preserves any existing `momiq-access.log` content and sets root:adm 0640; standard host log rotation/retention still needs operational verification. Applying these service/site changes requires privileged bootstrap/systemd reload/Nginx validation; a branch push alone does not install them.
+
+These changes do not erase old logs, and do not claim to sanitize every Nginx/Gunicorn error log or external monitoring collector. Error-log access/retention, historical personal data and host-wide configuration remain M108/M113/M116 release work. Preserve useful diagnostics under restricted access rather than disabling error monitoring.
+
+Format references: [Gunicorn logging settings](https://gunicorn.org/reference/settings/#access-log-format) and [Nginx log module](https://nginx.org/en/docs/http/ngx_http_log_module.html).

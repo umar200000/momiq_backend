@@ -31,6 +31,12 @@ jobs:
         env:
           MOMIQ_ADMIN_DIR: ${{ github.workspace }}/admin-fixture
       - run: bash -n deploy/momiq-deploy deploy/momiq-deploy-entry deploy/bootstrap.sh
+      - name: Validate hosted Gunicorn configuration
+        run: gunicorn --check-config --config gunicorn.conf.py wsgi:application
+        env:
+          MOMIQ_ENV: test
+          MOMIQ_DATA_DIR: ${{ runner.temp }}/momiq-gunicorn-config
+          MOMIQ_ADMIN_DIR: ${{ github.workspace }}/admin-fixture
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
