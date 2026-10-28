@@ -29,6 +29,8 @@ The compare-and-increment and account mutation share a transaction. Polling does
 
 ### Canonical account shape
 
+Release one supports dog/cat bookings only, for all three services. The sitter's chosen species further narrows that set; home visits no longer imply every species. `Boshqa` animals may remain in the private account but cannot be selected for a new quote/request or via restored mobile drafts. Existing confirmed agreements are not deleted by this rule. Listing API uses `dog`/`cat`, customer accounts/public listing projection use `It`/`Mushuk`. Booking policy exposes `supportedPetTypes`. Boarding/personal listing selects one species; home visit may select one or both. Personal booking capacity is always one. Listing location is required for residential/personal, optional for home visit, but any supplied location must validate (finite coordinates and non-empty address ≤1000 Unicode code points); mobile enforces the same limits.
+
 Full-account writes use the same validator for owner and admin. Required text is trimmed and non-empty; limits below count Unicode code points before trimming. Unknown top-level/profile fields are not stored. Invalid types (including boolean-as-integer), missing required fields, duplicates and limits return 400 and leave both data and revision unchanged. Valid defaults below are materialized in the response, login and subsequent GET; creating a new login is the sole exception allowing an unfinished profile with empty first/last names.
 
 | Field | Accepted value / default |

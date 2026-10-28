@@ -83,6 +83,7 @@ class BookingEngineTests(unittest.TestCase):
         with server.db() as con:
             owner=json.loads(con.execute("SELECT account FROM users WHERE id='customer'").fetchone()[0])
             owner['addresses']=[{'id':'home','address':'TEST address','lat':41.3,'lon':69.2}]
+            owner['pets'].append({'id':'other-pet','type':'Boshqa','otherType':'TEST rabbit'})
             con.execute("UPDATE users SET account=? WHERE id='customer'",(json.dumps(owner),))
         revision=2
         for service,tariff in [('boarding',500000),('homeVisit',80000),('personal',700000)]:
@@ -104,6 +105,7 @@ class BookingEngineTests(unittest.TestCase):
                 self.assertEqual([r['daily_minor'] for r in price['rates']],[tariff*100]*len(pets))
             if service=='personal':
                 self.expect_error(409,lambda:self.quote(listing='abc:personal',pets=['cat-a','cat-b']))
+            self.expect_error(409,lambda:self.quote(listing='abc:'+service,pets=['other-pet'],**address))
 
     def test_request_retry_quote_reuse_and_foreign_ownership(self):
         quote = self.quote(); key = secrets.token_hex(16)

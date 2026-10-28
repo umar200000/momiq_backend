@@ -104,7 +104,7 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
     pets = {p['id']: p for p in owner.get('pets', []) if not p.get('archived', False)}
     if any(p not in pets for p in pet_ids):
         raise BookingError(404, 'Hayvon topilmadi')
-    if any(pets[p].get('type') not in item['pets'] for p in pet_ids):
+    if any(pets[p].get('type') not in ('It','Mushuk') or pets[p].get('type') not in item['pets'] for p in pet_ids):
         raise BookingError(409, 'Enaga bu hayvon turini qabul qilmaydi')
     capacity = 30 if service == 'homeVisit' else rules.integer(item['capacity'], 1, 30)
     if len(pet_ids) > capacity:
@@ -263,7 +263,7 @@ def request_booking(con, customer, quote_id, request_id, *, environment, now):
     # A quote pins the price, but removal/archive/type changes of selected pets
     # must not create a request against animals the account no longer owns.
     pets = {p['id']: p for p in account(con, customer).get('pets', []) if not p.get('archived', False)}
-    if any(p['id'] not in pets or p['type'] != pets[p['id']]['type'] for p in detail['pets']):
+    if any(p['type'] not in ('It','Mushuk') or p['id'] not in pets or p['type'] != pets[p['id']]['type'] for p in detail['pets']):
         raise BookingError(409, 'Hayvon ma’lumoti o‘zgargan; yangi taklif oling')
     identity = secrets.token_hex(16)
     con.execute('INSERT INTO bookings(id,quote_id,customer_id,sitter_id,service,starts_at,ends_at,reply_deadline,status,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)',

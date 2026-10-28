@@ -38,6 +38,7 @@ def route(handler, con, user, path, environment):
         return True
     if path == '/api/bookings/policy' and handler.command == 'GET':
         handler.reply(200, {'version': 'elapsed-24h-v1', 'billingUnit': 'animal_started_24h',
+                            'supportedPetTypes': ['It', 'Mushuk'],
                             'services': ['boarding', 'homeVisit', 'personal'], 'homeVisitAvailable': True,
                             'homeVisitTerms': {'durationAffectsPrice': False, 'fixedVisitCount': None, 'fixedVisitMinutes': None},
                             'testOnly': True, 'customerPaysSitterDirectly': True,
