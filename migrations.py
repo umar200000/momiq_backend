@@ -184,6 +184,12 @@ MIGRATIONS = (
         "CREATE TRIGGER wallet_corrections_no_update BEFORE UPDATE ON wallet_corrections BEGIN SELECT RAISE(ABORT,'Correction is immutable'); END",
         "CREATE TRIGGER wallet_corrections_no_delete BEFORE DELETE ON wallet_corrections BEGIN SELECT RAISE(ABORT,'Correction is immutable'); END",
     )),
+    (22, 'append-only operator audit journal', (
+        'CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,actor TEXT,action TEXT,target TEXT,time TEXT)',
+        "CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT,'Audit journal is immutable'); END",
+        "CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT,'Audit journal is immutable'); END",
+        "CREATE TRIGGER audit_no_replace BEFORE INSERT ON audit WHEN EXISTS(SELECT 1 FROM audit WHERE id=NEW.id) BEGIN SELECT RAISE(ABORT,'Audit journal is immutable'); END",
+    )),
 )
 
 
