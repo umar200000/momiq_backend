@@ -73,7 +73,7 @@ class ApiTests(unittest.TestCase):
     def test_roles_and_server_listings(self):
         login = self.req('/api/auth/login','POST',{'phone':'998909991122','code':'111111','role':'sitter'})
         token, uid = login['token'],login['userId']
-        users = self.req('/api/admin/users',admin=True)['users']
+        users = self.req('/api/admin/users?q='+uid,admin=True)['users']
         self.assertEqual(next(u for u in users if u['id']==uid)['roles'],['sitter'])
         payload = {'housing':'house','listings':[{'type':'boarding','pets':['cat'],'price':100000,'capacity':2,'location':{'lat':41.3,'lon':69.2,'address':'Test address'},'active':True}]}
         self.req('/api/me/listings','PUT',payload,token=token,expected=403)
@@ -111,7 +111,7 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(archived['listings'][0]['active'])
         self.assertEqual(archived['listings'][0]['price'],100000)
         self.req('/api/me/listings/boarding/archive','POST',{'_revision':saved['_revision']},token=again['token'],expected=409)
-        users=self.req('/api/admin/users',admin=True)['users']
+        users=self.req('/api/admin/users?q='+uid,admin=True)['users']
         self.assertEqual(next(u for u in users if u['id']==uid)['roles'],['customer','sitter'])
         server.setup()
         with server.db() as con:
@@ -403,6 +403,10 @@ class ApiTests(unittest.TestCase):
         self.req('/api/admin/topups/'+late['id']+'/review','POST',{'revision':0,'decision':'reject','reason':'TEST only prior-version evidence'},admin=True)
         self.req('/api/admin/platform-settings','PUT',{'version':changed['version'],'qrActive':True,'recipientName':'','reason':'Invalid activation'},admin=True,expected=400)
         self.assertNotIn('receipt',self.req('/api/admin/topups?status=pending',admin=True)['topups'][0])
+        admin_topup=next(item for item in self.req('/api/admin/topups?status=pending',admin=True)['topups'] if item['id']==created['id'])
+        self.assertEqual(admin_topup['owner']['phone'],'998909000006')
+        self.assertEqual(set(admin_topup['owner']),{'name','phone'})
+        self.assertNotIn('owner',self.req('/api/wallet/topups',token=a['token'])['topups'][0])
         self.req('/api/wallet/topups?cursor='+created['id'],token=other['token'],expected=400)
         self.req('/api/admin/platform-settings','PUT',{'version':config['version']-1,'reason':'stale'},admin=True,expected=409)
         self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],0)

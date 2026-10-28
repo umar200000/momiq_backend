@@ -4,6 +4,8 @@ Holat: foydalanuvchi barcha qolgan takliflarni tasdiqladi, bosqichma-bosqich ama
 
 **Foydalanuvchi tasdiqlagan mahsulot qarorlari**
 
+- 2026-10-28 M041 tasdiq: uyga borib qarashda Toshkent ichida enaga uchun masofa/radius cheklovi yo‘q. Masofa axborot/qidiruv uchun ko‘rsatiladi; enaga radiusi sabab bron rad etilmaydi. Toshkent tashqi chegarasi M001/M029 geofence siyosati bo‘lib qoladi.
+
 - 2026-10-28 M036 tasdiq: “band/ta’til” sana faqat shu mahalliy sanada boshlanadigan yangi bronni rad etadi; oldin boshlangan parvarish shu sanada davom etishi mumkin. Tunab qolish mumkin; 09:00–18:00 kabi ish soati faqat olib kelish/olib ketish vaqtlarini cheklaydi, butun parvarish davomiyligini emas.
 
 - 2026-10-28 tasdiq: birinchi relizda uchala xizmat faqat it va mushuk uchun; “Boshqa” bron tanlovi va xizmat qidiruvida bo‘lmaydi. Eski shaxsiy hayvon yozuvi o‘chirilmaydi.
@@ -267,6 +269,8 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 
 - 2026-10-28, M056 yopildi: mavjud persistent expiry workerga 15/30 daqiqalik ikki tomon uchun in-app eslatmalar qo‘shildi. Eslatma faqat accepted va boshlanish tasdig‘i tugallanmagan holatga; restart 30 daqiqadan kech bo‘lsa eskirgan 15 daqiqalik xabar yuborilmaydi. Har booking/stage/recipient bitta source, ikki notice bir tranzaksiyada; parallel worker/retry dublikat yaratmaydi. No-show avtomatik tasdiqlanmaydi, booking revision/status/incident/pul o‘zgarmaydi, active/disputed/terminal holatga eslatma yo‘q. Har tick har bosqichda 5×200 cheklov; transient failure keyingi tickda qayta urinadi. Mobil ikki xabarning aniq sarlavhasi va faqat tegishli bronni ochishi qo‘shildi; tashqi push M081–M085 ochiq. 6 reminder/worker testi (chegara, restart, concurrent, rollback), 37 booking/dispute/worker regressioni, 12 mobil notification testi o‘tdi. Dalillar `.local/booking-reminders-tests.log`, `.local/booking-reminders-regression.log`, app `.local/booking-reminders-mobile.log`; oldingi `.local/booking-worker-live-proof.json` expiry dalili saqlanadi. Yangi live fixture yaratilmagan, M055 bloklangan testga tegilmadi. Jami 60/139. M040 x64 build 21,8s, emulator cold start 6388ms.
 
+- 2026-10-28, M093 yopildi: admin foydalanuvchi/e’lon ro‘yxatlari 20 tadan server sahifalash, ism/telefon/ID qidiruvi va rol/holat/xizmat filtrlari bilan ishlaydi. Index faqat qisqa metadata; shaxsiy manzil, hayvon va rasmlar tafsilot ochilganda olinadi, ko‘rish auditga yoziladi. To‘liq revision kelmaguncha tahrirlash/moderatsiya formasi ochilmaydi; kechikkan javoblar, qayta urinish va sahifa dublikatlari tekshirildi. Top-up egasi ro‘yxatning birinchi sahifasiga bog‘lanmaydi, minimal owner metadata admin javobida keladi. Full test top-up yo‘lida yetishmagan json importini aniqladi; tuzatilib 178 backend testi qayta to‘liq o‘tdi. Yangi fixture sahifa soni 24 klon + 2 mavjud enagaga moslandi. 30 Node testi o‘tdi, native admin foydalanuvchi tafsiloti va filtrlangan e’lon ko‘rildi; hech qanday pul/moderatsiya amali bajarilmadi. Dalillar `.local/admin-index-full-backend-fixed.log`, `.local/native-admin-filtered-listing.png`. Jami 61/139. M055 bloklangan test o‘z holida.
+
 **A. Ish boshlashdan oldingi mahsulot qarorlari**
 
 - [ ] M001 — Tasdiqlangan reliz ko‘lamini bajarish: Android va iOS, Toshkent, uchala xizmat; tillar va aniq hudud chegarasi yakunlanadi, hududdan tashqaridagi bron rad etiladi, signing oxirida bajariladi.
@@ -326,7 +330,7 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 **F. Qidiruv, xarita va tanlash**
 
 - [x] M040 — Katalogni sahifalab olish va serverda filtrlash: xizmat, hayvon turi, narx, sanalar, sig‘im va tekshiruv holati; tartiblash barqaror va natijalar takrorlanmaydi.
-- [ ] M041 — Yaqinlik qidiruvini haqiqiy koordinatalarga ulash: masofa va xizmat radiusi serverda hisoblanadi; joylashuv berilmaganda tanlangan hudud bilan qidirish ishlaydi.
+- [ ] M041 — Yaqinlik qidiruvini haqiqiy koordinatalarga ulash: masofa serverda hisoblanadi; joylashuv berilmaganda tanlangan hudud bilan qidirish ishlaydi. Tasdiqlangan qaror: Toshkent ichida enaganing xizmat radiusi bilan cheklash qo‘llanmaydi.
 - [ ] M042 — MapKit va geokodlash sozlamalarini tugatish: muhit/ilova bilan cheklangan kalit, kvota va provider xatosi; kalit yo‘qligi sahifani yiqitmaydi.
 - [ ] M043 — Joylashuv ruxsati rad etilishi, GPS o‘chiqligi va past aniqlikni boshqarish: majburlashsiz qo‘lda manzil tanlash, qayta urinish va sozlamaga o‘tish mavjud.
 - [x] M044 — Enaga tafsilotlarini real ma’lumot bilan to‘ldirish: xizmat narxi birligi, mavjud sanalar, tasdiq holati, haqiqiy rasmlar va sharhlar; aniq uy manzilini ochish siyosati bajariladi.
@@ -407,7 +411,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 **M. Boshqaruv va kundalik operatsiyalar**
 
 - [ ] M092 — Operator rollari va minimal huquqlarni ajratish: support, moderatsiya, moliya, administrator; umumiy admin paroli o‘rniga shaxsiy hisoblar va muhim kirishlar uchun kuchli himoya.
-- [ ] M093 — Foydalanuvchi/e’lon boshqaruvini tugatish: sahifalash, qidiruv, filtr, tekshirish, nashr/rad/to‘xtatish; sabab va holat egasiga ko‘rinadi.
+- [x] M093 — Foydalanuvchi/e’lon boshqaruvini tugatish: sahifalash, qidiruv, filtr, tekshirish, nashr/rad/to‘xtatish; sabab va holat egasiga ko‘rinadi.
 - [x] M094 — Buyurtma boshqaruvini ulash: holat tarixi, tomonlar, parvarish va nizo; operator qoidani chetlab o‘tadigan o‘zgarish qilsa alohida huquq va audit talab qilinadi.
 - [ ] M095 — Cheklarni tekshirish uchun admin navbatini ulash: enaga/so‘rov/QR/reference/summa va tushumni solishtirish, tasdiq/rad/aniqlashtirish, ruxsatli kredit va audit; balansni sababsiz almashtirish yoki mijozning xizmat pulini boshqarish yo‘q.
 - [ ] M096 — Support/moderatsiya ish navbatini yaratish: mas’ulga biriktirish, muddat, holat va javob; yopilgan murojaat tarixini yo‘qotmaydi.

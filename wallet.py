@@ -1,6 +1,7 @@
 """Manual Paynet Xolis top-ups. Amounts are integer UZS minor units (1/100 so'm)."""
 import base64
 import hashlib
+import json
 import re
 import secrets
 import notifications
@@ -92,6 +93,7 @@ def topup_view(row, *, admin=False):
 
 
 def topup_page(handler, con, uid, admin=False):
+    if not con.in_transaction:con.execute('BEGIN')
     query=parse_qs(urlparse(handler.path).query)
     predicates=[];args=[]
     if not admin:
@@ -107,7 +109,14 @@ def topup_page(handler, con, uid, admin=False):
         predicates.append('(created,id)<(?,?)');args.extend([row['created'],row['id']])
     clause=' WHERE '+' AND '.join(predicates) if predicates else ''
     rows=con.execute('SELECT * FROM topup_requests'+clause+' ORDER BY created DESC,id DESC LIMIT 21',args).fetchall()
-    return {'topups':[topup_view(r,admin=admin) for r in rows[:20]],
+    items=[topup_view(r,admin=admin) for r in rows[:20]]
+    if admin:
+        for item in items:
+            owner=con.execute('SELECT phone,account FROM users WHERE id=?',(item['userId'],)).fetchone()
+            if owner:
+                profile=json.loads(owner['account']).get('profile') or {}
+                item['owner']={'name':' '.join([profile.get('first',''),profile.get('last','')]).strip(),'phone':owner['phone']}
+    return {'topups':items,
             'nextCursor':rows[19]['id'] if len(rows)>20 else None}
 
 

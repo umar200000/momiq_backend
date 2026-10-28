@@ -20,6 +20,7 @@ import wallet
 import catalog
 import sitter_availability
 import catalog_search
+import admin_accounts
 import pet_safety
 import sitter_dashboard
 import notifications
@@ -396,6 +397,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
+            if admin_accounts.route(self,con,user,path,account_snapshot,roles_for):
+                return
             if admin_bookings.route(self,con,user,path):
                 return
             if support_tickets.route(self,con,user,path,photo):
@@ -494,15 +497,6 @@ class Handler(BaseHTTPRequestHandler):
                     result = catalog.document(con,user)
                 self.reply(200,result)
                 return
-            if path == '/api/admin/listings' and self.command == 'GET':
-                items = []
-                con.execute('BEGIN')
-                for r in con.execute('SELECT l.*,u.phone,u.account,u.blocked FROM listings l JOIN users u ON u.id=l.user_id ORDER BY l.updated DESC'):
-                    data = catalog.document(con,r['user_id'])
-                    for item in data['listings']:
-                        items.append(dict(item,id=r['user_id']+':'+item['type'],userId=r['user_id'],phone=r['phone'],profile=json.loads(r['account'])['profile'],blocked=bool(r['blocked']),housing=data['housing'],updated=r['updated'],_revision=data['_revision'],moderation=data['moderation'][item['type']],missing=catalog.completeness(json.loads(r['account']),item)))
-                self.reply(200,{'listings':items})
-                return
             match = re.fullmatch(r'/api/me/listings/(boarding|homeVisit|personal)/archive',path)
             if match and self.command == 'POST':
                 self.reply(200,catalog.archive(con,user,match[1],self.body().get('_revision')))
@@ -516,10 +510,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/messages" and self.command == "POST":
                 self.save_message(con,user,True,self.body())
-                return
-            if path == "/api/admin/users" and self.command == "GET":
-                users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"roles":roles_for(con,r["id"]),"account":account_snapshot(con,r)} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
-                self.reply(200,{"users":users,"sitters":sitter_names()})
                 return
             match = re.fullmatch(r"/api/admin/users/([a-f0-9]+)(/messages)?", path)
             if match:
