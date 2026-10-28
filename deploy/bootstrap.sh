@@ -29,12 +29,16 @@ install -m 644 "$src/momiq.service" /etc/systemd/system/momiq.service
 install -m 755 "$src/backup.py" /usr/local/sbin/momiq-backup
 install -m 644 "$src/momiq-backup.service" /etc/systemd/system/momiq-backup.service
 install -m 644 "$src/momiq-backup.timer" /etc/systemd/system/momiq-backup.timer
+install -m 644 "$src/momiq-media-retention.service" /etc/systemd/system/momiq-media-retention.service
+install -m 644 "$src/momiq-media-retention.timer" /etc/systemd/system/momiq-media-retention.timer
+install -m 644 "$src/momiq-backup-retention.service" /etc/systemd/system/momiq-backup-retention.service
+install -m 644 "$src/momiq-backup-retention.timer" /etc/systemd/system/momiq-backup-retention.timer
 install -m 644 "$src/nginx.conf" /etc/nginx/sites-available/momiq
 install -m 644 "$src/momiq-proxy.conf" /etc/nginx/snippets/momiq-proxy.conf
 ln -sfn /etc/nginx/sites-available/momiq /etc/nginx/sites-enabled/momiq
 nginx -t
 systemctl daemon-reload
-systemctl enable momiq momiq-backup.timer
+systemctl enable momiq momiq-backup.timer momiq-media-retention.timer momiq-backup-retention.timer
 systemctl enable --now nginx
 systemctl reload nginx
 ufw allow OpenSSH

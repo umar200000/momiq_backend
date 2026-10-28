@@ -57,10 +57,11 @@ def run_once(db_factory, environment, *, now=None, batch_size=200, max_batches=5
 
 
 class ExpiryWorker:
-    def __init__(self, db_factory, environment, interval=30):
+    def __init__(self, db_factory, environment, interval=30, media_root=None):
         if environment not in ('local', 'test'):
             raise ValueError('Hosted booking worker is not enabled')
         self.db_factory, self.environment, self.interval = db_factory, environment, interval
+        self.media_root = media_root
         self.stopped = threading.Event()
         self.thread = threading.Thread(target=self.run, name='booking-expiry', daemon=True)
 
@@ -77,6 +78,12 @@ class ExpiryWorker:
                 count = run_once(self.db_factory, self.environment)
                 if count:
                     logging.info('booking-expiry completed count=%s', count)
+                if self.media_root is not None:
+                    import video_retention
+                    with self.db_factory() as con:
+                        result=video_retention.cleanup(con,self.media_root,datetime.now(timezone.utc))
+                    if result['failed']:
+                        logging.error('video-retention pending failed=%s; retry next tick',result['failed'])
             except Exception as error:
                 # Do not log DB contents, account IDs, credentials or notes.
                 logging.error('booking-expiry failed type=%s; retry on next tick', type(error).__name__)

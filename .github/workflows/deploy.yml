@@ -30,7 +30,7 @@ jobs:
       - run: python -m unittest -q
         env:
           MOMIQ_ADMIN_DIR: ${{ github.workspace }}/admin-fixture
-      - run: bash -n deploy/momiq-deploy deploy/momiq-deploy-entry
+      - run: bash -n deploy/momiq-deploy deploy/momiq-deploy-entry deploy/bootstrap.sh
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

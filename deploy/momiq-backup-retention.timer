@@ -1,0 +1,8 @@
+[Unit]
+Description=Check backup video retention every minute
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+Unit=momiq-backup-retention.service
+[Install]
+WantedBy=timers.target

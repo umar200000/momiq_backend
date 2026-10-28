@@ -6,6 +6,7 @@ Original uploads are temporary; only normalized playback/poster files persist.
 from datetime import datetime, timezone
 from pathlib import Path
 import os
+import json
 import re
 import secrets
 import shutil
@@ -20,6 +21,7 @@ import conversations
 import notifications
 import video_media as media
 import video_policy as policy
+import video_retention
 
 _uploads = threading.BoundedSemaphore(2)
 
@@ -62,9 +64,16 @@ def writable(con, identity, user, data, now):
     return booking
 
 
-def overview(con, identity, user, day, now):
+def readable(con, identity, user, admin=False):
+    if not admin:return care.access(con,identity,user)
+    row=con.execute('SELECT b.status,q.snapshot FROM bookings b JOIN booking_quotes q ON q.id=b.quote_id WHERE b.id=?',(identity,)).fetchone()
+    if not row:raise engine.BookingError(404,'Buyurtma topilmadi')
+    return {'status':row['status'],'snapshot':json.loads(row['snapshot']),'myRole':'admin'}
+
+
+def overview(con, identity, user, day, now, *, admin=False):
     con.execute('BEGIN')
-    booking = care.access(con, identity, user)
+    booking = readable(con, identity, user, admin)
     rules = policy.policy(now)
     day = rules['today'] if day is None else care.day_value(day)
     if day > rules['today']:
@@ -74,7 +83,8 @@ def overview(con, identity, user, day, now):
             'canUpload': booking['myRole'] == 'sitter' and booking['status'] == 'active' and day == rules['today'] and media.available(),
             'serviceAvailable': media.available(),
             'pets': [{'id': p['id'], 'name': p.get('name') or p['type']} for p in booking['snapshot']['pets']],
-            'items': [metadata(row) for row in rows]}
+            'retentionDays': 30,
+            'items': [dict(metadata(row),**video_retention.status(con,row,now)) for row in rows]}
 
 
 def store(con, root, identity, user, data, source, clock):
@@ -152,11 +162,13 @@ def byte_range(value, size):
     return start,end,206
 
 
-def download(handler, con, root, identity, user, video, kind):
-    care.access(con, identity, user)
+def download(handler, con, root, identity, user, video, kind, *, admin=False):
+    readable(con, identity, user, admin)
     row = con.execute('SELECT * FROM booking_videos WHERE id=? AND booking_id=?', (video,identity)).fetchone()
     if not row:
         raise engine.BookingError(404, 'Video topilmadi')
+    if not video_retention.status(con,row,datetime.now(timezone.utc))['available']:
+        raise engine.BookingError(410, 'Videoning saqlash muddati tugagan')
     path = Path(root)/'care-videos'/row['id']/('playback.mp4' if kind == 'playback' else 'poster.jpg')
     try:
         stream = path.open('rb')
@@ -165,11 +177,15 @@ def download(handler, con, root, identity, user, video, kind):
     with stream:
         size = os.fstat(stream.fileno()).st_size
         start,end,status = byte_range(handler.headers.get('Range'),size)
+        if admin:
+            con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                (user,'admin-view-booking-video',engine.encode({'bookingId':identity,'videoId':video,'kind':kind}),engine.stamp(datetime.now(timezone.utc))))
+            con.commit()
         handler.send_response(status)
         for key,value in {'Content-Type':'video/mp4' if kind=='playback' else 'image/jpeg',
                           'Content-Length':str(end-start+1),'Accept-Ranges':'bytes',
                           'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
-                          'Content-Disposition':'inline','Vary':'Authorization'}.items():
+                          'Content-Disposition':'inline','Vary':'Cookie' if admin else 'Authorization'}.items():
             handler.send_header(key,value)
         if status == 206:
             handler.send_header('Content-Range',f'bytes {start}-{end}/{size}')
@@ -179,6 +195,25 @@ def download(handler, con, root, identity, user, video, kind):
             chunk = stream.read(min(65536,remaining))
             if not chunk: break
             handler.wfile.write(chunk); remaining -= len(chunk)
+
+
+def admin_route(handler, con, user, path, root):
+    # server.Handler has already required the HttpOnly admin session for this
+    # namespace. This is read-only and cannot turn a report into a care finding.
+    match=re.fullmatch(r'/api/admin/bookings/([a-f0-9]{32})/videos(?:/([a-f0-9]{32})/(playback|poster))?',path)
+    if not match:return False
+    if handler.command!='GET':raise engine.BookingError(405,'Faqat ko‘rish mumkin')
+    query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+    if any(len(v)!=1 for v in query.values()) or set(query)-{'day'} or (match[2] and query):
+        raise ValueError('Invalid admin video query')
+    if match[2]:
+        download(handler,con,root,match[1],user,match[2],match[3],admin=True)
+    else:
+        result=overview(con,match[1],user,query.get('day',[None])[0],datetime.now(timezone.utc),admin=True)
+        con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+            (user,'admin-view-booking-videos',match[1],engine.stamp(datetime.now(timezone.utc))))
+        con.commit();handler.reply(200,result)
+    return True
 
 
 def route(handler, con, user, path, root, clock=lambda: datetime.now(timezone.utc)):

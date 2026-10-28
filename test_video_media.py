@@ -9,6 +9,18 @@ import video_media as media
 
 
 class VideoMediaTests(unittest.TestCase):
+    def test_audio_cannot_extend_report_beyond_video_duration(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);source=root/'audio-tail.mp4'
+            subprocess.run([media.executable('ffmpeg'),'-v','error','-f','lavfi','-i','color=c=blue:s=128x96:r=24:d=10',
+                            '-f','lavfi','-i','sine=frequency=440:duration=15','-c:v','libx264','-c:a','aac',
+                            '-pix_fmt','yuv420p',str(source)],check=True,timeout=20,
+                           creationflags=subprocess.CREATE_NO_WINDOW if media.os.name=='nt' else 0)
+            result=media.prepare(source,root)
+            details=json.loads(media.run('ffprobe',['-i',str(result['videoFile']),'-show_entries','format=duration','-of','json']))
+            self.assertLessEqual(float(details['format']['duration']),10.05)
+            self.assertEqual(result['durationMs'],10000)
+
     def test_real_decode_derivatives_duration_and_private_metadata_removal(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'original.mp4'

@@ -21,6 +21,9 @@ mkdir "$release"
 git --git-dir="$mirror" archive "$sha" | tar -x -C "$release"
 if [[ "$kind" == backend ]]; then
   command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || { echo 'Install the ffmpeg OS package before deploying this release'; exit 69; }
+  for timer in momiq-backup.timer momiq-media-retention.timer momiq-backup-retention.timer; do
+    systemctl cat "$timer" >/dev/null || { echo 'Install the updated bootstrap units before deploying private media'; exit 69; }
+  done
   python3 -m venv "$release/.venv"
   "$release/.venv/bin/pip" install --disable-pip-version-check -r "$release/requirements.txt"
   (cd "$release" && runuser -u momiq -- env MOMIQ_ADMIN_DIR="$base/current/admin" PYTHONDONTWRITEBYTECODE=1 "$release/.venv/bin/python" -m unittest -q)
@@ -42,6 +45,7 @@ if [[ "$kind" == backend ]]; then
     if [[ -n "$old" ]]; then ln -s "$old" "$base/current/.rollback"; mv -Tf "$base/current/.rollback" "$base/current/backend"; systemctl restart momiq; fi
     echo 'Health check failed; previous release restored when available'; exit 1
   fi
+  systemctl start momiq-backup.timer momiq-media-retention.timer momiq-backup-retention.timer
 fi
 printf '%s\n' "$sha" > "$base/current/$kind.sha"
 echo "Deployed $kind $sha"

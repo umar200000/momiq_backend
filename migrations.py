@@ -164,6 +164,11 @@ MIGRATIONS = (
         "CREATE TRIGGER booking_videos_no_update BEFORE UPDATE ON booking_videos BEGIN SELECT RAISE(ABORT,'Video report is immutable'); END",
         "CREATE TRIGGER booking_videos_no_delete BEFORE DELETE ON booking_videos BEGIN SELECT RAISE(ABORT,'Video report is immutable'); END",
     )),
+    (19, 'video expiry and retryable private file retirement', (
+        'CREATE TABLE video_retirements(video_id TEXT PRIMARY KEY REFERENCES booking_videos(id),expired_at TEXT NOT NULL,purged_at TEXT)',
+        "CREATE TRIGGER video_retirement_identity BEFORE UPDATE OF video_id,expired_at ON video_retirements BEGIN SELECT RAISE(ABORT,'Video retirement identity is immutable'); END",
+        "CREATE TRIGGER video_retirement_no_delete BEFORE DELETE ON video_retirements BEGIN SELECT RAISE(ABORT,'Video retirement is immutable'); END",
+    )),
 )
 
 

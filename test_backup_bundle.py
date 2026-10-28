@@ -3,6 +3,8 @@ from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime,timedelta,timezone
+from unittest.mock import patch
 import backup_bundle
 import test_booking_videos
 import server
@@ -20,6 +22,31 @@ class BackupBundleTests(unittest.TestCase):
     source=test_booking_videos.BookingVideoTests.source
     data=test_booking_videos.BookingVideoTests.data
     upload=test_booking_videos.BookingVideoTests.upload
+
+    def test_backup_rotation_never_keeps_video_beyond_its_approved_expiry(self):
+        b=self.active();self.upload(b,self.data(),self.source())
+        end=self.start+timedelta(hours=2)
+        b=self.act(b,'complete',user='customer',now=end);self.act(b,'complete',now=end)
+        captured=end+timedelta(days=29)
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);target=root/'20261201T000000Z-1234abcd'
+            with patch.object(backup_bundle,'datetime',wraps=datetime) as clock:
+                clock.now.return_value=captured
+                backup_bundle.create(server.DATA,target)
+            self.assertEqual(backup_bundle.bundle_expiry(target),end+timedelta(days=30))
+            self.assertEqual(backup_bundle.prune(root,end+timedelta(days=30,microseconds=-1))['removed'],0)
+            self.assertEqual(backup_bundle.prune(root,end+timedelta(days=30)),{'removed':1,'failed':0})
+            self.assertFalse(target.exists())
+
+    def test_rotation_preserves_unknown_files_and_custom_backup_names(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);target=root/'20261028T000000Z-1234abcd'
+            backup_bundle.create(server.DATA,target)
+            (target/'user-notes.txt').write_text('TEST preserve')
+            custom=root/'manual-preserve';backup_bundle.create(server.DATA,custom)
+            result=backup_bundle.prune(root,datetime.now(timezone.utc)+timedelta(days=15))
+            self.assertEqual(result,{'removed':0,'failed':1})
+            self.assertTrue((target/'user-notes.txt').exists());self.assertTrue(custom.exists())
 
     def test_bundle_restore_contains_referenced_media_and_detects_corruption(self):
         b=self.active();self.upload(b,self.data(),self.source())

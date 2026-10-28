@@ -90,6 +90,7 @@ def prepare(source, directory):
             '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1', '-map_chapters', '-1',
             '-vf', "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,fps=24",
             '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-pix_fmt', 'yuv420p',
+            '-af', f"atrim=duration={measured['durationMs']/1000}",
             '-c:a', 'aac', '-b:a', '96k', '-threads', '2', '-t', '61', '-fs', str(video_policy.MAX_BYTES),
             '-movflags', '+faststart', '-y', str(output)], timeout=90)
         result = probe(output)

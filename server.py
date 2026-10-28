@@ -32,6 +32,7 @@ import booking_reviews
 import support_tickets
 import booking_disputes
 import booking_http
+import booking_videos
 from video_media import VideoUnavailable
 from media_validation import validate_photo, MediaBusy
 
@@ -417,6 +418,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if admin_accounts.route(self,con,user,path,account_snapshot,roles_for):
                 return
+            if booking_videos.admin_route(self,con,user,path,DATA):
+                return
             if admin_bookings.route(self,con,user,path):
                 return
             if support_tickets.route(self,con,user,path,photo):
@@ -611,7 +614,7 @@ if __name__ == '__main__':
     worker = None
     if ENVIRONMENT in ('local', 'test'):
         from booking_worker import ExpiryWorker
-        worker = ExpiryWorker(db, ENVIRONMENT)
+        worker = ExpiryWorker(db, ENVIRONMENT, media_root=DATA)
         worker.start()
     try:
         http.serve_forever()

@@ -54,7 +54,7 @@ class BookingVideoTests(unittest.TestCase):
         self.expect_error(409,lambda:self.upload(b,data,source))
         with server.db() as con:
             result=videos.overview(con,b['id'],'customer',data['day'],self.start+timedelta(hours=1))
-            self.assertFalse(result['canUpload']);self.assertEqual(result['items'],[first])
+            self.assertFalse(result['canUpload']);self.assertEqual(result['items'],[dict(first,available=True,expiresAt=None)])
             self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_videos').fetchone()[0],1)
             self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE source_key LIKE 'care-video:%'").fetchone()[0],1)
             with self.assertRaises(sqlite3.IntegrityError):con.execute("UPDATE booking_videos SET day='2026-01-01'")
@@ -137,13 +137,16 @@ class BookingVideoTests(unittest.TestCase):
             for user in ['abc','customer','stranger']:
                 con.execute('INSERT INTO sessions VALUES(?,?,?,?)',
                     (hashlib.sha256(('TEST-'+user).encode()).hexdigest(),user,'client',time.time()+60))
-        def call(method,path,query='',raw=b'',user=None,byte_range=None):
+            con.execute('INSERT INTO sessions VALUES(?,?,?,?)',
+                (hashlib.sha256(b'TEST-admin').hexdigest(),'admin','admin',time.time()+60))
+        def call(method,path,query='',raw=b'',user=None,byte_range=None,admin=False):
             env={};setup_testing_defaults(env)
             env.update(REQUEST_METHOD=method,PATH_INFO=path,QUERY_STRING=query,
                        CONTENT_LENGTH=str(len(raw)),CONTENT_TYPE='video/mp4')
             env['wsgi.input']=BytesIO(raw)
             if user:env['HTTP_AUTHORIZATION']='Bearer TEST-'+user
             if byte_range:env['HTTP_RANGE']=byte_range
+            if admin:env['HTTP_COOKIE']='momiq_admin=TEST-admin'
             response={}
             def start(status,headers):response.update(status=int(status.split()[0]),headers=dict(headers))
             response['body']=b''.join(application(env,start));return response
@@ -161,3 +164,13 @@ class BookingVideoTests(unittest.TestCase):
             self.assertEqual(response['status'],206);self.assertEqual(len(response['body']),12)
             self.assertEqual(response['body'][4:8],b'ftyp')
             self.assertEqual(response['headers']['Cache-Control'],'private, no-store')
+            admin_path='/api/admin/bookings/'+b['id']+'/videos'
+            self.assertEqual(call('GET',admin_path,user='customer')['status'],401)
+            overview=call('GET',admin_path,query=urlencode({'day':data['day']}),admin=True)
+            self.assertEqual(overview['status'],200,overview['body'])
+            self.assertFalse(json.loads(overview['body'])['canUpload'])
+            media=call('GET',admin_path+'/'+video+'/poster',admin=True)
+            self.assertEqual(media['status'],200);self.assertEqual(media['headers']['Vary'],'Cookie')
+            self.assertEqual(call('DELETE',admin_path,admin=True)['status'],405)
+            with server.db() as con:
+                self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action IN ('admin-view-booking-videos','admin-view-booking-video')").fetchone()[0],2)

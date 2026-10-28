@@ -4,7 +4,7 @@ Never overwrites a backup; publish only after database and media verification.
 Offsite storage, coordinated media retirement and retention are operator policy.
 """
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 import json
 from pathlib import Path
@@ -13,6 +13,8 @@ import shutil
 import sqlite3
 import tempfile
 from migrations import backup_database
+import media_maintenance
+from video_retention_policy import expires_at
 
 
 def digest(path):
@@ -20,14 +22,19 @@ def digest(path):
         return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
-def references(database):
-    with closing(sqlite3.connect(f'{database.as_uri()}?mode=ro',uri=True)) as con:
+def references(database, now):
+    with closing(sqlite3.connect(f'{database.as_uri()}?mode=ro&immutable=1',uri=True)) as con:
+        con.row_factory=sqlite3.Row
         if con.execute('PRAGMA integrity_check').fetchone()[0] != 'ok' or con.execute('PRAGMA foreign_key_check').fetchone():
             raise ValueError('Backup database integrity failed')
         table=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='booking_videos'").fetchone()
         if not table:return []
         result=[]
-        for identity,video,poster in con.execute('SELECT id,video_hash,poster_hash FROM booking_videos ORDER BY id'):
+        retired=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='video_retirements'").fetchone()
+        for identity,video,poster,booking in con.execute('SELECT id,video_hash,poster_hash,booking_id FROM booking_videos ORDER BY id'):
+            expiry=expires_at(con,booking)
+            if expiry is not None and expiry<=now:continue
+            if retired and con.execute('SELECT 1 FROM video_retirements WHERE video_id=?',(identity,)).fetchone():continue
             if not re.fullmatch(r'[a-f0-9]{32}',identity):raise ValueError('Invalid stored video ID')
             for name,checksum in [('playback.mp4',video),('poster.jpg',poster)]:
                 if not re.fullmatch(r'[a-f0-9]{64}',checksum):raise ValueError('Invalid stored video hash')
@@ -41,7 +48,9 @@ def verify(folder):
     database=folder/'momiq.sqlite3'
     if manifest.get('version')!=1 or digest(database)!=manifest.get('databaseSha256'):
         raise ValueError('Backup manifest/database mismatch')
-    expected=references(database)
+    now=datetime.fromisoformat(manifest['created'])
+    if now.tzinfo is None:raise ValueError('Backup manifest time has no zone')
+    expected=references(database,now)
     if manifest.get('files')!=[{'path':path,'sha256':checksum} for path,checksum in expected]:
         raise ValueError('Backup media manifest mismatch')
     for relative,checksum in expected:
@@ -51,7 +60,65 @@ def verify(folder):
     return {'database':'ok','mediaFiles':len(expected)}
 
 
+def bundle_expiry(folder):
+    """Existing 14-day DB backup rotation, shortened for earlier video expiry."""
+    folder=Path(folder).resolve()
+    manifest=json.loads((folder/'manifest.json').read_text(encoding='utf-8'))
+    created=datetime.fromisoformat(manifest['created'])
+    if created.tzinfo is None:raise ValueError('Backup date requires timezone')
+    expiry=created+timedelta(days=14)
+    database=folder/'momiq.sqlite3'
+    with closing(sqlite3.connect(f'{database.as_uri()}?mode=ro&immutable=1',uri=True)) as con:
+        con.row_factory=sqlite3.Row
+        ids={item['path'].split('/')[1] for item in manifest['files']}
+        for identity in ids:
+            row=con.execute('SELECT booking_id FROM booking_videos WHERE id=?',(identity,)).fetchone()
+            if not row:raise ValueError('Backup media reference missing')
+            video_expiry=expires_at(con,row['booking_id'])
+            if video_expiry is not None:expiry=min(expiry,video_expiry)
+    return expiry
+
+
+def prune(root, now):
+    """Only verified, generated bundles; never follow symlinks or recurse blindly."""
+    root=Path(root).resolve()
+    result={'removed':0,'failed':0}
+    if not root.exists():return result
+    with media_maintenance.lock(root):
+        for folder in root.iterdir():
+            if not re.fullmatch(r'\d{8}T\d{6}Z-[a-f0-9]{8}',folder.name):continue
+            try:
+                if folder.is_symlink() or not folder.is_dir() or folder.resolve().parent!=root:
+                    raise ValueError('Unsafe backup path')
+                if now<bundle_expiry(folder):continue
+                verify(folder)
+                manifest=json.loads((folder/'manifest.json').read_text(encoding='utf-8'))
+                allowed={'manifest.json','momiq.sqlite3',*(item['path'] for item in manifest['files'])}
+                # Older read-only SQLite verification could leave harmless sidecars.
+                if (folder/'momiq.sqlite3-wal').exists():
+                    if (folder/'momiq.sqlite3-wal').stat().st_size:raise ValueError('Unexpected WAL data')
+                    allowed.add('momiq.sqlite3-wal')
+                if (folder/'momiq.sqlite3-shm').exists():allowed.add('momiq.sqlite3-shm')
+                directories={parent.as_posix() for relative in allowed for parent in Path(relative).parents if parent.as_posix()!='.'}
+                paths=list(folder.rglob('*'))
+                for path in paths:
+                    if path.is_symlink() or not path.resolve().is_relative_to(folder):raise ValueError('Unsafe backup content')
+                    if path.is_file() and path.relative_to(folder).as_posix() not in allowed:raise ValueError('Unknown backup content')
+                    if path.is_dir() and path.relative_to(folder).as_posix() not in directories:raise ValueError('Unknown backup directory')
+                for path in paths:
+                    if path.is_file():path.unlink()
+                for path in sorted((p for p in paths if p.is_dir()),key=lambda p:len(p.parts),reverse=True):path.rmdir()
+                folder.rmdir();result['removed']+=1
+            except (OSError,ValueError,KeyError):result['failed']+=1
+    return result
+
+
 def create(data, target):
+    with media_maintenance.lock(data):
+        return _create(data,target)
+
+
+def _create(data, target):
     data,target=Path(data).resolve(),Path(target).absolute()
     if target.exists() or target.is_symlink():raise ValueError('Backup destination already exists')
     target.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
@@ -60,14 +127,15 @@ def create(data, target):
         database=staging/'momiq.sqlite3'
         backup_database(data/'momiq.sqlite3',database)
         database.chmod(0o600)
-        expected=references(database)
+        now=datetime.now(timezone.utc)
+        expected=references(database,now)
         for relative,checksum in expected:
             source=data/relative
             if not source.resolve().is_relative_to(data):raise ValueError('Media path escapes instance')
             destination=staging/relative;destination.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
             shutil.copyfile(source,destination);destination.chmod(0o600)
             if digest(destination)!=checksum:raise ValueError('Source video missing or corrupt')
-        manifest={'version':1,'created':datetime.now(timezone.utc).isoformat(),
+        manifest={'version':1,'created':now.isoformat(),
                   'databaseSha256':digest(database),'files':[{'path':p,'sha256':h} for p,h in expected]}
         (staging/'manifest.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
         (staging/'manifest.json').chmod(0o600)
