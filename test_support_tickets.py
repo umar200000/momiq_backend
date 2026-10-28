@@ -37,7 +37,9 @@ class SupportTests(unittest.TestCase):
     def admin(self,path,body=None,status=200,binary=False):
         if not hasattr(self,'admin_token'):
             self.admin_token=secrets.token_hex(32)
-            with server.db() as con:con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(self.admin_token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
+            with server.db() as con:
+                con.execute("INSERT OR IGNORE INTO admins VALUES('test-admin','TEST salt','disabled')")
+                con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(self.admin_token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
         req=Request(self.base+path,data=json.dumps(body).encode() if body is not None else None,headers={'Cookie':'momiq_admin='+self.admin_token,'Content-Type':'application/json'})
         try:response=urlopen(req)
         except HTTPError as e:response=e

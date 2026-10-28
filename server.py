@@ -304,6 +304,8 @@ class Handler(BaseHTTPRequestHandler):
         session = con.execute("SELECT * FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
         if not session:
             raise ApiError(401, "Qayta kiring")
+        if role == "admin" and not con.execute("SELECT 1 FROM admins WHERE username=?", (session["user_id"],)).fetchone():
+            raise ApiError(401, "Qayta kiring")
         if role == "client":
             user = con.execute("SELECT * FROM users WHERE id=?", (session["user_id"],)).fetchone()
             if not user or user["blocked"]:
@@ -391,6 +393,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/admin/login" and self.command == "POST":
                 data = self.body()
                 self.throttle(con, "admin:" + self.client_ip())
+                # Serialize credential verification and issuance with revocation.
+                con.execute('BEGIN IMMEDIATE')
                 row = con.execute("SELECT * FROM admins WHERE username=?", (string(data.get("username","")),)).fetchone()
                 if not row or not hmac.compare_digest(row["hash"],password_hash(string(data.get("password",""),200),row["salt"])):
                     raise ApiError(401,"Login yoki parol noto‘g‘ri")

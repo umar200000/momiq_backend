@@ -25,6 +25,7 @@ class ChatModerationTests(unittest.TestCase):
     def admin_req(self, path, data=None, actor='operator-one', status=200):
         token = hashlib.sha256(actor.encode()).hexdigest()
         with server.db() as con:
+            con.execute("INSERT OR IGNORE INTO admins VALUES(?,'TEST salt','disabled')", (actor,))
             con.execute('INSERT OR IGNORE INTO sessions VALUES(?,?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), actor, 'admin', time.time()+3600))
         request = Request(self.base+'/api/admin'+path, data=json.dumps(data).encode() if data is not None else None,
                           headers={'Content-Type':'application/json', 'Cookie':'momiq_admin='+token})
@@ -86,6 +87,7 @@ class ChatModerationTests(unittest.TestCase):
         def post(actor):
             token = hashlib.sha256(actor.encode()).hexdigest()
             with server.db() as con:
+                con.execute("INSERT OR IGNORE INTO admins VALUES(?,'TEST salt','disabled')", (actor,))
                 con.execute('INSERT OR IGNORE INTO sessions VALUES(?,?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), actor, 'admin', time.time()+3600))
             barrier.wait()
             request = Request(self.base+'/api/admin'+review, data=json.dumps(data).encode(), headers={'Content-Type':'application/json','Cookie':'momiq_admin='+token})

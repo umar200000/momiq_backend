@@ -46,11 +46,11 @@ Select an existing release directory under `/opt/momiq/releases/backend`, replac
 
 ## Mobile app
 
-Flutter CI checks analysis/tests. App API default is the hosted HTTPS endpoint. Mobile store publication, signing, SMS, pushes, bookings and sitter-side backend completion are separate work.
+Flutter CI checks analysis/tests, Android builds and an unsigned iOS simulator build. Local/test booking, sitter and wallet workflows are implemented; hosted booking/publication remain deliberately gated. Mobile store publication, signing, SMS, MyID, external pushes and real-device acceptance remain separate release work. The checklist records exact tested commits and remaining gates.
 
 ## Empty catalog and removal of demo data
 
-`GET /api/sitters` reads active rows from SQLite `sitters`; the table is created empty. There is no automatic demo seed. Real sitter registration/publication is not implemented by this change. Admin chat is unavailable until real sitter records exist.
+`GET /api/sitters` reads the paginated moderated service catalog. There is no automatic demo seed; explicitly seeded local TEST listings are not production-approved/MyID-verified listings. The legacy `sitters` table is retained for old support/favorite records, not as the current catalog source. Account enrollment, listing submission and test moderation exist; production verification/publication are still gated.
 
 One-time migration: `sudo python3 /opt/momiq/current/backend/deploy/cleanup_demo_data.py /var/lib/momiq/momiq.sqlite3 /var/backups/momiq`. It first creates a verified backup, removes messages/favorites for the five former hardcoded demo contacts and removes the known deployment test account only when its phone and profile match. Other accounts and uploaded pets/addresses are retained. The command is idempotent and not part of normal deployments.
 
@@ -72,3 +72,9 @@ Format references: [Gunicorn logging settings](https://gunicorn.org/reference/se
 CI runs pip-audit 2.10.1 in a separate tooling virtual environment with `--disable-pip --require-hashes -r requirements.txt`; a known advisory or failed audit prevents the test job, and therefore deployment, from passing. The local 2026-10-29 scan reported no known advisories for gunicorn23.0.0, packaging25.0 and Pillow13.0.0. This covers the published Python package advisory feed, not proof against unknown vulnerabilities, native codec/OS vulnerabilities, malicious packages, the audit tool's own dependency chain, secrets or licensing. Git/history secret scanning, credential rotation and the remaining native/mobile inventory remain M107/M131 work. [pip-audit documentation](https://pypi.org/project/pip-audit/).
 
 All three repositories additionally fetch full Git history and run checksum-pinned [Gitleaks 8.30.1](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1), with upstream default rules, no ignored fingerprints/inline allow comments and 100% output redaction. The scan is local to the runner and fails the test job on findings/errors; app/secret contents are not uploaded to a scanner service. Local scans of 70 backend, 62 app and 26 admin commits across currently reachable local refs reported no detected secrets. This does not include unreachable/deleted remote history, private untracked runtime files, old logs or provider-side restrictions/rotation. A clean pattern scan is not proof that no secret exists.
+
+## Administrator session revocation
+
+Schema 23 removes orphaned administrator sessions during upgrade. Subsequent deletion, renaming, password/salt changes or replacement of an administrator record revoke that operator's sessions atomically. Recreating the same username never revives its old cookies; ordinary client sessions are unaffected. Every authenticated admin request also requires a current administrator record. Credential verification and session issuance share a write transaction so a concurrent password reset cannot leave a newly issued old-password session behind.
+
+This protects subsequent authentication, not cancellation of a request already authorized and in flight. Operator provisioning, scoped roles, MFA, credential-change audit/UI and an operational incident procedure remain M092/M097/M102 work; do not present the existing shared full-admin account as the final production access model. These changes require schema 23; migrate with a verified backup and never roll back only the code against a newer schema.

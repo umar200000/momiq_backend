@@ -103,7 +103,9 @@ class BookingHttpTests(unittest.TestCase):
         self.req('/api/me','PUT',changed,user='abc',status=409)
         self.assertEqual(self.req('/api/me',user='abc')['account'],account)
         token=secrets.token_hex(32)
-        with server.db() as con:con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
+        with server.db() as con:
+            con.execute("INSERT OR IGNORE INTO admins VALUES('test-admin','TEST salt','disabled')")
+            con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
         request=Request(self.base+'/api/admin/users/abc',method='PUT',
                         data=json.dumps({'account':changed,'_revision':account['_revision']}).encode(),
                         headers={'Cookie':'momiq_admin='+token,'Content-Type':'application/json'})
@@ -137,7 +139,9 @@ class BookingHttpTests(unittest.TestCase):
         self.req('/api/admin/reviews',status=401)
         self.req('/api/admin/reviews/'+rid+'/moderate','POST',{},status=401)
         token=secrets.token_hex(32)
-        with server.db() as con:con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
+        with server.db() as con:
+            con.execute("INSERT OR IGNORE INTO admins VALUES('test-admin','TEST salt','disabled')")
+            con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
         def admin(target,body=None):
             req=Request(self.base+target,data=json.dumps(body).encode() if body else None,
                         headers={'Cookie':'momiq_admin='+token,'Content-Type':'application/json'})

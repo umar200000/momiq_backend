@@ -21,6 +21,7 @@ class AdminBookingTests(unittest.TestCase):
         http_tests.BookingHttpTests.setUp(self)
         self.admin_token=secrets.token_hex(32)
         with server.db() as con:
+            con.execute("INSERT INTO admins VALUES('TEST operator','TEST salt','disabled')")
             con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(self.admin_token.encode()).hexdigest(),'TEST operator','admin',time.time()+3600))
 
     def admin(self,path,method='GET',status=200):

@@ -190,6 +190,14 @@ MIGRATIONS = (
         "CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT,'Audit journal is immutable'); END",
         "CREATE TRIGGER audit_no_replace BEFORE INSERT ON audit WHEN EXISTS(SELECT 1 FROM audit WHERE id=NEW.id) BEGIN SELECT RAISE(ABORT,'Audit journal is immutable'); END",
     )),
+    (23, 'revoke administrator sessions when credentials change', (
+        'CREATE TABLE IF NOT EXISTS admins(username TEXT PRIMARY KEY,salt TEXT NOT NULL,hash TEXT NOT NULL)',
+        'CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,role TEXT NOT NULL,expires REAL NOT NULL)',
+        "DELETE FROM sessions WHERE role='admin' AND NOT EXISTS(SELECT 1 FROM admins WHERE username=sessions.user_id)",
+        "CREATE TRIGGER admins_revoke_delete AFTER DELETE ON admins BEGIN DELETE FROM sessions WHERE role='admin' AND user_id=OLD.username; END",
+        "CREATE TRIGGER admins_revoke_insert AFTER INSERT ON admins BEGIN DELETE FROM sessions WHERE role='admin' AND user_id=NEW.username; END",
+        "CREATE TRIGGER admins_revoke_update AFTER UPDATE OF username,salt,hash ON admins WHEN NEW.username IS NOT OLD.username OR NEW.salt IS NOT OLD.salt OR NEW.hash IS NOT OLD.hash BEGIN DELETE FROM sessions WHERE role='admin' AND user_id IN (OLD.username,NEW.username); END",
+    )),
 )
 
 
