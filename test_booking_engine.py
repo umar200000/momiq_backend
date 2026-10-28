@@ -6,12 +6,15 @@ import secrets
 import sqlite3
 import threading
 import unittest
+from unittest.mock import patch
 
 import booking_engine as engine
 import catalog
 import server
 import test_catalog
 import wallet
+import notifications
+import booking_worker
 
 
 class BookingEngineTests(unittest.TestCase):
@@ -89,6 +92,44 @@ class BookingEngineTests(unittest.TestCase):
             self.assertEqual(con.execute('SELECT COUNT(*) FROM bookings').fetchone()[0], 1)
         self.expect_error(403, lambda: self.act(booking, user='customer'))
         self.expect_error(404, lambda: self.act(booking, user='stranger'))
+
+    def test_booking_notices_are_atomic_and_never_duplicate_on_retry(self):
+        booking=self.request(); identity=booking['id']; source='booking:'+identity+':%'
+        original=notifications.publish
+        def fail_after_insert(*args):
+            original(*args)
+            raise RuntimeError('TEST notice storage failure')
+        with patch.object(notifications,'publish',side_effect=fail_after_insert):
+            with self.assertRaises(RuntimeError): self.act(booking)
+        with server.db() as con:
+            self.assertEqual(wallet.balance(con,'abc'),100000000)
+            self.assertEqual(engine.view(con,identity,'customer')['status'],'pending')
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM notifications WHERE source_key LIKE ?',(source,)).fetchone()[0],2)
+        key=secrets.token_hex(16)
+        accepted=self.act(booking,request=key)
+        self.act(booking,request=key)
+        key=secrets.token_hex(16)
+        self.act(accepted,'cancel',user='customer',request=key)
+        self.act(accepted,'cancel',user='customer',request=key)
+        with server.db() as con:
+            rows=con.execute('SELECT user_id,payload FROM notifications WHERE source_key LIKE ? ORDER BY id',(source,)).fetchall()
+            self.assertEqual(len(rows),6)
+            for user in ['customer','abc']:
+                self.assertEqual([json.loads(r['payload'])['status'] for r in rows if r['user_id']==user],['pending','accepted','cancelled'])
+            self.assertEqual(wallet.balance(con,'abc'),100000000)
+
+    def test_expiry_worker_drains_bounded_batches_without_client_requests(self):
+        for _ in range(12): self.request()
+        due=self.now+timedelta(hours=2)
+        self.assertEqual(booking_worker.run_once(server.db,'local',now=due,batch_size=5,max_batches=2),10)
+        self.assertEqual(booking_worker.run_once(server.db,'local',now=due,batch_size=5,max_batches=2),2)
+        self.assertEqual(booking_worker.run_once(server.db,'local',now=due),0)
+        self.expect_error(503,lambda:booking_worker.run_once(server.db,'production',now=due))
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM bookings WHERE status='expired'").fetchone()[0],12)
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM booking_events WHERE action='expire'").fetchone()[0],12)
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE source_key LIKE 'booking:%'").fetchone()[0],48)
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM wallet_entries WHERE kind='commission'").fetchone()[0],0)
 
     def test_parallel_accept_same_request_charges_exactly_once(self):
         booking = self.request(); key = secrets.token_hex(16); barrier = threading.Barrier(2)

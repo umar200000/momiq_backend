@@ -1,4 +1,4 @@
-"""Booking transaction core. HTTP/mobile integration is not yet enabled.
+"""Booking transaction core, integrated with the local/test HTTP/mobile flow.
 
 Started-24-hour pricing was approved on 2026-10-28. Production and hosted staging
 are still rejected until the remaining service lifecycle is integrated.
@@ -16,6 +16,7 @@ import booking_rules as rules
 import catalog
 import conversations
 import wallet
+import notifications
 from media_validation import validate_photo
 
 
@@ -203,6 +204,9 @@ def record(con, row, actor, action, reason, current):
                 (row['id'], row['revision'], actor, action, reason, row['status'], stamp(current)))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
                 (actor, 'booking-'+action, encode({'id': row['id'], 'revision': row['revision'], 'reason': reason}), stamp(current)))
+    for recipient in (row['customer_id'], row['sitter_id']):
+        notifications.publish(con, recipient, f"booking:{row['id']}:{row['revision']}:{recipient}",
+                              'booking', row['id'], row['status'], reason)
 
 
 def retry_key(request_id, payload):
@@ -270,11 +274,17 @@ def change(con, row, status, actor, action, reason, current):
     return updated
 
 
-def expire_due(con, *, environment, now, limit=200):
+def expire_due(con, *, environment, now, limit=200, owner=None, identity=None):
     rules.integer(limit, 1, 1000)
     begin(con)
     test_gate(con, environment)
-    rows = con.execute("SELECT * FROM bookings WHERE status='pending' AND reply_deadline<=? ORDER BY reply_deadline LIMIT ?", (stamp(now), limit)).fetchall()
+    clause = ''; args = [stamp(now)]
+    if owner is not None:
+        clause += ' AND (customer_id=? OR sitter_id=?)'; args.extend([owner, owner])
+    if identity is not None:
+        clause += ' AND id=?'; args.append(identity)
+    args.append(limit)
+    rows = con.execute("SELECT * FROM bookings WHERE status='pending' AND reply_deadline<=?"+clause+" ORDER BY reply_deadline LIMIT ?", args).fetchall()
     for row in rows:
         change(con, row, 'expired', 'system', 'expire', 'Javob muddati tugadi', now)
     return len(rows)

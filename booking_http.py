@@ -4,6 +4,7 @@ import re
 from urllib.parse import parse_qs, urlparse, unquote
 
 import booking_engine as engine
+import booking_chat
 import conversations
 
 
@@ -25,6 +26,13 @@ def route(handler, con, user, path, environment):
                             'homeVisitTerms': {'durationAffectsPrice': False, 'fixedVisitCount': None, 'fixedVisitMinutes': None},
                             'testOnly': True, 'customerPaysSitterDirectly': True,
                             'quoteValiditySeconds': 600})
+        return True
+    chat = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/conversation', path)
+    if chat and handler.command == 'POST':
+        body(handler, [])
+        result = booking_chat.open_chat(con, chat[1], user, environment)
+        con.commit()
+        handler.reply(200, result)
         return True
     if path == '/api/bookings/quotes' and handler.command == 'POST':
         data = body(handler, ['listingId', 'petIds', 'startsAt', 'endsAt', 'instructions', 'addressId', 'petPassports'])
@@ -50,7 +58,7 @@ def route(handler, con, user, path, environment):
         before = conversations.number(cursor) if cursor is not None else None
         # Expiry is lazy, durable and bounded. Explicit worker scheduling remains
         # separate; a stale pending action still expires itself atomically.
-        engine.expire_due(con, environment=environment, now=now)
+        engine.expire_due(con, environment=environment, now=now, owner=user)
         con.commit()
         con.execute('BEGIN')
         args = [user, user]; clause = '(customer_id=? OR sitter_id=?)'
@@ -84,7 +92,7 @@ def route(handler, con, user, path, environment):
         return True
     if not action and handler.command == 'GET':
         engine.owned(con, identity, user)
-        engine.expire_due(con, environment=environment, now=now)
+        engine.expire_due(con, environment=environment, now=now, identity=identity, limit=1)
         con.commit()
         con.execute('BEGIN')
         handler.reply(200, engine.view(con, identity, user))

@@ -165,6 +165,11 @@ def route(handler, con, user, path, validate_photo, environment):
             handler.reply(200, {'items': [summary(con, r, user) for r in rows[:PAGE]],
                                 'nextCursor': f"{rows[PAGE-1]['activity']}:{rows[PAGE-1]['seq']}" if len(rows) > PAGE else None})
             return True
+    related = re.fullmatch(r'/api/conversations/([a-f0-9]{32})/bookings', path)
+    if related and handler.command == 'GET':
+        import booking_chat
+        handler.reply(200, booking_chat.related(con, related[1], user, environment, query.get('before', [None])[0]))
+        return True
     match = re.fullmatch(r'/api/conversations/([a-f0-9]{32})(?:/(messages|read)(?:/([1-9][0-9]{0,17})/image)?)?', path)
     if not match:
         raise ChatError(404, 'Topilmadi')

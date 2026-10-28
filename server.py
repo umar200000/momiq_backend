@@ -558,4 +558,15 @@ if __name__ == '__main__':
     setup()
     print(f'Momiq API: http://{HOST}:{PORT}/api/health')
     print(f'Admin: http://{HOST}:{PORT}/admin/ | credentials: {DATA / "admin-login.txt"}')
-    ThreadingHTTPServer((HOST,PORT),Handler).serve_forever()
+    http = ThreadingHTTPServer((HOST,PORT),Handler)
+    worker = None
+    if ENVIRONMENT in ('local', 'test'):
+        from booking_worker import ExpiryWorker
+        worker = ExpiryWorker(db, ENVIRONMENT)
+        worker.start()
+    try:
+        http.serve_forever()
+    finally:
+        if worker:
+            worker.stop()
+        http.server_close()

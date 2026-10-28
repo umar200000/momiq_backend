@@ -74,6 +74,41 @@ class BookingHttpTests(unittest.TestCase):
         self.req('/api/bookings?before=-1',status=400)
         self.req('/api/bookings?status=invalid',status=400)
 
+    def test_booking_chat_is_shared_and_survives_low_balance(self):
+        booking=self.book(); path='/api/bookings/'+booking['id']
+        self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        with server.db() as con:
+            con.execute("UPDATE wallet_accounts SET balance_minor=0 WHERE user_id='abc'")
+        chat=self.req(path+'/conversation','POST',{},user='abc')
+        self.assertEqual(chat['myRole'],'sitter')
+        self.assertEqual(self.req(path+'/conversation','POST',{})['id'],chat['id'])
+        index='/api/conversations/'+chat['id']+'/bookings'
+        related=self.req(index)
+        self.assertEqual([x['id'] for x in related['items']],[booking['id']])
+        self.assertEqual(self.req(index,user='abc'),related)
+        self.assertNotIn('PRIVATE',json.dumps(related))
+        self.assertNotIn('snapshot',json.dumps(related))
+        self.req(index,user='stranger',status=404)
+        self.req(path+'/conversation','POST',{},user='stranger',status=404)
+        self.req(path+'/conversation','POST',{'customerId':'stranger'},status=400)
+        self.req(index+'?before=-1',status=400)
+        self.assertEqual(self.req(index+'?before=1')['items'],[])
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM conversations').fetchone()[0],1)
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM wallet_entries WHERE kind='commission'").fetchone()[0],1)
+
+    def test_booking_chat_respects_blocks_and_closed_unaccepted_requests(self):
+        booking=self.book(); path='/api/bookings/'+booking['id']
+        with server.db() as con:
+            con.execute("INSERT INTO chat_blocks VALUES('customer','abc',1,1,?)",(server.now(),))
+        self.req(path+'/conversation','POST',{},status=409)
+        with server.db() as con:
+            con.execute("UPDATE chat_blocks SET active=0 WHERE blocker_id='customer'")
+        self.req(path+'/reject','POST',{'revision':0,'requestId':secrets.token_hex(16),'reason':'TEST decline'},user='abc')
+        self.req(path+'/conversation','POST',{},status=409)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM conversations').fetchone()[0],0)
+
     def test_paging_expiry_and_boundaries(self):
         for i in range(22):
             if i==20:
