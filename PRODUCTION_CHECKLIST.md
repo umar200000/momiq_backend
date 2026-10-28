@@ -47,6 +47,11 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Bajarilish jurnali — 2026-10-27**
 
+- 2026-10-28, M051/M052/M067/M068 yopildi: server/mobile stable request retry, double-tap va restart; enaga accept/reject/deadline huquqlari; ikki ishtirokchi va xizmatga bog‘langan chat/booking navigatsiyasi tekshirildi. `c15f92f` backend CI (107 test) va `8f7fe49` app CI (to‘liq testlar, Android ARM64, iOS simulator) success. Native yangi buildda buyurtma → oldingi haqiqiy suhbat → faqat shu xizmat buyurtmalari, bildirishnoma → aynan o‘sha expired buyurtma ochildi; o‘qilmagan soni 3→2 bo‘ldi. Dalillar `.local/native-booking-chat.png`, `native-chat-bookings.png`, `native-booking-notices.png`, `native-notice-booking.png`. 25/139 band yopilgan; bu tayyorlik foizi emas. To‘liq hayot davri, no-show/admin, qidiruv/filter, boshqa operatsion va reliz bandlari ochiq.
+- 2026-10-28, texnik qayd: yangi APK o‘rnatilgach Android PackageUpdateActivity tugashi va ekran uyg‘onishi kutilgan; yangi ANR/FATAL kuzatilmadi, oldingi 10:16 Geolocator timeout sababi hali M131’da ochiq. Bildirishnoma async kontekstidagi analyzer ogohlantirishlari explicit mounted/session tekshiruvlari bilan tuzatildi. Qayta build 35.1 soniya. Productionga deploy qilinmadi: mavjud hosted test-login konfiguratsiyasini server admin kirishi bilan almashtirish bosqichi va umumiy release gate ochiq; draft branch push production deploy triggeri emas.
+
+- 2026-10-28, haqiqiy fon sinovi: preview server yangilangach 90 soniya javob muddati bo‘lgan TEST so‘rov yaratildi. Keyin hech qanday booking GET/refresh yuborilmadi; DB’ni read-only tekshirishda worker `expired`, revision 1, bitta expire hodisasi, jami 4 participant bildirishnomasi va 0 balans yozuvi chiqardi. Dalil `.local/booking-worker-live-proof.json`. Backend `c15f92f` CI 107 test bilan success; app `8f7fe49` CI ketmoqda, local analyzer toza va yakuniy x64 APK 35.1 soniyada yig‘ildi. To‘liq 174 mobil testdan keyingi bildirishnoma o‘zgarishi 23 ta birgalikdagi va 6 ta yakuniy maqsadli test bilan tekshirildi.
+
 - 2026-10-28, M052/M054/M056/M083 davomida: har bir bron hodisasi ikkala ishtirokchiga atomar in-app bildirishnoma yozadi; status/xabar/komissiyadan bittasi xato bo‘lsa hammasi rollback. Mobil bildirishnoma aynan o‘sha bronni ochadi, URL yoki begona target qabul qilmaydi. Local/test serverida 30 soniyalik expiry worker bor; har tick 5×200 bilan cheklangan, restart DB deadline’dan davom etadi, vaqtinchalik xato keyingi tickda retry. Production/staging yoqilmadi; tashqi push va no-show admin oqimi ochiq. 107 Python testi o‘tdi, 23 maqsadli mobil test o‘tdi (oldingi to‘liq 174); analyzer async mounted/lint topgan joylar tuzatilib qayta tekshirilmoqda.
 
 - 2026-10-28, native bron sinovi yakunlandi: emulatorda 100 000 so‘m TEST xizmat qabul qilindi; 10 000 so‘m komissiya bitta yozuv bilan yechildi, balans 15 000 → 5 000 bo‘ldi va katalogdan yashirildi. Ilovadan sabab bilan bekor qilingach 10 000 bir marta qaytdi, balans 15 000 va katalog qaytdi. Dalillar `.local/native-booking-proof.json`, `native-booking-accepted.png`, `native-booking-cancelled.png`; haqiqiy pul/xizmat yo‘q. Exact manzil pending/cancelled holatda yashirin, accepted holatda ko‘rindi.
@@ -247,8 +252,8 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 - [x] M048 — Xizmat jami summasini serverda hisoblash: tanlangan har hayvonning shu xizmatdagi kunlik tarifi × kunlar soni, so‘mda aniq hisob; 500 000 × 2 × 3 = 3 000 000 misoli test qilinadi, shaxsiy enagada 2 hayvon rad etiladi, mijoz xizmat puli Momiq orqali olinmaydi.
 - [ ] M049 — Bron paytida mavjudlikni atomar tekshirish: parallel so‘rovlar bir joyni ikki marta band qilmaydi; shaxsiy enaga va uyga tashrif cheklovlari boshqa xizmatlar bilan ham hisoblanadi.
 - [ ] M050 — To‘rt bosqichli buyurtma formasini ulash: hayvon, sana/manzil, pasport, yakuniy taklif; server tasdig‘isiz muvaffaqiyat ekrani ochilmaydi, xatoda kiritilganlar saqlanadi.
-- [ ] M051 — Takroriy tasdiqlashni himoyalash: double-tap, timeoutdan keyingi retry va uzilgan aloqa bitta buyurtma yaratadi; natijani qayta tekshirish yo‘li bor.
-- [ ] M052 — Enaga qabul/rad etishini ulash: javob muddati, sabab, buyurtma egasi huquqi va bandlik qayta tekshiruvi; ikkala tomondagi holat mos yangilanadi.
+- [x] M051 — Takroriy tasdiqlashni himoyalash: double-tap, timeoutdan keyingi retry va uzilgan aloqa bitta buyurtma yaratadi; natijani qayta tekshirish yo‘li bor.
+- [x] M052 — Enaga qabul/rad etishini ulash: javob muddati, sabab, buyurtma egasi huquqi va bandlik qayta tekshiruvi; ikkala tomondagi holat mos yangilanadi.
 - [ ] M053 — Mijoz va enaga buyurtma ro‘yxati/tafsilotlarini ulash: kutilayotgan, faol, tarix, sahifalash va qidiruv; ruxsatsiz hisob buyurtmani ko‘rolmaydi.
 - [ ] M054 — Kelishilgan bekor qilish siyosatini ulash: kim/qachon/sabab, komissiyani enaga balansiga qaytarish, sig‘im va bildirishnoma; takroriy so‘rov pulni ikki marta qaytarmaydi, mijozning xizmat puliga aralashilmaydi.
 - [ ] M055 — Boshlash va yakunlashni ulash: hayvonni topshirish/qabul qilish tasdig‘i, vaqt chegaralari va rol huquqlari; nizoli holat avtomatik yakunlanmaydi.
@@ -277,8 +282,8 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 
 **I. Mijoz va enaga yozishmasi**
 
-- [ ] M067 — Suhbatni ikki haqiqiy ishtirokchiga bog‘lash: mijoz/enaga identifikatori, xizmat/buyurtma konteksti; boshqa hisob ID’ni almashtirib xabar o‘qiy olmaydi.
-- [ ] M068 — Suhbat boshlashni profil va buyurtmadan ulash: enaga tomonda chatlar ro‘yxati va javob berish ishlaydi; yozishma boshlash sharti mahsulot qoidasiga mos.
+- [x] M067 — Suhbatni ikki haqiqiy ishtirokchiga bog‘lash: mijoz/enaga identifikatori, xizmat/buyurtma konteksti; boshqa hisob ID’ni almashtirib xabar o‘qiy olmaydi.
+- [x] M068 — Suhbat boshlashni profil va buyurtmadan ulash: enaga tomonda chatlar ro‘yxati va javob berish ishlaydi; yozishma boshlash sharti mahsulot qoidasiga mos.
 - [ ] M069 — Xabar yuborish, tartib, sahifalash va retry’ni tugatish: matn/rasm, yuborilmoqda/xato/qayta yuborish; vaqt yoki requestId kolliziyasi dublikat yaratmaydi.
 - [x] M070 — Xabarlarni samarali yangilash: delta/cursor yoki tanlangan realtime mexanizm, qayta ulanish va fondagi pollingni to‘xtatish; butun tarix har 3 soniyada yuklanmaydi.
 - [ ] M071 — Yetkazildi/o‘qildi va o‘qilmagan sonini ulash: bir nechta qurilmada mos, eski xabar ochilishi yangi xabarni noto‘g‘ri o‘qilgan qilmaydi.
