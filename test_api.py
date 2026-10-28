@@ -234,6 +234,31 @@ class ApiTests(unittest.TestCase):
         other=self.login('998909000005')
         self.assertEqual(other['account'],updated)
 
+    def test_pet_safety_validation_legacy_roundtrip_and_owner_scope(self):
+        a=self.login('998900000041');other=self.login('998900000042')
+        a['account']['profile'].update(first='TEST',last='Care')
+        values={'vaccinations':'TEST passport notes', 'allergies':'TEST fish',
+                'medications':'TEST owner instruction', 'behavior':'TEST timid',
+                'emergencyName':'TEST contact', 'emergencyPhone':'+998900000099'}
+        pet=dict(id='safety-pet',type='Mushuk',photo=fixture_image(),**values)
+        saved=self.req('/api/me','PUT',dict(a['account'],pets=[pet]),token=a['token'])['account']
+        for field,value in values.items(): self.assertEqual(saved['pets'][0][field],value)
+        # Old mobile versions omit new fields; omission must not erase care facts.
+        legacy=json.loads(json.dumps(saved))
+        for field in values: legacy['pets'][0].pop(field)
+        saved=self.req('/api/me','PUT',legacy,token=a['token'])['account']
+        for field,value in values.items(): self.assertEqual(saved['pets'][0][field],value)
+        self.assertEqual(self.req('/api/me',token=other['token'])['account']['pets'],[])
+        for field,value in [('allergies',False),('medications','x'*2001),('emergencyName','x'*121),
+                            ('emergencyPhone','99890'),('emergencyPhone','+998 90'),('behavior','x\x00')]:
+            invalid=json.loads(json.dumps(saved));invalid['pets'][0][field]=value
+            self.req('/api/me','PUT',invalid,token=a['token'],expected=400)
+        # Explicit clear is supported and unknown never becomes a medical claim.
+        saved['pets'][0].update({field:None for field in values})
+        cleared=self.req('/api/me','PUT',saved,token=a['token'])['account']
+        for field in values: self.assertEqual(cleared['pets'][0][field],'')
+        self.assertFalse(any(cleared['pets'][0].get(k) for k in ['vaccinated','healthy']))
+
     def test_pet_archive_restore_ownership_revision_and_legacy_saves(self):
         login=self.login('998909000021'); token=login['token']
         other=self.login('998909000022')

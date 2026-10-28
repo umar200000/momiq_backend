@@ -18,6 +18,7 @@ from config import Settings
 from migrations import migrate
 import wallet
 import catalog
+import pet_safety
 import notifications
 import conversations
 import chat_moderation
@@ -173,6 +174,7 @@ def validate_account(data):
         if not isinstance(pet, dict) or pet.get('type') not in ['It','Mushuk','Boshqa']: raise ValueError('Hayvon turi noto‘g‘ri')
         if not photo(pet.get('photo')): raise ValueError('Hayvon rasmi majburiy')
         item = {key:string('' if pet.get(key) is None else pet[key],100 if key=='id' else 2000) for key in ['id','name','age','sex','breed','notes','otherType']}
+        item.update(pet_safety.validate(pet))
         if not item['id'] or item['id'] in pet_ids: raise ValueError('Hayvon ID takrorlangan yoki bo‘sh')
         pet_ids.add(item['id'])
         if item['age'] and (not item['age'].isascii() or not item['age'].isdigit() or not 0<=int(item['age'])<=100): raise ValueError('Hayvon yoshi noto‘g‘ri')
@@ -433,8 +435,14 @@ class Handler(BaseHTTPRequestHandler):
                     # Old clients may omit archived pets or their new flag. A full
                     # profile save must not silently delete/restore those records.
                     old_pets = {p['id']:p for p in before.get('pets',[])}
+                    incoming_pets = {p['id']:p for p in data.get('pets',[])}
                     for pet in account['pets']:
-                        pet['archived'] = bool(old_pets.get(pet['id'],{}).get('archived',False))
+                        old_pet = old_pets.get(pet['id'],{})
+                        pet['archived'] = bool(old_pet.get('archived',False))
+                        # Omitted new fields from an older client are not a clear.
+                        for field in pet_safety.FIELDS:
+                            if field not in incoming_pets[pet['id']]:
+                                pet[field] = old_pet.get(field,'')
                     retained_ids = {p['id'] for p in account['pets']}
                     account['pets'].extend(p for key,p in old_pets.items() if key not in retained_ids)
                     if len(account['pets'])>30: raise ValueError('Arxiv bilan birga hayvonlar soni 30 dan oshmasin')

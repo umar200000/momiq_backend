@@ -33,6 +33,34 @@ class BookingHttpTests(unittest.TestCase):
     def book(self):
         return self.req('/api/bookings','POST',{'quoteId':self.quote()['id'],'requestId':secrets.token_hex(16)})
 
+    def test_care_facts_are_immutable_and_emergency_contact_is_scoped(self):
+        values={'vaccinations':'PRIVATE vaccine note', 'allergies':'PRIVATE allergy',
+                'medications':'PRIVATE instruction', 'behavior':'PRIVATE behavior',
+                'emergencyName':'PRIVATE emergency', 'emergencyPhone':'+998900000099'}
+        with server.db() as con:
+            account=json.loads(con.execute("SELECT account FROM users WHERE id='customer'").fetchone()[0])
+            account['pets'][0].update(values)
+            con.execute("UPDATE users SET account=? WHERE id='customer'",(json.dumps(account),))
+        self.assertNotIn('PRIVATE',json.dumps(self.req('/api/sitters')))
+        booking=self.book();path='/api/bookings/'+booking['id']
+        sitter=self.req(path,user='abc')['snapshot']['pets'][0]
+        self.assertEqual(sitter['allergies'],values['allergies'])
+        self.assertNotIn('emergencyPhone',sitter);self.assertNotIn('emergencyName',sitter)
+        self.assertEqual(booking['snapshot']['pets'][0]['emergencyPhone'],values['emergencyPhone'])
+        self.req(path,user='stranger',status=404)
+        for user in ['customer','abc','stranger']:
+            self.assertNotIn('PRIVATE',json.dumps(self.req('/api/bookings',user=user)))
+            self.assertEqual(self.req('/api/bookings?q=PRIVATE',user=user)['items'],[])
+        with server.db() as con:
+            account['pets'][0].update({k:'CHANGED' for k in values})
+            con.execute("UPDATE users SET account=? WHERE id='customer'",(json.dumps(account),))
+        accepted=self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        for field,value in values.items(): self.assertEqual(accepted['snapshot']['pets'][0][field],value)
+        self.req(path+'/cancel','POST',{'revision':1,'requestId':secrets.token_hex(16),'reason':'TEST only'})
+        sitter=self.req(path,user='abc')['snapshot']['pets'][0]
+        self.assertNotIn('emergencyPhone',sitter)
+        self.assertEqual(self.req(path)['snapshot']['pets'][0]['emergencyPhone'],values['emergencyPhone'])
+
     def test_full_request_accept_cancel_and_retry_http_flow(self):
         policy=self.req('/api/bookings/policy')
         self.assertEqual(policy['version'],'elapsed-24h-v1')

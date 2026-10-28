@@ -193,6 +193,12 @@ def view(con, identity, user):
     detail = json.loads(con.execute('SELECT snapshot FROM booking_quotes WHERE id=?', (row['quote_id'],)).fetchone()[0])
     if row['status'] not in ('accepted', 'active', 'completed', 'disputed'):
         detail['address'] = {'address': 'Toshkent'}
+    # The owner can review their snapshot; a proposed sitter only needs the
+    # emergency contact after acceptance while care/support remains relevant.
+    if user != row['customer_id'] and row['status'] not in ('accepted','active','disputed'):
+        for pet in detail.get('pets',[]):
+            pet.pop('emergencyName', None)
+            pet.pop('emergencyPhone', None)
     events = [dict(e) for e in con.execute('SELECT revision,actor,action,reason,status,created FROM booking_events WHERE booking_id=? ORDER BY revision', (identity,))]
     peer = row['sitter_id'] if user == row['customer_id'] else row['customer_id']
     confirmations = {action: {'mine': any(e['action']==action and e['actor']==user for e in events),
