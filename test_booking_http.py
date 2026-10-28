@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import server
 import test_conversations
+from test_media import fixture_image
 
 
 class BookingHttpTests(unittest.TestCase):
@@ -99,3 +100,29 @@ class BookingHttpTests(unittest.TestCase):
         self.req('/api/bookings/quotes','POST',self.payload,status=429)
         with server.db() as con:
             self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_quotes').fetchone()[0],30)
+
+    def test_pet_evidence_is_private_lazy_immutable_and_deduplicated(self):
+        photo=fixture_image()
+        with server.db() as con:
+            account=json.loads(con.execute("SELECT account FROM users WHERE id='customer'").fetchone()[0])
+            account['pets'][0]['photo']=photo
+            con.execute("UPDATE users SET account=? WHERE id='customer'",(json.dumps(account),))
+        quote=self.quote(petPassports={'owned':photo})
+        self.assertNotIn(photo,json.dumps(quote))
+        self.assertTrue(quote['snapshot']['pets'][0]['hasPassport'])
+        booking=self.req('/api/bookings','POST',{'quoteId':quote['id'],'requestId':secrets.token_hex(16)})
+        path='/api/bookings/'+booking['id']+'/pets/owned/'
+        for kind in ('photo','passport'):
+            self.assertEqual(self.req(path+kind)['image'],photo)
+            self.assertEqual(self.req(path+kind,user='abc')['image'],photo)
+            self.req(path+kind,user='stranger',status=404)
+        self.req('/api/bookings/'+booking['id']+'/pets/foreign/passport',status=404)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_media').fetchone()[0],1)
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_quote_media').fetchone()[0],2)
+            account['pets'][0]['photo']=fixture_image('blue')
+            con.execute("UPDATE users SET account=? WHERE id='customer'",(json.dumps(account),))
+        self.assertEqual(self.req(path+'photo')['image'],photo)
+        self.req('/api/bookings/quotes','POST',dict(self.payload,petPassports={'foreign':photo}),status=400)
+        self.req('/api/bookings/quotes','POST',dict(self.payload,petPassports={'owned':'not-an-image'}),status=400)
+        self.req('/api/bookings/quotes','POST',dict(self.payload,petPassports={'owned':None}),status=400)

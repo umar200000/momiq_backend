@@ -47,6 +47,13 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Bajarilish jurnali — 2026-10-27**
 
+- 2026-10-28, M048/M064 yopildi: `b90ff10` backend CI (100 test) va `ed97506` app CI (163 test, Android ARM64/iOS simulator) success. Uch xizmatning per-animal/har boshlangan 24 soat narxi serverdan; komissiya faqat accept tranzaksiyasida, balansi yetmagan/parallel/dublikat/rollback yo‘llari tekshirilgan. Ro‘yxatda 21/139 vazifa yopilgan; boshqa bron oqimlari alohida ochiq.
+- 2026-10-28, M050–M053/M058 davomida: yangi 4 bosqichli mobil forma → server quote → stable-ID request → serverdagi haqiqiy holat tafsiloti ulandi. Har ikki rolning buyurtma ro‘yxati, alohida tafsilot/tarix, enagada komissiya ko‘rsatilgan accept/reject, ikki tomonda prestart cancel bor. Qoralama va noaniq request/action qurilmada shifrlanadi; timeout/restart/storage xatosi yangi moliyaviy amal yaratmaydi. Tarix/ro‘yxat qo‘lda yangilanadi; status qidiruvi/filter va push hali ochiq. Home ekranidagi asossiz “buyurtma yo‘q/0” o‘rniga amaldagi buyurtmalar bo‘limiga yo‘naltirish/aniqlanmagan hisob belgisi qo‘yildi.
+- 2026-10-28, M058/M104 davomida: migration 11 hayvon rasmi va ixtiyoriy pasportning o‘zgarmas, hash orqali takrorlanmaydigan maxfiy nusxasini qo‘shdi. Snapshot metadata’da faqat bor/yo‘q belgisi; rasm alohida participant-only GET bilan olinadi. Eski profil rasmi o‘zgarsa eski bron dalili o‘zgarmaydi. Bir rasm/obyekt uchun 3 MiB tekshiruv, barcha snapshot rasmlariga 16 MiB base64 umumiy limit. Object storage/retention hali ochiq.
+- 2026-10-28, tekshiruv: 101 Python testi, 173 Flutter testi (1 opt-in alohida) va analyzer o‘tdi. 10 yangi mobil test aniq request retry, restart, disk xatosi, double-tap/logout, narx taklifi bekor bo‘lishi, offline ro‘yxat va komissiya tasdiq dialogini tekshirdi. Widget testida native encrypted storage o‘rniga injected memory storage kerak bo‘ldi; haqiqiy UI testi uchun alohida native qadam saqlangan. Import joyi/lint xatolari tuzatildi. Keyingi kichik matn o‘zgarishlari maqsadli test bilan tekshirilmoqda.
+- 2026-10-28, preview yangilandi: writer aynan shu loyihaga tegishli ekanligi tekshirilib to‘xtatildi; `before-booking-core-and-media.sqlite3` zaxira, dry-run, migration 10/11 apply, avvalgi 27 jadval aynan saqlanganligi/integrity/FK tekshirildi. Preview 8081 qayta ishga tushdi, dalil `.local/booking-live-migration-proof.json`. TEST mijozdan 16 soatlik 100 000 so‘m/10 000 so‘m komissiyali pending so‘rov yaratildi (`.local/native-booking-proof.json`); haqiqiy xizmat yoki pul yo‘q. Native qabul tekshiruvi/APK build davom etmoqda.
+
+
 - 2026-10-28, yakuniy backend tekshiruvi: 100 test o‘tdi (`.local/booking-http-all-tests.log`), shu jumladan haqiqiy HTTP request→accept→cancel/refund, begona rol/ID, pricing field injection, 20 tadan sahifa, quote limiti va hosted gate. 24 soat chegarasi mikrosoniyagacha tekshirildi. Yangi backend/app CI hali kutilmoqda; preview hali eski jarayonda, foydalanuvchining ochiq ilovasi qayta o‘rnatilmadi.
 
 
@@ -231,7 +238,7 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 **G. Buyurtmaning to‘liq hayot davri**
 
 - [ ] M047 — Buyurtma modelini va ruxsatli holat o‘tishlarini yaratish: mijoz, enaga, e’lon, hayvonlar, sana/vaqt, manzil, narx va tarix bir-biriga bog‘langan.
-- [ ] M048 — Xizmat jami summasini serverda hisoblash: tanlangan har hayvonning shu xizmatdagi kunlik tarifi × kunlar soni, so‘mda aniq hisob; 500 000 × 2 × 3 = 3 000 000 misoli test qilinadi, shaxsiy enagada 2 hayvon rad etiladi, mijoz xizmat puli Momiq orqali olinmaydi.
+- [x] M048 — Xizmat jami summasini serverda hisoblash: tanlangan har hayvonning shu xizmatdagi kunlik tarifi × kunlar soni, so‘mda aniq hisob; 500 000 × 2 × 3 = 3 000 000 misoli test qilinadi, shaxsiy enagada 2 hayvon rad etiladi, mijoz xizmat puli Momiq orqali olinmaydi.
 - [ ] M049 — Bron paytida mavjudlikni atomar tekshirish: parallel so‘rovlar bir joyni ikki marta band qilmaydi; shaxsiy enaga va uyga tashrif cheklovlari boshqa xizmatlar bilan ham hisoblanadi.
 - [ ] M050 — To‘rt bosqichli buyurtma formasini ulash: hayvon, sana/manzil, pasport, yakuniy taklif; server tasdig‘isiz muvaffaqiyat ekrani ochilmaydi, xatoda kiritilganlar saqlanadi.
 - [ ] M051 — Takroriy tasdiqlashni himoyalash: double-tap, timeoutdan keyingi retry va uzilgan aloqa bitta buyurtma yaratadi; natijani qayta tekshirish yo‘li bor.
@@ -252,7 +259,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [x] M061 — Admin chek va haqiqiy tushumni solishtirib kreditlashi: oluvchi, summa, vaqt va tranzaksiya reference tekshiriladi; tasdiq, balans jurnali va so‘rov holati atomar yoziladi, ikki admin yoki retry ikki marta kredit qilmaydi.
 - [x] M062 — Chek so‘rovining qoralama, tekshirilmoqda, tasdiqlangan, rad etilgan va aniqlashtirish kerak holatlari: sabab, qayta yuborish, tarix va bildirishnoma; admin tasdig‘igacha sarflash mumkin balans o‘zgarmaydi.
 - [ ] M063 — Komissiyani faqat ichki balansga qaytarish: tegishli buyurtmaga bog‘langan yozuv, summa chegarasi va idempotency; ishlatilmagan qoldiqni karta/naqdga chiqarish yo‘q, qoidani to‘ldirishdan oldin ko‘rsatish/rozilikni qayd etish.
-- [ ] M064 — Komissiyani tasdiqlangan hodisada atomar yechish: buyurtma va balans birga yangilanadi, manfiy balans/dublikat yechish bo‘lmaydi; foiz va summa snapshot’i saqlanadi, xizmat daromadi payout’i qurilmaydi.
+- [x] M064 — Komissiyani tasdiqlangan hodisada atomar yechish: buyurtma va balans birga yangilanadi, manfiy balans/dublikat yechish bo‘lmaydi; foiz va summa snapshot’i saqlanadi, xizmat daromadi payout’i qurilmaydi.
 - [ ] M065 — O‘zgarmas balans jurnalini yaratish: admin tasdiqlagan tushum, komissiya, komissiya qaytimi va auditli tuzatish; chek so‘rovi/reference/admin/vaqt/sabab bog‘lanadi, jurnalni o‘chirish orqali qoldiq o‘zgarmaydi.
 - [ ] M066 — Top-up va komissiya tafsiloti/kvitansiyasini ko‘rsatish: foydalanuvchi xizmat puli bilan adashtirmaydi; qoldiq qaytarilmasligi shartlarda yoziladi, platforma tushumi va fiskal/majburiy talablar mutaxassis bilan tekshiriladi.
 - [ ] M134 — 15 000 so‘m qoidasini barcha yangi mijoz yo‘llariga ulash: qidiruv/tavsiya, eski link, favorites, yangi so‘rov/ilk chat va qabuldagi tekshiruv; mavjud buyurtma/chat/parvarish saqlanadi, to‘ldirganda mavjudlik qayta hisoblanadi.

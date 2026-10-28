@@ -1,7 +1,7 @@
 """Local/test booking API; production remains disabled pending full lifecycle QA."""
 from datetime import datetime, timezone
 import re
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, unquote
 
 import booking_engine as engine
 import conversations
@@ -27,11 +27,10 @@ def route(handler, con, user, path, environment):
                             'quoteValiditySeconds': 600})
         return True
     if path == '/api/bookings/quotes' and handler.command == 'POST':
-        data = body(handler, ['listingId', 'petIds', 'startsAt', 'endsAt', 'instructions', 'addressId'])
+        data = body(handler, ['listingId', 'petIds', 'startsAt', 'endsAt', 'instructions', 'addressId', 'petPassports'])
         result = engine.prepare_quote(con, user, data.get('listingId'), data.get('petIds'),
             data.get('startsAt'), data.get('endsAt'), policy=engine.DailyPolicy(),
-            environment=environment, now=now, instructions=data.get('instructions', ''), address=data.get('addressId'))
-        conversations.quota(con, user, 'booking_quote', 30)
+            environment=environment, now=now, instructions=data.get('instructions', ''), address=data.get('addressId'), passports=data.get('petPassports'))
         con.commit()
         handler.reply(201, result)
         return True
@@ -66,6 +65,11 @@ def route(handler, con, user, path, environment):
             item = engine.view(con, row['id'], user)
             items.append({k: item[k] for k in ('id', 'status', 'revision', 'myRole', 'replyDeadline')})
         handler.reply(200, {'items': items, 'nextCursor': str(rows[19]['seq']) if len(rows)>20 else None})
+        return True
+    media = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/pets/([^/]{1,300})/(photo|passport)', path)
+    if media and handler.command == 'GET':
+        identity, pet, kind = media.groups()
+        handler.reply(200,engine.animal_image(con,identity,user,unquote(pet),kind))
         return True
     match = re.fullmatch(r'/api/bookings/([a-f0-9]{32})(?:/(accept|reject|cancel))?', path)
     if not match:

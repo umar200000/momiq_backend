@@ -39,7 +39,7 @@ Birinchi API sinovida appdan hisobdan chiqing, telefon bilan qayta kiring. Lokal
 
 Bu branchda enaga autentifikatsiyasi, profil/afzalliklar va Paynet Xolis chek orqali balans to‘ldirish ulangan. Admin QR/foizni versiya bilan saqlaydi, chek va haqiqiy tushumni tekshiradi; faqat tasdiqdan keyin atomar kredit yoziladi. Tafsilotlar `API_CONTRACT.md`da. Bu o‘zgarishlar hali productionga chiqarilmagan.
 
-Enaga e’lonlari serverga saqlanadi va test moderatsiyasi orqali katalogda ko‘rinadi; bu haqiqiy MyID tasdig‘i emas. Haqiqiy mijoz–enaga chati, blok/shikoyat va auditli moderatsiya ishlaydi. Bron va komissiya uchun atomar core hamda migration 10 test qilindi. Har boshlangan 24 soat qoidasi tasdiqlandi; uchala xizmatning bron HTTP API’si local/test muhitida mavjud. Mobil bron formasi va to‘liq xizmat hayot davri hali tugamagan, production/staging yo‘llari yopiq. Push/SMS/MyID hali ulanmagan.
+Enaga e’lonlari serverga saqlanadi va test moderatsiyasi orqali katalogda ko‘rinadi; bu haqiqiy MyID tasdig‘i emas. Haqiqiy mijoz–enaga chati, blok/shikoyat va auditli moderatsiya ishlaydi. Bron va komissiya uchun atomar core hamda migration 10 test qilindi. Har boshlangan 24 soat qoidasi tasdiqlandi; uchala xizmatning bron HTTP API’si local/test muhitida mavjud. Mobil bron formasi, ikkala rol ro‘yxat/tafsiloti, qabul/rad/prestart bekor qilish ulangan. To‘liq xizmat hayot davri va bildirishnomalar hali tugamagan, production/staging yo‘llari yopiq. Push/SMS/MyID hali ulanmagan.
 
 Backendga ulangan rejimda hayvonlar serverda saqlanadi. Eski offline/test mock rejimida hayvonlar session ichida saqlanish qoidasi qoladi.
 

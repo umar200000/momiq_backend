@@ -172,7 +172,7 @@ def profiles(con,environment):
                 'rating':0,'reviews':0,'years':sitter.get('years',0),'about':sitter.get('about',''),
                 'photo':media['photo'],'homePhotos':media['homePhotos'],
                 'location':public_location,'testOnly':True,'identityVerified':False,
-                'availabilityKnown':False})
+                'availabilityKnown':False,'bookingEnabled':environment in ('local','test')})
     return result
 
 

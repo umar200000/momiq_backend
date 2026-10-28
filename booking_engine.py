@@ -16,6 +16,7 @@ import booking_rules as rules
 import catalog
 import conversations
 import wallet
+from media_validation import validate_photo
 
 
 class BookingError(Exception):
@@ -73,7 +74,7 @@ def listing(con, customer, listing_id, environment):
 
 
 def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
-                  policy, environment, now, instructions='', address=None):
+                  policy, environment, now, instructions='', address=None, passports=None):
     """Read all prices/animals/settings on the server. No client price/day argument."""
     if type(policy) is not DailyPolicy or policy.version != 'elapsed-24h-v1':
         raise BookingError(503, 'Tasdiqlangan sana siyosati kerak')
@@ -86,9 +87,14 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
         raise ValueError('Invalid service interval')
     if not isinstance(instructions, str) or len(instructions) > 4000:
         raise ValueError('Invalid care instructions')
+    passports = {} if passports is None else passports
+    if (not isinstance(passports, dict) or any(p not in pet_ids for p in passports)
+            or any(not isinstance(v,str) or not v for v in passports.values())):
+        raise ValueError('Passport must belong to a selected animal')
     begin(con)
     test_gate(con, environment)
     owner = account(con, customer, 'customer')
+    conversations.quota(con, customer, 'booking_quote', 30)
     profile = owner.get('profile', {})
     if not profile.get('first', '').strip() or not profile.get('last', '').strip():
         raise BookingError(409, 'Mijoz profilini to‘ldiring')
@@ -119,10 +125,24 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
     settings = wallet.settings(con)
     price = rules.price_snapshot(service, [rules.AnimalRate(p, item['price']*100) for p in sorted(pet_ids)],
                                  days, settings['commissionBps'], settings['version'])
+    media = []
+    total_media = 0
+    for pet_id in sorted(pet_ids):
+        for kind, raw_image in [('photo', pets[pet_id].get('photo')), ('passport', passports.get(pet_id))]:
+            if raw_image is None:
+                continue
+            image = validate_photo(raw_image)
+            if image is None:
+                raise ValueError('Invalid booking media')
+            total_media += len(image)
+            if total_media > 16*1024*1024:
+                raise BookingError(413, 'Buyurtma rasmlarining umumiy hajmini kamaytiring')
+            media.append((pet_id, kind, hashlib.sha256(image.encode()).hexdigest(), image))
     detail = {
         'price': asdict(price), 'listingId': listing_id, 'listingRevision': catalog.revision(con, item['userId']),
         'sitterName': item['name'], 'customerName': profile['first']+' '+profile['last'][:1]+'.',
-        'pets': [{k: v for k, v in pets[p].items() if k != 'photo'} for p in sorted(pet_ids)],
+        'pets': [dict({k: v for k, v in pets[p].items() if k != 'photo'},
+                     hasPhoto=bool(pets[p].get('photo')), hasPassport=p in passports) for p in sorted(pet_ids)],
         'instructions': instructions.strip(), 'address': private, 'capacity': capacity,
         'startsAt': stamp(start), 'endsAt': stamp(end), 'datePolicy': policy.version,
         'testOnly': True, 'customerPaysSitterDirectly': True,
@@ -132,7 +152,21 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
     con.execute('INSERT INTO booking_quotes VALUES(?,?,?,?,?,?,?,1)',
                 (identity, customer, item['userId'], service, encode(detail), stamp(current),
                  stamp(min(current+timedelta(minutes=10), start))))
+    for pet_id, kind, digest, image in media:
+        con.execute('INSERT OR IGNORE INTO booking_media VALUES(?,?)', (digest, image))
+        con.execute('INSERT INTO booking_quote_media VALUES(?,?,?,?)', (identity, pet_id, kind, digest))
     return quote_view(con, identity, customer)
+
+
+def animal_image(con, identity, user, animal_id, kind):
+    row = owned(con, identity, user)
+    if kind not in ('photo', 'passport'):
+        raise ValueError('Invalid media kind')
+    image = con.execute('SELECT m.image FROM booking_quote_media q JOIN booking_media m ON m.hash=q.media_hash WHERE q.quote_id=? AND q.animal_id=? AND q.kind=?',
+                        (row['quote_id'], animal_id, kind)).fetchone()
+    if not image:
+        raise BookingError(404, 'Rasm topilmadi')
+    return {'image': image['image']}
 
 
 def quote_view(con, identity, customer):

@@ -99,6 +99,14 @@ MIGRATIONS = (
         'CREATE TABLE booking_requests(actor TEXT NOT NULL REFERENCES users(id), request_id TEXT NOT NULL, fingerprint TEXT NOT NULL, booking_id TEXT NOT NULL REFERENCES bookings(id), PRIMARY KEY(actor,request_id))',
         "CREATE TRIGGER booking_identity_immutable BEFORE UPDATE OF quote_id,customer_id,sitter_id,service,starts_at,ends_at,reply_deadline,created ON bookings BEGIN SELECT RAISE(ABORT, 'Booking agreement is immutable'); END",
     )),
+    (11, 'private content-addressed booking animal evidence', (
+        'CREATE TABLE booking_media(hash TEXT PRIMARY KEY, image TEXT NOT NULL)',
+        "CREATE TABLE booking_quote_media(quote_id TEXT NOT NULL REFERENCES booking_quotes(id), animal_id TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('photo','passport')), media_hash TEXT NOT NULL REFERENCES booking_media(hash), PRIMARY KEY(quote_id,animal_id,kind))",
+        "CREATE TRIGGER booking_media_no_update BEFORE UPDATE ON booking_media BEGIN SELECT RAISE(ABORT, 'Booking evidence is immutable'); END",
+        "CREATE TRIGGER booking_media_no_delete BEFORE DELETE ON booking_media BEGIN SELECT RAISE(ABORT, 'Booking evidence is immutable'); END",
+        "CREATE TRIGGER booking_quote_media_no_update BEFORE UPDATE ON booking_quote_media BEGIN SELECT RAISE(ABORT, 'Booking evidence reference is immutable'); END",
+        "CREATE TRIGGER booking_quote_media_no_delete BEFORE DELETE ON booking_quote_media BEGIN SELECT RAISE(ABORT, 'Booking evidence reference is immutable'); END",
+    )),
 )
 
 
