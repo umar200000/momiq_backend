@@ -17,6 +17,7 @@ import catalog
 import conversations
 import wallet
 import notifications
+import sitter_availability
 from media_validation import validate_photo
 
 
@@ -74,6 +75,12 @@ def listing(con, customer, listing_id, environment):
     return item
 
 
+def check_schedule(con, sitter, start, end):
+    message = sitter_availability.reason(account(con, sitter, 'sitter'), start, end)
+    if message:
+        raise BookingError(409, message)
+
+
 def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
                   policy, environment, now, instructions='', address=None, passports=None):
     """Read all prices/animals/settings on the server. No client price/day argument."""
@@ -100,6 +107,7 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
     if not profile.get('first', '').strip() or not profile.get('last', '').strip():
         raise BookingError(409, 'Mijoz profilini to‘ldiring')
     item = listing(con, customer, listing_id, environment)
+    check_schedule(con, item['userId'], start, end)
     service = catalog.SERVICES[item['service']]
     pets = {p['id']: p for p in owner.get('pets', []) if not p.get('archived', False)}
     if any(p not in pets for p in pet_ids):
@@ -260,6 +268,7 @@ def request_booking(con, customer, quote_id, request_id, *, environment, now):
         raise BookingError(409, 'Narx taklifi muddati tugagan')
     detail = json.loads(quote['snapshot'])
     listing(con, customer, detail['listingId'], environment)
+    check_schedule(con, quote['sitter_id'], parse(detail['startsAt']), parse(detail['endsAt']))
     # A quote pins the price, but removal/archive/type changes of selected pets
     # must not create a request against animals the account no longer owns.
     pets = {p['id']: p for p in account(con, customer).get('pets', []) if not p.get('archived', False)}
@@ -368,6 +377,7 @@ def act(con, user, identity, action, revision, request_id, *, reason='', environ
         account(con, row['customer_id'], 'customer')
         account(con, row['sitter_id'], 'sitter')
         listing(con, row['customer_id'], detail['listingId'], environment)
+        check_schedule(con, row['sitter_id'], parse(row['starts_at']), parse(row['ends_at']))
         check_capacity(con, row, detail, current)
         if wallet.balance(con, user) < max(rules.MINIMUM_BALANCE_MINOR, commission):
             raise BookingError(409, 'Balans minimum yoki komissiyaga yetmaydi')

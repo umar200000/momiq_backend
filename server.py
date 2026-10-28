@@ -13,11 +13,12 @@ from datetime import datetime, timezone
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from config import Settings
 from migrations import migrate
 import wallet
 import catalog
+import sitter_availability
 import pet_safety
 import sitter_dashboard
 import notifications
@@ -213,6 +214,8 @@ def validate_account(data):
         result['sitterProfile'] = {'years': years, 'about': string(sitter.get('about',''),4000),
                                   'homePhotos': [photo(v) for v in homes], 'housing': housing}
         schedule = sitter.get('schedule')
+        if 'closedDates' in sitter:
+            result['sitterProfile']['closedDates'] = sitter_availability.closed_dates(sitter['closedDates'])
         if schedule is not None:
             if not isinstance(schedule,dict): raise ValueError('Jadval noto‘g‘ri')
             days, start, end = schedule.get('days'), schedule.get('start'), schedule.get('end')
@@ -348,7 +351,9 @@ class Handler(BaseHTTPRequestHandler):
             if booking_reviews.public_route(self,con,path,ENVIRONMENT):
                 return
             if path == "/api/sitters" and self.command == "GET":
-                self.reply(200, {"sitters": sitter_profiles()})
+                interval = sitter_availability.interval(parse_qs(urlparse(self.path).query, keep_blank_values=True))
+                con.execute('BEGIN')
+                self.reply(200, {"sitters": catalog.profiles(con, ENVIRONMENT, interval=interval)})
                 return
             if path == "/api/health" and self.command == "GET":
                 self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})
@@ -471,6 +476,7 @@ class Handler(BaseHTTPRequestHandler):
                     retained_ids = {p['id'] for p in account['pets']}
                     account['pets'].extend(p for key,p in old_pets.items() if key not in retained_ids)
                     if len(account['pets'])>30: raise ValueError('Arxiv bilan birga hayvonlar soni 30 dan oshmasin')
+                    sitter_availability.preserve_omitted(before,account,data)
                     catalog.invalidate_profile(con,user,before,account)
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
@@ -536,6 +542,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Holat noto‘g‘ri')
                     account = validate_account(data['account']) if 'account' in data else json.loads(row['account'])
                     claim_account_revision(con, uid, data.get('_revision'))
+                    sitter_availability.preserve_omitted(json.loads(row['account']),account,data.get('account',account))
                     catalog.invalidate_profile(con,uid,json.loads(row['account']),account)
                     blocked = int(data.get('blocked',row['blocked']))
                     con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),blocked,uid))

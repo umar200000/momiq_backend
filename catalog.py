@@ -2,6 +2,7 @@
 import hashlib
 import json
 import notifications
+import sitter_availability
 from datetime import datetime, timezone
 from wallet import MINIMUM_BALANCE_MINOR
 from media_validation import public_photo
@@ -125,6 +126,22 @@ def invalidate_profile(con,uid,before,after):
         if obligations and (not new_sitter or any(b['service']!='homeVisit' for b in obligations)):
             raise CatalogError(409,'Qabul qilingan parvarish davomida enaga profili yoki uy turini almashtirib bo‘lmaydi')
     if public_inputs(before)==public_inputs(after): return
+    def reviewed_fields(value):
+        result = public_inputs(value)
+        if result['sitterProfile'] is not None:
+            result['sitterProfile'] = {k:v for k,v in result['sitterProfile'].items()
+                                      if k not in ('schedule','closedDates')}
+        return result
+    if reviewed_fields(before)==reviewed_fields(after):
+        # Keep the existing hash format (no migration/reapproval of all users).
+        # Rebase only a still-valid approval, never revive a stale/rejected one.
+        raw = con.execute('SELECT data FROM listings WHERE user_id=?',(uid,)).fetchone()
+        if raw:
+            data = json.loads(raw[0])
+            for item in data['listings']:
+                con.execute("UPDATE listing_moderation SET approved_hash=? WHERE user_id=? AND service=? AND status IN ('approved','suspended') AND approved_hash=?",
+                    (fingerprint(after,data['housing'],item),uid,item['type'],fingerprint(before,data['housing'],item)))
+        return
     con.execute("UPDATE listing_moderation SET status='pending',reason='Profil o‘zgargan; qayta tekshiruv kerak' WHERE user_id=? AND status='approved'",(uid,))
     if con.execute('SELECT 1 FROM listings WHERE user_id=?',(uid,)).fetchone():
         con.execute('INSERT OR IGNORE INTO listing_revisions(user_id) VALUES(?)',(uid,))
@@ -188,11 +205,12 @@ def review(con,uid,kind,data,actor,environment):
     return document(con,uid)
 
 
-def profiles(con,environment):
+def profiles(con,environment,*,interval=None):
     result=[]
     rows=con.execute("SELECT u.id,u.account,l.data FROM users u JOIN listings l ON l.user_id=u.id JOIN wallet_accounts w ON w.user_id=u.id WHERE u.blocked=0 AND w.balance_minor>=? AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role='sitter') ORDER BY u.id",(MINIMUM_BALANCE_MINOR,)).fetchall()
     for row in rows:
         account=json.loads(row['account']);data=json.loads(row['data'])
+        if interval and sitter_availability.reason(account,*interval): continue
         profile=account.get('profile') or {};sitter=account.get('sitterProfile') or {}
         for item in data['listings']:
             moderation=con.execute("SELECT * FROM listing_moderation WHERE user_id=? AND service=? AND status='approved'",(row['id'],item['type'])).fetchone()
@@ -212,7 +230,8 @@ def profiles(con,environment):
                 'rating':reputation['rating'],'reviews':reputation['count'],'years':sitter.get('years',0),'about':sitter.get('about',''),
                 'photo':media['photo'],'homePhotos':media['homePhotos'],
                 'location':public_location,'testOnly':True,'identityVerified':False,
-                'availabilityKnown':False,'bookingEnabled':environment in ('local','test')})
+                'availabilityKnown':False,'availability':sitter_availability.public(account),
+                'bookingEnabled':environment in ('local','test')})
     return result
 
 
