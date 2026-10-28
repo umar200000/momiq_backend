@@ -56,6 +56,33 @@ class ConversationTests(unittest.TestCase):
         return self.req('/api/conversations/'+identity+'/messages', 'POST',
                         {'text':text,'requestId':request or secrets.token_hex(16),'image':image,'senderRole':'support'}, user, status)
 
+    def test_delivery_receipts_are_monotonic_private_and_do_not_mark_read(self):
+        chat=self.create_chat();base='/api/conversations/'+chat['id']
+        a=self.send_chat(chat['id']);b=self.send_chat(chat['id'])
+        self.req(base+'/received','POST',{'throughId':b['id']},user='stranger',status=404)
+        self.req(base+'/received','POST',{'throughId':str(int(b['id'])+1)},user='abc',status=400)
+        self.req(base+'/received','POST',{'throughId':'0'},user='abc',status=400)
+        self.req(base+'/received',user='abc',status=404)
+        self.req(base+'/received','POST',{'throughId':b['id']},user='abc')
+        self.req(base+'/received','POST',{'throughId':a['id']},user='abc')
+        peer=self.req(base)
+        self.assertEqual(peer['peerDeliveredThrough'],b['id'])
+        self.assertEqual(peer['peerReadThrough'],'0')
+        self.assertEqual(self.req(base,user='abc')['unreadCount'],2)
+        # A second device sees the same watermark; a newer message stays unread.
+        new=self.send_chat(chat['id'])
+        self.req(base+'/read','POST',{'throughId':a['id']},user='abc')
+        self.assertEqual(self.req(base,user='abc')['unreadCount'],2)
+        self.assertEqual(self.req(base)['peerDeliveredThrough'],b['id'])
+        self.req(base+'/read','POST',{'throughId':new['id']},user='abc')
+        peer=self.req(base)
+        self.assertEqual(peer['peerReadThrough'],new['id'])
+        self.assertEqual(peer['peerDeliveredThrough'],new['id'])
+        server.setup()
+        self.assertEqual(self.req(base)['peerDeliveredThrough'],new['id'])
+        other=self.create_chat(user='stranger')['id']
+        self.req('/api/conversations/'+other+'/received','POST',{'throughId':a['id']},user='abc',status=400)
+
     def test_participants_and_private_attachment(self):
         chat = self.create_chat(); identity = chat['id']
         self.assertEqual(self.create_chat()['id'], identity)

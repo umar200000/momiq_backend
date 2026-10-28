@@ -111,6 +111,9 @@ MIGRATIONS = (
         "CREATE TRIGGER platform_settings_no_update BEFORE UPDATE ON platform_settings BEGIN SELECT RAISE(ABORT, 'Platform settings history is immutable'); END",
         "CREATE TRIGGER platform_settings_no_delete BEFORE DELETE ON platform_settings BEGIN SELECT RAISE(ABORT, 'Platform settings history is immutable'); END",
     )),
+    (13, 'participant delivery acknowledgements', (
+        'CREATE TABLE conversation_deliveries(conversation_id TEXT NOT NULL REFERENCES conversations(id), user_id TEXT NOT NULL REFERENCES users(id), last_message_id INTEGER NOT NULL CHECK(last_message_id>0), PRIMARY KEY(conversation_id,user_id))',
+    )),
 )
 
 

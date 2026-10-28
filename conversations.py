@@ -66,6 +66,7 @@ def summary(con, row, user):
     peer = row['sitter_id'] if customer else row['customer_id']
     latest = con.execute('SELECT * FROM conversation_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1', (row['id'],)).fetchone()
     reads = dict(con.execute('SELECT user_id,last_message_id FROM conversation_reads WHERE conversation_id=?', (row['id'],)))
+    delivered = dict(con.execute('SELECT user_id,last_message_id FROM conversation_deliveries WHERE conversation_id=?', (row['id'],)))
     unread = con.execute('SELECT COUNT(*) FROM conversation_messages WHERE conversation_id=? AND sender_id!=? AND id>?',
                          (row['id'], user, reads.get(user, 0))).fetchone()[0]
     blocked = con.execute('SELECT blocked FROM users WHERE id=?', (peer,)).fetchone()[0]
@@ -75,7 +76,7 @@ def summary(con, row, user):
             'created': row['created'], 'canSend': not bool(blocked) and not blocked_pair(con, user, peer), 'unreadCount': unread,
             'blockedByMe': bool(own_block['active']) if own_block else False,
             'blockRevision': own_block['revision'] if own_block else 0,
-            'peerReadThrough': str(reads.get(peer, 0)), 'lastMessage': message(latest, user) if latest else None}
+            'peerReadThrough': str(reads.get(peer, 0)), 'peerDeliveredThrough': str(max(delivered.get(peer,0),reads.get(peer,0))), 'lastMessage': message(latest, user) if latest else None}
 
 
 def create(con, user, data, environment):
@@ -170,7 +171,7 @@ def route(handler, con, user, path, validate_photo, environment):
         import booking_chat
         handler.reply(200, booking_chat.related(con, related[1], user, environment, query))
         return True
-    match = re.fullmatch(r'/api/conversations/([a-f0-9]{32})(?:/(messages|read)(?:/([1-9][0-9]{0,17})/image)?)?', path)
+    match = re.fullmatch(r'/api/conversations/([a-f0-9]{32})(?:/(messages|read|received)(?:/([1-9][0-9]{0,17})/image)?)?', path)
     if not match:
         raise ChatError(404, 'Topilmadi')
     identity, action, image_id = match.groups()
@@ -179,18 +180,20 @@ def route(handler, con, user, path, validate_photo, environment):
         con.commit()
         handler.reply(200, result)
         return True
-    if action == 'read' and handler.command == 'POST' and not image_id:
+    if action in ('read','received') and handler.command == 'POST' and not image_id:
         data = handler.body()
         last = number(data.get('throughId'))
         con.execute('BEGIN IMMEDIATE')
         participant(con, identity, user)
         if not con.execute('SELECT 1 FROM conversation_messages WHERE conversation_id=? AND id=?', (identity, last)).fetchone():
             raise ValueError('Message not in conversation')
-        con.execute('INSERT INTO conversation_reads VALUES(?,?,?) ON CONFLICT(conversation_id,user_id) DO UPDATE SET last_message_id=MAX(last_message_id,excluded.last_message_id)', (identity, user, last))
+        if action == 'read':
+            con.execute('INSERT INTO conversation_reads VALUES(?,?,?) ON CONFLICT(conversation_id,user_id) DO UPDATE SET last_message_id=MAX(last_message_id,excluded.last_message_id)', (identity, user, last))
+        con.execute('INSERT INTO conversation_deliveries VALUES(?,?,?) ON CONFLICT(conversation_id,user_id) DO UPDATE SET last_message_id=MAX(last_message_id,excluded.last_message_id)', (identity,user,last))
         con.commit()
         handler.reply(200, {'ok': True})
         return True
-    if handler.command != 'GET' or action == 'read':
+    if handler.command != 'GET' or action in ('read','received'):
         raise ChatError(404, 'Topilmadi')
     con.execute('BEGIN')
     row = participant(con, identity, user)
