@@ -368,6 +368,52 @@ class BookingEngineTests(unittest.TestCase):
         with server.db() as con: con.execute("INSERT INTO chat_blocks VALUES('abc','customer',1,1,?)", (server.now(),))
         self.expect_error(409, lambda: self.request(quote))
 
+    def test_minimum_balance_boundary_with_nonzero_commission_and_refund(self):
+        listing=copy.deepcopy(self.listing);listing['listings'][0]['price']=10000
+        self.save(listing,2);self.review(3)
+        for amount in (14999,15000,15001):
+            with self.subTest(balance=amount):
+                with server.db() as con:
+                    con.execute("UPDATE wallet_accounts SET balance_minor=100000000 WHERE user_id='abc'")
+                    original_count=con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0]
+                booking=self.request()
+                self.assertEqual(booking['snapshot']['price']['commission_minor'],300000)
+                with server.db() as con:con.execute("UPDATE wallet_accounts SET balance_minor=? WHERE user_id='abc'",(amount*100,))
+                if amount<15000:
+                    self.expect_error(409,lambda:self.act(booking))
+                    self.act(booking,'reject')
+                    with server.db() as con:
+                        self.assertEqual(wallet.balance(con,'abc'),amount*100)
+                        self.assertEqual(con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0],original_count)
+                else:
+                    key=secrets.token_hex(16)
+                    accepted=self.act(booking,request=key)
+                    self.act(booking,request=key)
+                    with server.db() as con:self.assertEqual(wallet.balance(con,'abc'),(amount-3000)*100)
+                    refunded=self.act(accepted,'cancel',user='customer')
+                    with server.db() as con:
+                        self.assertEqual(wallet.balance(con,'abc'),amount*100)
+                        self.assertEqual(con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0],original_count+2)
+                    self.assertEqual(refunded['status'],'cancelled')
+
+    def test_commission_funds_exact_minor_boundary_and_changed_admin_rate(self):
+        booking=self.request()
+        commission=booking['snapshot']['price']['commission_minor']
+        with server.db() as con:
+            con.execute("UPDATE wallet_accounts SET balance_minor=? WHERE user_id='abc'",(commission-1,))
+            con.execute('INSERT INTO platform_settings(version,commission_bps,test_only,actor,reason,created) VALUES(2,1250,1,?,?,?)',
+                        ('admin','TEST later rate',server.now()))
+        self.expect_error(409,lambda:self.act(booking))
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0],0)
+            con.execute("UPDATE wallet_accounts SET balance_minor=? WHERE user_id='abc'",(commission,))
+        accepted=self.act(booking)
+        self.assertEqual(accepted['snapshot']['price']['commission_bps'],1000)
+        with server.db() as con:self.assertEqual(wallet.balance(con,'abc'),0)
+        self.act(accepted,'cancel',user='customer')
+        fresh=self.quote()
+        self.assertEqual(fresh['snapshot']['price']['commission_bps'],1250)
+
     def test_parallel_cancel_and_accept_never_orphans_commission(self):
         booking = self.request(); barrier = threading.Barrier(2)
         def race(action):
