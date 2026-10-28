@@ -70,6 +70,55 @@ class SearchHttpTests(unittest.TestCase):
         self.req('/api/sitters?favorites=1',user='unauthenticated',status=401)
         self.assertNotIn('PRIVATE',json.dumps(found+favorite))
 
+    def test_proximity_orders_all_pages_not_only_first_twenty_and_binds_origin(self):
+        self.clones()
+        with server.db() as con:
+            for n in range(24):
+                uid=f'sitter-{n:02}'
+                account=json.loads(con.execute('SELECT account FROM users WHERE id=?',(uid,)).fetchone()[0])
+                data=json.loads(con.execute('SELECT data FROM listings WHERE user_id=?',(uid,)).fetchone()[0])
+                data['listings'][0]['location'].update(lat=41.301234+(23-n)*.01,lon=69.271234)
+                con.execute('UPDATE listings SET data=? WHERE user_id=?',(json.dumps(data),uid))
+                con.execute('UPDATE listing_moderation SET approved_hash=? WHERE user_id=?',(catalog.fingerprint(account,data['housing'],data['listings'][0]),uid))
+        query={'lat':'41.30','lon':'69.27','region':'tashkent','q':'enaga'}
+        first=self.req('/api/sitters?'+urlencode(query))
+        self.assertEqual(first['sitters'][0]['id'],'sitter-23:boarding')
+        self.assertEqual(first['sitters'][0]['distance'],0)
+        self.assertTrue(first['sitters'][0]['distanceApproximate'])
+        second=self.req('/api/sitters?'+urlencode(dict(query,after=first['nextCursor'])))
+        rows=first['sitters']+second['sitters']
+        self.assertEqual(len(rows),24)
+        self.assertEqual(len({r['id'] for r in rows}),24)
+        self.assertEqual([r['distance'] for r in rows],sorted(r['distance'] for r in rows))
+        self.assertNotIn('301234',json.dumps(rows))
+        self.req('/api/sitters?'+urlencode(dict(query,lat='41.31',after=first['nextCursor'])),status=400)
+        self.assertEqual(len(self.req('/api/sitters?'+urlencode(dict(query,maxDistance=1)))['sitters']),1)
+
+    def test_location_validation_manual_region_and_home_visit_has_no_radius(self):
+        for query in ['lat=41','lon=69','lat=NaN&lon=69','lat=91&lon=69','lat=41&lon=181',
+                      'lat=41&lon=Infinity','region=other','maxDistance=5','lat=41&lon=69&maxDistance=0',
+                      'lat=41&lon=69&maxDistance=51','lat=41&lat=42&lon=69']:
+            self.req('/api/sitters?'+query,status=400)
+        manual=self.req('/api/sitters?region=tashkent')['sitters']
+        self.assertTrue(manual)
+        self.assertTrue(all(s['distance'] is None for s in manual))
+        with server.db() as con:
+            data=json.loads(con.execute("SELECT data FROM listings WHERE user_id='abc'").fetchone()[0])
+            account=json.loads(con.execute("SELECT account FROM users WHERE id='abc'").fetchone()[0])
+            item=copy.deepcopy(data['listings'][0]);item.update(type='homeVisit',location=None,capacity=None)
+            data['listings'].append(item)
+            con.execute("UPDATE listings SET data=? WHERE user_id='abc'",(json.dumps(data),))
+            con.execute("INSERT INTO listing_moderation(user_id,service,status,approved_hash,test_only,public_media) SELECT user_id,'homeVisit',status,?,test_only,public_media FROM listing_moderation WHERE user_id='abc' AND service='boarding'",(catalog.fingerprint(account,data['housing'],item),))
+        found=self.req('/api/sitters?service=homeVisit&lat=41.4&lon=69.4&maxDistance=1')['sitters']
+        self.assertEqual(len(found),1)
+        self.assertIsNone(found[0]['distance'])
+        self.assertIsNone(found[0]['location'])
+
+    def test_distance_geometry_and_unknown_location(self):
+        self.assertEqual(catalog_search.distance_km([0,0],{'lat':0,'lon':1}),111.2)
+        self.assertEqual(catalog_search.distance_km([0,179.9],{'lat':0,'lon':-179.9}),22.2)
+        self.assertIsNone(catalog_search.distance_km(None,{'lat':0,'lon':1}))
+
 
 class SearchCapacityTests(unittest.TestCase):
     setUp=fixtures.BookingEngineTests.setUp
