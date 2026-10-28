@@ -328,8 +328,8 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(429, "Biroz kutib qayta urinib ko‘ring")
         con.execute("INSERT OR REPLACE INTO attempts VALUES(?,?,?)", (key,count+1,reset))
         con.commit()
-    def audit(self, con, action, target):
-        con.execute("INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)", ("admin",action,target,now()))
+    def audit(self, con, actor, action, target):
+        con.execute("INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)", (actor,action,target,now()))
     def messages(self, con, user):
         return [{"id": r["id"], "sitter": r["sitter"], "mine": bool(r["mine"]),
                  "senderRole": "customer" if r["mine"] else "support",
@@ -544,12 +544,15 @@ class Handler(BaseHTTPRequestHandler):
                 if not row:
                     raise ApiError(404,"Mijoz topilmadi")
                 if chat and self.command == "GET":
-                    self.reply(200,{"messages":self.messages(con,uid)})
+                    result={"messages":self.messages(con,uid)}
+                    self.audit(con,user,'legacy-chat-view',uid)
+                    con.commit()
+                    self.reply(200,result)
                     return
                 if chat and self.command == "POST":
                     if row['blocked']:
                         raise ApiError(409,"Hisob bloklangan")
-                    self.save_message(con,uid,False,self.body())
+                    self.save_message(con,uid,False,self.body(),operator=user)
                     return
                 if not chat and self.command == "PUT":
                     data = self.body()
@@ -563,7 +566,7 @@ class Handler(BaseHTTPRequestHandler):
                     con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),blocked,uid))
                     if blocked:
                         con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (uid,))
-                    self.audit(con,'update-user',uid)
+                    self.audit(con,user,'update-user',uid)
                     con.commit()
                     self.reply(200,{"ok":True})
                     return
@@ -571,12 +574,13 @@ class Handler(BaseHTTPRequestHandler):
             if match and self.command == 'DELETE':
                 changed = con.execute("UPDATE messages SET deleted=1,text='',image=NULL WHERE id=?", (match[1],)).rowcount
                 if not changed: raise ApiError(404,'Xabar topilmadi')
-                self.audit(con,'delete-message',match[1])
+                self.audit(con,user,'delete-message',match[1])
                 con.commit()
                 self.reply(200,{"ok":True})
                 return
             raise ApiError(404,"Topilmadi")
-    def save_message(self,con,user,mine,data):
+    def save_message(self,con,user,mine,data,operator=None):
+        if not mine and operator is None:raise ApiError(403,'Operator sessiyasi kerak')
         sitter = data.get('sitter')
         if sitter not in sitter_names(): raise ValueError('Enaga topilmadi')
         text = string(data.get('text',''),4000)
@@ -595,7 +599,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ApiError(409,'Bu enaga hozir yangi mijoz qabul qilmayapti. Katalogni yangilang.')
             con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,image,time,request_id) VALUES(?,?,?,?,?,?,?,?)',
                         (secrets.token_hex(16),user,sitter,int(mine),text,image,now(),request_id))
-            if not mine: self.audit(con,'reply',user)
+            if not mine: self.audit(con,operator,'reply',user)
         con.commit()
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):

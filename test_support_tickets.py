@@ -60,6 +60,22 @@ class SupportTests(unittest.TestCase):
         with server.db() as con:
             with self.assertRaises(sqlite3.IntegrityError):con.execute("UPDATE support_messages SET text='changed'")
 
+    def test_legacy_support_author_is_server_owned_and_read_reply_delete_audit_names_operator(self):
+        with server.db() as con:con.execute('INSERT INTO sitters(id,profile) VALUES(?,?)',('test-legacy',json.dumps({'name':'TEST legacy sitter'})))
+        path='/api/admin/users/abc/messages'
+        self.req(path,user='abc',status=401)
+        self.admin('/api/conversations/'+'a'*32+'/messages',status=401)
+        self.admin(path)
+        result=self.admin(path,{'sitter':'test-legacy','text':'TEST support','requestId':'test-operator-reply','senderRole':'sitter','mine':True})
+        message=result['messages'][-1]
+        self.assertEqual(message['senderRole'],'support');self.assertFalse(message['mine'])
+        # Cookie-only administrator credentials never become client authority.
+        req=Request(self.base+'/api/admin/messages/'+message['id'],method='DELETE',headers={'Cookie':'momiq_admin='+self.admin_token})
+        with urlopen(req) as response:self.assertEqual(response.status,200)
+        with server.db() as con:
+            rows=con.execute("SELECT actor,action FROM audit WHERE action IN ('legacy-chat-view','reply','delete-message') ORDER BY id").fetchall()
+            self.assertEqual([(r['actor'],r['action']) for r in rows],[('test-admin','legacy-chat-view'),('test-admin','reply'),('test-admin','delete-message')])
+
     def test_parallel_exact_retry_one_ticket_changed_retry_conflicts(self):
         data=self.data();gate=threading.Barrier(2)
         def create(_):
