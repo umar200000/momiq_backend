@@ -33,6 +33,37 @@ class BookingHttpTests(unittest.TestCase):
     def book(self):
         return self.req('/api/bookings','POST',{'quoteId':self.quote()['id'],'requestId':secrets.token_hex(16)})
 
+    def test_balance_gate_covers_stale_quotes_new_contacts_and_keeps_existing_care(self):
+        import copy
+        listing=copy.deepcopy(self.listing);listing['listings'][0]['price']=10000
+        self.save(listing,2);self.review(3)
+        def balance(value):
+            with server.db() as con:con.execute("UPDATE wallet_accounts SET balance_minor=? WHERE user_id='abc'",(value*100,))
+        for amount,visible in [(14999,False),(15000,True),(15001,True)]:
+            balance(amount)
+            ids=[s['id'] for s in self.req('/api/sitters')['sitters']]
+            self.assertEqual('abc:boarding' in ids,visible)
+        balance(15000)
+        chat=self.req('/api/conversations','POST',{'listingId':'abc:boarding'})
+        booking=self.book();path='/api/bookings/'+booking['id']
+        stale=self.quote()
+        accepted=self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        self.assertEqual(accepted['status'],'accepted')
+        with server.db() as con:self.assertEqual(con.execute("SELECT balance_minor FROM wallet_accounts WHERE user_id='abc'").fetchone()[0],1400000)
+        self.assertEqual(self.req('/api/sitters')['sitters'],[])
+        self.req('/api/bookings/quotes','POST',self.payload,status=409)
+        self.req('/api/bookings','POST',{'quoteId':stale['id'],'requestId':secrets.token_hex(16)},status=409)
+        self.req('/api/conversations','POST',{'listingId':'abc:boarding'},user='stranger',status=409)
+        self.assertEqual(self.req('/api/conversations','POST',{'listingId':'abc:boarding'})['id'],chat['id'])
+        self.req('/api/conversations/'+chat['id']+'/messages','POST',{'text':'TEST existing obligation','requestId':secrets.token_hex(16)},user='abc')
+        self.assertEqual(self.req(path,user='abc')['status'],'accepted')
+        self.assertTrue(self.req(path+'/care')['canEditInstructions'])
+        self.req(path+'/care',user='abc')
+        balance(15000)
+        self.assertEqual(self.req('/api/sitters')['sitters'][0]['id'],'abc:boarding')
+        self.req('/api/conversations','POST',{'listingId':'abc:boarding'},user='stranger')
+        self.quote()
+
     def test_listing_and_profile_edits_preserve_accepted_care_and_revisions(self):
         import copy, hashlib, time
         from urllib.request import Request, urlopen
