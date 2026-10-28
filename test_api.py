@@ -117,6 +117,29 @@ class ApiTests(unittest.TestCase):
         with server.db() as con:
             self.assertEqual(server.roles_for(con,uid),['customer','sitter'])
 
+    def test_role_enrollment_preserves_account_and_grants_no_approval_or_admin_rights(self):
+        login=self.login('998909991144');uid=login['userId'];token=login['token']
+        before=self.req('/api/me',token=token)
+        role=self.req('/api/me/role','POST',{'role':'sitter'},token=token)
+        self.assertEqual(role['roles'],['customer','sitter'])
+        self.assertEqual(role['account'],before['account'])
+        self.assertEqual(role['userId'],uid)
+        self.assertEqual(self.req('/api/me/role','POST',{'role':'sitter'},token=token),role)
+        self.assertEqual(self.req('/api/me/role','POST',{'role':'customer'},token=token)['role'],'customer')
+        for data in [{'role':'admin'}, {'role':'sitter','userId':'someone'}, {'role':None}]:
+            self.req('/api/me/role','POST',data,token=token,expected=400)
+        self.req('/api/me/role','GET',token=token,expected=405)
+        self.req('/api/me/role','POST',{'role':'sitter'},expected=401)
+        self.req('/api/admin/users',token=token,expected=401)
+        payload={'housing':'house','listings':[],'_revision':0}
+        self.req('/api/me/listings','PUT',payload,token=token,expected=403)
+        self.assertEqual(self.req('/api/me',token=token),before)
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE actor=? AND action='role-enroll'",(uid,)).fetchone()[0],1)
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM listing_moderation WHERE user_id=?',(uid,)).fetchone()[0],0)
+            con.execute('UPDATE users SET blocked=1 WHERE id=?',(uid,))
+        self.req('/api/me/role','POST',{'role':'sitter'},token=token,expected=403)
+
     def test_catalog_contains_only_database_records(self):
         # Legacy, unreviewed demo records are references, never public ads.
         self.assertEqual(self.req('/api/sitters')['sitters'], [])

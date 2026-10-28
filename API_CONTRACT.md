@@ -17,6 +17,8 @@ This document describes implemented behavior, not future checklist items. JSON A
 - Admin blocking revokes all client sessions. Unblocking requires a new login; old tokens do not revive.
 - The app stores one credential envelope in OS secure storage, scoped to environment/API/user. Old plaintext preference tokens are discarded and require one fresh login. iOS Keychain records without matching installation metadata are discarded. Android backup/device transfer excludes private app data.
 
+`POST /api/me/role` takes exactly `{role: "customer"|"sitter"}` under the existing client token. It idempotently enrolls only that caller in the requested self-service role and returns `userId`, selected `role`, all enrolled `roles` and current `account`. A new enrollment is audited once. It never changes profile revision, listings, identity verification, moderation, bookings, balances or session privileges; admin roles/other user IDs/extra fields are rejected. Existing blocked/deleted/expired-session checks apply. Role selection is a local navigation preference, not a global cross-device mode or an authorization grant. Mobile changes mode only after server success, invalidates outgoing stores and clears the navigation stack while retaining the same token and encrypted wallet retry drafts. Failed or late responses do not switch another session. Restart reopens the selected role and routes incomplete identity/sitter registration back to its form, prefilled with saved server fields. Unsaved keystroke drafts remain M124; sitter publishing still requires independent completeness/moderation checks.
+
 ## Profile concurrency
 
 `GET /api/me`, login and admin user detail return `account._revision` (integer, initially zero). Admin index rows are noneditable summaries. Every full-account `PUT /api/me` must echo the revision from the snapshot being edited. Successful writes increment it and return the authoritative account.
@@ -172,7 +174,7 @@ Acceptance rechecks eligible accounts/listing, pair blocks, threshold `max(15,00
 
 Pending reject/cancel/expiry charge nothing. Prestart accepted cancellation appends one internal commission reversal, frees the reservation and records the reason. Automatic cancellation at/after start is refused for admin review. There is no customer service-money refund or payout. Retrying an accepted action returns current booking state; changed payload/reused action ID or stale revision conflicts. Expiry is persisted in bounded batches and on attempted pending actions, surviving restarts. The local/test server starts the persisted-deadline worker described below. Exact handover address is visible only in accepted/active/completed/disputed participant views; cancelled/pending views redact it. The mobile request/list/detail/accept/reject/cancel paths are connected behind the catalog `bookingEnabled` flag. In-app notifications, two-party service confirmation and no-show adjudication are described below; external push and final retention remain open. Home visits conservatively allow only one overlapping customer interval; a finer visit-slot scheduler is not implemented.
 
-Migration 10 adds empty tables without changing existing account, wallet or chat rows. Seed cleanup refuses even an uncharged quote so booking history cannot be removed through fixture cleanup. Migration 10/11 were dry-run and then applied with the preview writer stopped and a fresh backup; the previous 27 tables remained unchanged. The current preview is schema 11.
+Migration 10 adds empty tables without changing existing account, wallet or chat rows. Seed cleanup refuses even an uncharged quote so booking history cannot be removed through fixture cleanup. Migration 10/11 were dry-run and then applied with the preview writer stopped and a fresh backup; the previous 27 tables remained unchanged. Subsequent migration evidence is recorded in the checklist; the current preview is schema 17.
 
 
 Authenticated client routes (local/test only):
@@ -196,6 +198,24 @@ Mobile request steps are owned pet selection, explicitly zoned start/end plus sa
 `POST /api/bookings/{id}/conversation` takes `{}` and returns the existing or atomically created customer/sitter/service conversation. Both booking participants can open it, including after balance falls below the acquisition threshold. A blocked pair cannot create a new chat; an existing chat is returned with `canSend=false`. Rejected/expired/cancelled requests that were never accepted cannot create a new conversation. No commission or booking status is changed.
 
 `GET /api/conversations/{id}/bookings?before={sequence}` returns up to 20 related bookings and `nextCursor`. It checks conversation participation and filters by all three stored customer/sitter/service values. Items contain booking metadata and name/service/pet-name/price context described below; private details remain behind the booking detail endpoint. A conversation ID never grants access to unrelated bookings.
+
+### Approved state ownership and deadlines
+
+| From | Trigger / responsible party | Result / deadline | Commission |
+|---|---|---|---|
+| Quote | Customer submits owned valid quote | Pending; reply deadline = earlier of creation + 2h and service start | None |
+| Pending | Assigned sitter accepts before deadline, after fresh eligibility/capacity/balance checks | Accepted | Frozen commission debited once |
+| Pending | Assigned sitter rejects, or either participant cancels with reason | Rejected / cancelled | None |
+| Pending | Server deadline reached | Expired, including acceptance attempted at the exact boundary | None |
+| Accepted | Either participant cancels strictly before start | Cancelled; under 24h is a confirmed late cancellation, with emergency review available | Full charged commission returned internally |
+| Accepted | Each participant separately confirms start in `[start,end)` | First stays accepted; second becomes active | None |
+| Accepted | Server reaches start + 15 / 30 minutes without both start confirmations | Contact reminder / ability to report no-show; never an automatic finding | None |
+| Active | Each participant separately confirms completion at/after actual start | First stays active; second becomes completed; early mutual completion allowed | No price recalculation/refund |
+| Accepted / active | Participant reports eligible no-show / service dispute | Disputed; administrator review due within 48h; start/complete frozen | No money moves on report |
+| Disputed | Administrator records supported decision | Not-started → cancelled; service cancellation → cancelled; continue → previous accepted/active | Bounded actual commission compensation per dispute rules |
+| Any existing agreement | Change animals/dates/price or extend stay | Agreement is immutable; API refuses in-place amendments. Existing prestart cancellation policy then a separate request applies; active problems go to support/dispute | No silent repricing or automatic extra charge |
+
+Completion, no-show liability and overdue dispute resolution are never automatic. Three distinct confirmed late cancellations/no-shows within 30 days require operator review; emergencies are excluded, no automatic fine/block. A new confirmation cannot be invented for a late handover, and continuing a dispute does not extend dates. Terminal records are retained; exact retries are idempotent. Customer-to-sitter service money is never handled/refunded by Momiq. These state rules are implemented/tested in isolated HTTP/core tests; blocked native two-party M055 verification and public production activation remain separate release gates.
 
 ### Booking notices and expiry
 

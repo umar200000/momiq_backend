@@ -39,7 +39,7 @@ Birinchi API sinovida appdan hisobdan chiqing, telefon bilan qayta kiring. Lokal
 
 Bu branchda enaga autentifikatsiyasi, profil/afzalliklar va Paynet Xolis chek orqali balans to‘ldirish ulangan. Admin QR/foizni versiya bilan saqlaydi, chek va haqiqiy tushumni tekshiradi; faqat tasdiqdan keyin atomar kredit yoziladi. Tafsilotlar `API_CONTRACT.md`da. Bu o‘zgarishlar hali productionga chiqarilmagan.
 
-Enaga e’lonlari serverga saqlanadi va test moderatsiyasi orqali katalogda ko‘rinadi; bu haqiqiy MyID tasdig‘i emas. Haqiqiy mijoz–enaga chati, blok/shikoyat va auditli moderatsiya ishlaydi. Bron va komissiya uchun atomar core hamda migration 10 test qilindi. Har boshlangan 24 soat qoidasi tasdiqlandi; uchala xizmatning bron HTTP API’si local/test muhitida mavjud. Mobil bron formasi, ikkala rol ro‘yxat/tafsiloti, qabul/rad/prestart bekor qilish ulangan. To‘liq xizmat hayot davri va bildirishnomalar hali tugamagan, production/staging yo‘llari yopiq. Push/SMS/MyID hali ulanmagan.
+Enaga e’lonlari serverga saqlanadi va test moderatsiyasi orqali katalogda ko‘rinadi; bu haqiqiy MyID tasdig‘i emas. Katalog sahifalash, jadval/sig‘im filtrlari va taxminiy koordinatalar asosida masofa saralash bilan ishlaydi. Haqiqiy mijoz–enaga chati, blok/shikoyat va auditli moderatsiya bor. Uchala xizmat uchun server quote, qabul/komissiya, bekor/qaytim, ikki tomon boshlash/yakunlash tasdig‘i, kunlik parvarish, o‘zgarmas sharh va admin ko‘radigan nizo local/test muhitida ulangan. Ichki bildirishnoma va 15/30 daqiqalik eslatmalar bor. Hozirgi sxema 17; bajarilgan va ochiq native sinovlar checklistda. Production/staging booking yo‘llari yopiq, tashqi push/SMS/MyID hali ulanmagan.
 
 Backendga ulangan rejimda hayvonlar serverda saqlanadi. Eski offline/test mock rejimida hayvonlar session ichida saqlanish qoidasi qoladi.
 
@@ -79,7 +79,7 @@ Oxirgi buyruq ishlayotgan localhost APIga ulanadi va belgilangan sinov hisobini 
 ## Serverga ko‘chirish
 
 Bu versiya localhost development uchun: Python stdlib HTTP serveri va doimiy 111111 kodi bilan internetga ochmang.
-Mobil token secure storage’ga ko‘chirildi; uning va boshqa bajarilgan bosqichlarning dalillari checklistda. SMS/OTP, MyID, public release, object storage, katalog paginatsiyasi, push va production backup/monitoring bo‘yicha qolgan talablar ham shu ro‘yxatda yuritiladi. Mijozdagi URL:
+Mobil token secure storage’ga ko‘chirildi; uning va boshqa bajarilgan bosqichlarning dalillari checklistda. SMS/OTP, MyID, public release, object storage, tashqi push va production backup/monitoring bo‘yicha qolgan talablar ham shu ro‘yxatda yuritiladi. Katalog va admin foydalanuvchi/e’lon ro‘yxatlari serverda sahifalanadi. Mijozdagi URL:
 
 ```powershell
 flutter run --dart-define=MOMIQ_API_URL=https://api.example.uz/api

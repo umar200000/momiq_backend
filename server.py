@@ -397,6 +397,23 @@ class Handler(BaseHTTPRequestHandler):
                 return
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
+            if path == '/api/me/role':
+                if self.command != 'POST':raise ApiError(405,'POST yuboring')
+                data = self.body()
+                if set(data)!={'role'} or data['role'] not in ('customer','sitter'):
+                    raise ValueError('Rol noto‘g‘ri')
+                con.execute('BEGIN IMMEDIATE')
+                # Enrolment is self-service, never an approval or an admin grant.
+                row=con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
+                if not row or row['blocked']:raise ApiError(403,'Hisob bloklangan')
+                changed = con.execute('INSERT OR IGNORE INTO user_roles VALUES(?,?)',(user,data['role'])).rowcount
+                if changed:
+                    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                                (user,'role-enroll',data['role'],now()))
+                result={'userId':user,'role':data['role'],'roles':roles_for(con,user),'account':account_snapshot(con,row)}
+                con.commit()
+                self.reply(200,result)
+                return
             if admin_accounts.route(self,con,user,path,account_snapshot,roles_for):
                 return
             if admin_bookings.route(self,con,user,path):
