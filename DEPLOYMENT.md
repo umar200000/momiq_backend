@@ -64,3 +64,9 @@ Gunicorn explicitly loads `gunicorn.conf.py`; its access format contains respons
 These changes do not erase old logs, and do not claim to sanitize every Nginx/Gunicorn error log or external monitoring collector. Error-log access/retention, historical personal data and host-wide configuration remain M108/M113/M116 release work. Preserve useful diagnostics under restricted access rather than disabling error monitoring.
 
 Format references: [Gunicorn logging settings](https://gunicorn.org/reference/settings/#access-log-format) and [Nginx log module](https://nginx.org/en/docs/http/ngx_http_log_module.html).
+
+## Runtime dependency integrity and advisory checks
+
+`requirements.txt` includes `requirements.lock`: the complete three-package Python runtime with exact versions and SHA-256 hashes of non-yanked release distributions from PyPI. Setup, CI and deployment use pip `--require-hashes`. Runtime versions have not changed. To update a dependency, resolve the complete runtime, deliberately refresh version/release hashes, run full tests and review the platform-specific artifact selection; never remove hashes to bypass an install failure.
+
+CI runs pip-audit 2.10.1 in a separate tooling virtual environment with `--disable-pip --require-hashes -r requirements.txt`; a known advisory or failed audit prevents the test job, and therefore deployment, from passing. The local 2026-10-29 scan reported no known advisories for gunicorn23.0.0, packaging25.0 and Pillow13.0.0. This covers the published Python package advisory feed, not proof against unknown vulnerabilities, native codec/OS vulnerabilities, malicious packages, the audit tool's own dependency chain, secrets or licensing. Git/history secret scanning, credential rotation and the remaining native/mobile inventory remain M107/M131 work. [pip-audit documentation](https://pypi.org/project/pip-audit/).

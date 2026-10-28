@@ -13,6 +13,6 @@ if (-not (Test-Path -LiteralPath $venv)) {
     & $interpreter -m venv $venv
     if ($LASTEXITCODE -ne 0) { throw 'Virtual environment creation failed.' }
 }
-& (Join-Path $venv 'Scripts/python.exe') -m pip install -r (Join-Path $backendRoot 'requirements.txt')
+& (Join-Path $venv 'Scripts/python.exe') -m pip install --require-hashes -r (Join-Path $backendRoot 'requirements.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
 Write-Host 'Use ./.venv/Scripts/python.exe. Global Python was not changed.'

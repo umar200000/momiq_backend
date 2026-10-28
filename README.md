@@ -6,7 +6,7 @@ Joriy local/test ish tartibi: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md). Prod
 
 Python 3.12 va `requirements.txt` dagi Pillow talab qilinadi. Windows uchun loyiha ichidagi toolchain va virtual muhitni tayyorlang:
 
-Local va CI Python 3.12 liniyasidan foydalanadi (security patchlar yangilanishi mumkin); `requirements.txt` barcha Python runtime paketlarining versiyasini qat’iy belgilaydi. Dependency o‘zgarishi full test va deploy tekshiruvini talab qiladi. Mobil Flutter/Java/Gradle/SDK versiyalari sibling app README va setup skriptlarida qayd etilgan.
+Local va CI Python 3.12 liniyasidan foydalanadi (security patchlar yangilanishi mumkin); `requirements.txt` to‘liq `requirements.lock` fayliga yo‘naltiradi. Runtime paketlari versiyasi va PyPI release SHA-256 hashlari qat’iy belgilangan; local/CI/deploy `--require-hashes` bilan tekshiradi. Dependency o‘zgarishi full test va deploy tekshiruvini talab qiladi. Mobil Flutter/Java/Gradle/SDK versiyalari sibling app README va setup skriptlarida qayd etilgan.
 
 ```powershell
 cd "D:\projects\momiq_v1\momiq_backend"
@@ -97,7 +97,7 @@ Clone the repositories into sibling folders. The backend detects `momiq_admin`, 
 git clone https://github.com/umar200000/momiq_backend.git
 git clone https://github.com/umar200000/momiq_admin.git momiq_admin_panel
 cd momiq_backend
-python -m pip install -r requirements.txt
+python -m pip install --require-hashes -r requirements.txt
 python server.py
 ```
 
