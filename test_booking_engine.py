@@ -266,6 +266,33 @@ class BookingEngineTests(unittest.TestCase):
         self.expect_error(409, lambda: self.act(boarding))
         with server.db() as con: self.assertEqual(wallet.balance(con, 'abc'), 85000000)
 
+    def test_parallel_home_visits_and_cross_service_limits(self):
+        data=copy.deepcopy(self.listing)
+        data['listings'].append(dict(data['listings'][0],type='homeVisit',capacity=None,location=None))
+        self.save(data,revision=2)
+        with server.db() as con:
+            catalog.review(con,'abc','homeVisit',{'decision':'approve','reason':'TEST','testOnly':True,'_revision':3},'admin','local')
+            for user in ('customer','other'):
+                account=json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                account['addresses']=[{'id':'home','address':'TEST only','lat':41.3,'lon':69.2}]
+                con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(account),user))
+        visits=[self.request(self.quote(user=u,listing='abc:homeVisit',address='home'),user=u) for u in ('customer','other')]
+        barrier=threading.Barrier(2)
+        def accept(booking):
+            barrier.wait()
+            try: return self.act(booking)['status']
+            except engine.BookingError as e: return e.status
+        with ThreadPoolExecutor(max_workers=2) as pool: results=list(pool.map(accept,visits))
+        self.assertCountEqual(results,['accepted',409])
+        # A different customer and service cannot bypass the visit reservation.
+        boarding=self.request(self.quote(user='stranger'),user='stranger')
+        self.expect_error(409,lambda:self.act(boarding))
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM wallet_entries WHERE kind='commission'").fetchone()[0],1)
+        # Half-open boundary permits the next visit after the previous ends.
+        next_visit=self.request(self.quote(listing='abc:homeVisit',address='home',start=self.end,end=self.end+timedelta(days=1)))
+        self.assertEqual(self.act(next_visit)['status'],'accepted')
+
     def test_block_low_balance_rejected_pending_cancel_have_no_fee(self):
         booking = self.request()
         with server.db() as con: con.execute("UPDATE wallet_accounts SET balance_minor=1499999 WHERE user_id='abc'")
