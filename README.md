@@ -6,6 +6,8 @@ Joriy local/test ish tartibi: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md). Prod
 
 Python 3.12 va `requirements.txt` dagi Pillow talab qilinadi. Windows uchun loyiha ichidagi toolchain va virtual muhitni tayyorlang:
 
+Local va CI Python 3.12 liniyasidan foydalanadi (security patchlar yangilanishi mumkin); `requirements.txt` barcha Python runtime paketlarining versiyasini qat’iy belgilaydi. Dependency o‘zgarishi full test va deploy tekshiruvini talab qiladi. Mobil Flutter/Java/Gradle/SDK versiyalari sibling app README va setup skriptlarida qayd etilgan.
+
 ```powershell
 cd "D:\projects\momiq_v1\momiq_backend"
 .\tool\setup-python.ps1
