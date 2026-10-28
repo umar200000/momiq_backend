@@ -79,7 +79,7 @@ def route(handler, con, user, path, environment):
         identity, pet, kind = media.groups()
         handler.reply(200,engine.animal_image(con,identity,user,unquote(pet),kind))
         return True
-    match = re.fullmatch(r'/api/bookings/([a-f0-9]{32})(?:/(accept|reject|cancel))?', path)
+    match = re.fullmatch(r'/api/bookings/([a-f0-9]{32})(?:/(accept|reject|cancel|start|complete))?', path)
     if not match:
         raise engine.BookingError(404, 'Topilmadi')
     identity, action = match.groups()

@@ -194,9 +194,14 @@ def view(con, identity, user):
     if row['status'] not in ('accepted', 'active', 'completed', 'disputed'):
         detail['address'] = {'address': 'Toshkent'}
     events = [dict(e) for e in con.execute('SELECT revision,actor,action,reason,status,created FROM booking_events WHERE booking_id=? ORDER BY revision', (identity,))]
+    peer = row['sitter_id'] if user == row['customer_id'] else row['customer_id']
+    confirmations = {action: {'mine': any(e['action']==action and e['actor']==user for e in events),
+                              'peer': any(e['action']==action and e['actor']==peer for e in events)}
+                     for action in ('start', 'complete')}
     return {'id': row['id'], 'status': row['status'], 'revision': row['revision'],
             'myRole': 'customer' if user == row['customer_id'] else 'sitter',
-            'replyDeadline': row['reply_deadline'], 'snapshot': detail, 'history': events}
+            'replyDeadline': row['reply_deadline'], 'snapshot': detail, 'history': events,
+            'confirmations': confirmations}
 
 
 def record(con, row, actor, action, reason, current):
@@ -290,7 +295,10 @@ def expire_due(con, *, environment, now, limit=200, owner=None, identity=None):
     return len(rows)
 
 
-def check_capacity(con, row, detail):
+def check_capacity(con, row, detail, current):
+    if con.execute("SELECT 1 FROM bookings WHERE sitter_id=? AND id!=? AND status='active' AND ends_at<=? LIMIT 1",
+                   (row['sitter_id'], row['id'], stamp(current))).fetchone():
+        raise BookingError(409, 'Avval muddati o‘tgan parvarishni yakunlang yoki admin bilan bog‘laning')
     active = con.execute("SELECT * FROM bookings WHERE sitter_id=? AND id!=? AND status IN ('accepted','active','disputed') AND starts_at<? AND ends_at>?",
                          (row['sitter_id'], row['id'], row['ends_at'], row['starts_at'])).fetchall()
     # Until cross-service schedules are approved, differing services never overlap.
@@ -298,8 +306,8 @@ def check_capacity(con, row, detail):
         raise BookingError(409, 'Enaga boshqa xizmat bilan band')
     if row['service'] == 'homeVisit' and active:
         raise BookingError(409, 'Enaga shu vaqtda boshqa uyga borish bilan band')
-    current = json.loads(con.execute('SELECT data FROM listings WHERE user_id=?', (row['sitter_id'],)).fetchone()[0])
-    item = next((i for i in current['listings'] if i['type'] == row['service']), None)
+    current_listing = json.loads(con.execute('SELECT data FROM listings WHERE user_id=?', (row['sitter_id'],)).fetchone()[0])
+    item = next((i for i in current_listing['listings'] if i['type'] == row['service']), None)
     if not item or not item['active']:
         raise BookingError(409, 'E’lon faol emas')
     cap = 30 if row['service'] == 'homeVisit' else (1 if row['service'] == 'personal' else min(detail['capacity'], item['capacity']))
@@ -313,18 +321,18 @@ def check_capacity(con, row, detail):
         occupancy += delta
         if occupancy > cap:
             raise BookingError(409, 'Tanlangan vaqtda bo‘sh joy yo‘q')
-    conflict = con.execute("SELECT 1 FROM bookings b JOIN booking_animals a ON a.booking_id=b.id JOIN booking_animals wanted ON wanted.customer_id=a.customer_id AND wanted.animal_id=a.animal_id WHERE wanted.booking_id=? AND b.id!=? AND b.status IN ('accepted','active','disputed') AND b.starts_at<? AND b.ends_at>? LIMIT 1",
-                           (row['id'], row['id'], row['ends_at'], row['starts_at'])).fetchone()
+    conflict = con.execute("SELECT 1 FROM bookings b JOIN booking_animals a ON a.booking_id=b.id JOIN booking_animals wanted ON wanted.customer_id=a.customer_id AND wanted.animal_id=a.animal_id WHERE wanted.booking_id=? AND b.id!=? AND b.status IN ('accepted','active','disputed') AND ((b.starts_at<? AND b.ends_at>?) OR (b.status='active' AND b.ends_at<=?)) LIMIT 1",
+                           (row['id'], row['id'], row['ends_at'], row['starts_at'], stamp(current))).fetchone()
     if conflict:
         raise BookingError(409, 'Hayvon uchun shu vaqtda boshqa bron bor')
 
 
 def act(con, user, identity, action, revision, request_id, *, reason='', environment, now):
-    if action not in ('accept', 'reject', 'cancel'):
+    if action not in ('accept', 'reject', 'cancel', 'start', 'complete'):
         raise ValueError('Unsupported booking action')
     if type(revision) is not int or revision < 0:
         raise BookingError(428, 'Joriy buyurtma versiyasi kerak')
-    if not isinstance(reason, str) or len(reason) > 1000 or (action != 'accept' and not reason.strip()):
+    if not isinstance(reason, str) or len(reason) > 1000 or (action in ('reject', 'cancel') and not reason.strip()):
         raise ValueError('Reason required')
     reason = reason.strip()
     fingerprint = retry_key(request_id, {'booking': identity, 'action': action, 'revision': revision, 'reason': reason})
@@ -354,7 +362,7 @@ def act(con, user, identity, action, revision, request_id, *, reason='', environ
         account(con, row['customer_id'], 'customer')
         account(con, row['sitter_id'], 'sitter')
         listing(con, row['customer_id'], detail['listingId'], environment)
-        check_capacity(con, row, detail)
+        check_capacity(con, row, detail, current)
         if wallet.balance(con, user) < max(rules.MINIMUM_BALANCE_MINOR, commission):
             raise BookingError(409, 'Balans minimum yoki komissiyaga yetmaydi')
         if commission:
@@ -364,6 +372,23 @@ def act(con, user, identity, action, revision, request_id, *, reason='', environ
         if row['status'] != 'pending':
             raise BookingError(409, 'Faqat kutilayotgan so‘rov rad etiladi')
         status = 'rejected'
+    elif action in ('start', 'complete'):
+        required = 'accepted' if action == 'start' else 'active'
+        if row['status'] != required:
+            raise BookingError(409, 'Bu holatda tasdiqlash mumkin emas')
+        if current < parse(row['starts_at']) or (action == 'start' and current >= parse(row['ends_at'])):
+            raise BookingError(409, 'Tasdiqlash vaqti mos emas; kechikkan boshlash uchun admin ko‘rigi kerak')
+        if con.execute('SELECT 1 FROM booking_events WHERE booking_id=? AND actor=? AND action=?', (identity, user, action)).fetchone():
+            raise BookingError(409, 'Siz allaqachon tasdiqlagansiz; ikkinchi tomon javobi kutilmoqda')
+        peer = row['sitter_id'] if user == row['customer_id'] else row['customer_id']
+        peer_confirmed = con.execute('SELECT 1 FROM booking_events WHERE booking_id=? AND actor=? AND action=?', (identity, peer, action)).fetchone()
+        if action == 'complete':
+            started = con.execute("SELECT MAX(created) FROM booking_events WHERE booking_id=? AND action='start'", (identity,)).fetchone()[0]
+            if not started or current < parse(started):
+                raise BookingError(409, 'Yakunlash boshlash tasdig‘idan oldin bo‘la olmaydi')
+        status = ('active' if action == 'start' else 'completed') if peer_confirmed else required
+        role = 'mijoz' if user == row['customer_id'] else 'enaga'
+        reason = ('Xizmat boshlanishini tasdiqladi: ' if action == 'start' else 'Xizmat yakunini tasdiqladi: ') + role
     else:
         if row['status'] not in ('pending', 'accepted'):
             raise BookingError(409, 'Buyurtmani bu holatda bekor qilib bo‘lmaydi')

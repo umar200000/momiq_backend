@@ -109,6 +109,23 @@ class BookingHttpTests(unittest.TestCase):
         with server.db() as con:
             self.assertEqual(con.execute('SELECT COUNT(*) FROM conversations').fetchone()[0],0)
 
+    def test_two_party_handover_and_completion_http(self):
+        booking=self.book(); path='/api/bookings/'+booking['id']
+        accepted=self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        def confirm(action, revision, user):
+            return self.req(path+'/'+action,'POST',{'revision':revision,'requestId':secrets.token_hex(16)},user=user)
+        with patch.object(server.booking_http,'datetime') as clock:
+            clock.now.return_value=datetime.fromisoformat(self.payload['startsAt'])+timedelta(hours=1)
+            first=confirm('start',accepted['revision'],'customer')
+            self.assertEqual(first['status'],'accepted')
+            active=confirm('start',first['revision'],'abc')
+            self.assertEqual(active['status'],'active')
+            first_done=confirm('complete',active['revision'],'customer')
+            self.assertEqual(first_done['status'],'active')
+            done=confirm('complete',first_done['revision'],'abc')
+            self.assertEqual(done['status'],'completed')
+            self.assertEqual(self.req(path)['confirmations']['complete'],{'mine':True,'peer':True})
+
     def test_paging_expiry_and_boundaries(self):
         for i in range(22):
             if i==20:
