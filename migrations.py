@@ -140,12 +140,37 @@ MIGRATIONS = (
         'CREATE TABLE support_requests(actor TEXT NOT NULL,request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,ticket_id TEXT NOT NULL REFERENCES support_tickets(id),PRIMARY KEY(actor,request_id))',
         "CREATE TRIGGER support_identity_immutable BEFORE UPDATE OF id,owner_id,booking_id,subject,topic,created ON support_tickets BEGIN SELECT RAISE(ABORT, 'Support identity is immutable'); END",
     )),
+    (17, 'booking disputes and repeat incident review', (
+        "CREATE TABLE booking_disputes(seq INTEGER PRIMARY KEY AUTOINCREMENT,booking_id TEXT NOT NULL UNIQUE REFERENCES bookings(id),kind TEXT NOT NULL CHECK(kind IN ('no_show','service')),reporter TEXT NOT NULL REFERENCES users(id),prior_status TEXT NOT NULL CHECK(prior_status IN ('accepted','active')),status TEXT NOT NULL CHECK(status IN ('open','resolved')),revision INTEGER NOT NULL,created TEXT NOT NULL,deadline TEXT NOT NULL,resolved_at TEXT,outcome TEXT,reason TEXT,refund_minor INTEGER NOT NULL DEFAULT 0 CHECK(refund_minor>=0))",
+        'CREATE INDEX disputes_queue ON booking_disputes(status,deadline,seq)',
+        "CREATE TRIGGER dispute_identity_immutable BEFORE UPDATE OF booking_id,kind,reporter,prior_status,created,deadline ON booking_disputes BEGIN SELECT RAISE(ABORT,'Dispute identity is immutable'); END",
+        "CREATE TRIGGER dispute_decision_immutable BEFORE UPDATE ON booking_disputes WHEN OLD.status='resolved' BEGIN SELECT RAISE(ABORT,'Resolved dispute decision is immutable'); END",
+        "CREATE TABLE dispute_events(id INTEGER PRIMARY KEY AUTOINCREMENT,booking_id TEXT NOT NULL REFERENCES booking_disputes(booking_id),revision INTEGER NOT NULL,actor TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('customer','sitter','admin')),action TEXT NOT NULL,text TEXT NOT NULL,image TEXT,created TEXT NOT NULL,UNIQUE(booking_id,revision))",
+        "CREATE TRIGGER dispute_events_no_update BEFORE UPDATE ON dispute_events BEGIN SELECT RAISE(ABORT,'Dispute evidence is immutable'); END",
+        "CREATE TRIGGER dispute_events_no_delete BEFORE DELETE ON dispute_events BEGIN SELECT RAISE(ABORT,'Dispute evidence is immutable'); END",
+        'CREATE TABLE dispute_requests(actor TEXT NOT NULL,request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,booking_id TEXT NOT NULL REFERENCES bookings(id),PRIMARY KEY(actor,request_id))',
+        "CREATE TABLE booking_incidents(seq INTEGER PRIMARY KEY AUTOINCREMENT,booking_id TEXT NOT NULL REFERENCES bookings(id),user_id TEXT NOT NULL REFERENCES users(id),kind TEXT NOT NULL CHECK(kind IN ('late_cancellation','no_show')),occurred_at TEXT NOT NULL,excused INTEGER NOT NULL DEFAULT 0 CHECK(excused IN (0,1)),revision INTEGER NOT NULL DEFAULT 0,UNIQUE(booking_id,user_id))",
+        'CREATE INDEX incidents_review ON booking_incidents(user_id,occurred_at,excused)',
+        'CREATE TABLE incident_events(id INTEGER PRIMARY KEY AUTOINCREMENT,booking_id TEXT NOT NULL,user_id TEXT NOT NULL,revision INTEGER NOT NULL,excused INTEGER NOT NULL,actor TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL,UNIQUE(booking_id,user_id,revision),FOREIGN KEY(booking_id,user_id) REFERENCES booking_incidents(booking_id,user_id))',
+        "CREATE TRIGGER incident_events_no_update BEFORE UPDATE ON incident_events BEGIN SELECT RAISE(ABORT,'Incident history is immutable'); END",
+        "CREATE TRIGGER incident_events_no_delete BEFORE DELETE ON incident_events BEGIN SELECT RAISE(ABORT,'Incident history is immutable'); END",
+        "CREATE TRIGGER incident_identity_immutable BEFORE UPDATE OF booking_id,user_id,kind,occurred_at ON booking_incidents BEGIN SELECT RAISE(ABORT,'Incident identity is immutable'); END",
+        "INSERT INTO booking_incidents(booking_id,user_id,kind,occurred_at) SELECT e.booking_id,e.actor,'late_cancellation',e.created FROM booking_events e JOIN bookings b ON b.id=e.booking_id JOIN booking_events previous ON previous.booking_id=e.booking_id AND previous.revision=e.revision-1 WHERE e.action='cancel' AND previous.status='accepted' AND e.actor IN (b.customer_id,b.sitter_id) AND momiq_migration_elapsed_us_v1(e.created,b.starts_at)>=0 AND momiq_migration_elapsed_us_v1(e.created,b.starts_at)<86400000000",
+        "INSERT INTO incident_events(booking_id,user_id,revision,excused,actor,reason,created) SELECT booking_id,user_id,0,0,'migration','Historical confirmed late cancellation; emergency review remains available',occurred_at FROM booking_incidents",
+    )),
 )
+
+
+def _elapsed_us_v1(start, end):
+    # Versioned migration helper: exact arithmetic preserves the 24-hour edge.
+    duration = datetime.fromisoformat(end)-datetime.fromisoformat(start)
+    return (duration.days*86400+duration.seconds)*1_000_000+duration.microseconds
 
 
 def migrate(con):
     if con.in_transaction:
         raise RuntimeError('Commit bootstrap before running migrations')
+    con.create_function('momiq_migration_elapsed_us_v1',2,_elapsed_us_v1,deterministic=True)
     con.execute('BEGIN IMMEDIATE')
     try:
         con.execute('CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)')

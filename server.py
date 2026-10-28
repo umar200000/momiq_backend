@@ -26,6 +26,7 @@ import chat_moderation
 import booking_engine
 import booking_reviews
 import support_tickets
+import booking_disputes
 import booking_http
 from media_validation import validate_photo, MediaBusy
 
@@ -323,7 +324,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if self.command == "GET" and not path.startswith("/api/"):
-            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/reviews.js": "reviews.js", "/admin/support.js": "support.js", "/admin/style.css": "style.css"}.get(path)
+            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/reviews.js": "reviews.js", "/admin/support.js": "support.js", "/admin/disputes.js": "disputes.js", "/admin/style.css": "style.css"}.get(path)
             if not name or not (ADMIN / name).is_file():
                 raise ApiError(404, "Topilmadi")
             raw = (ADMIN / name).read_bytes()
@@ -382,6 +383,8 @@ class Handler(BaseHTTPRequestHandler):
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
             if support_tickets.route(self,con,user,path,photo):
+                return
+            if booking_disputes.route(self,con,user,path,photo,ENVIRONMENT):
                 return
             if booking_reviews.admin_route(self,con,user,path,datetime.fromisoformat(now())):
                 return

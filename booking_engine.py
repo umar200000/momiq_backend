@@ -402,6 +402,8 @@ def act(con, user, identity, action, revision, request_id, *, reason='', environ
             raise BookingError(409, 'Xizmat vaqti boshlandi; admin ko‘rigi kerak')
         if row['status'] == 'accepted' and commission:
             wallet.post_entry(con, row['sitter_id'], commission, 'commission_refund', 'booking:'+identity+':refund', user, reason)
+        from booking_disputes import late_cancel
+        late_cancel(con, row, user, current)
         status = 'cancelled'
     change(con, row, status, user, action, reason, current)
     remember(con, user, request_id, fingerprint, identity)
