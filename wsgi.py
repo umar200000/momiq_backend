@@ -8,6 +8,8 @@ class WsgiHandler(Handler):
     def __init__(self, environ):
         self.command = environ['REQUEST_METHOD']
         self.path = environ.get('PATH_INFO', '/')
+        if environ.get('QUERY_STRING'):
+            self.path += '?' + environ['QUERY_STRING']
         self.client_address = (environ.get('REMOTE_ADDR', ''), 0)
         self.headers = Message()
         for key, value in environ.items():

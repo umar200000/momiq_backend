@@ -1,0 +1,247 @@
+"""Private video reports. Files become visible only after a committed DB record.
+
+Storage is inside the instance data directory, never the public admin tree.
+Original uploads are temporary; only normalized playback/poster files persist.
+"""
+from datetime import datetime, timezone
+from pathlib import Path
+import os
+import re
+import secrets
+import shutil
+import tempfile
+import threading
+import time
+from urllib.parse import parse_qs, urlparse
+
+import booking_care as care
+import booking_engine as engine
+import conversations
+import notifications
+import video_media as media
+import video_policy as policy
+
+_uploads = threading.BoundedSemaphore(2)
+
+
+def metadata(row):
+    return {'id': row['id'], 'petId': row['pet_id'], 'day': row['day'], 'slot': row['slot'],
+            'durationMs': row['duration_ms'], 'bytes': row['bytes'], 'width': row['width'],
+            'height': row['height'], 'created': row['created']}
+
+
+def options(data):
+    if not isinstance(data, dict) or set(data) != {'petId', 'day', 'slot', 'requestId'}:
+        raise ValueError('Invalid video fields')
+    if not isinstance(data['petId'], str) or not 1 <= len(data['petId']) <= 120:
+        raise ValueError('Invalid pet')
+    care.day_value(data['day'])
+    if data['slot'] not in policy.SLOTS:
+        raise ValueError('Invalid video slot')
+    engine.retry_key(data['requestId'], data)
+    return data
+
+
+def prior(con, user, fingerprint, request):
+    row = con.execute('SELECT * FROM booking_videos WHERE actor=? AND request_id=?', (user, request)).fetchone()
+    if row and row['fingerprint'] != fingerprint:
+        raise engine.BookingError(409, 'Bu so‘rov boshqa video uchun ishlatilgan')
+    return row
+
+
+def writable(con, identity, user, data, now):
+    booking = care.access(con, identity, user)
+    if booking['myRole'] != 'sitter' or booking['status'] != 'active':
+        raise engine.BookingError(403, 'Video faqat faol buyurtmaning enagasi tomonidan yuboriladi')
+    if not any(p['id'] == data['petId'] for p in booking['snapshot']['pets']):
+        raise engine.BookingError(404, 'Hayvon bu buyurtmaga tegishli emas')
+    policy.require_window(data['day'], data['slot'], now)
+    if con.execute('SELECT 1 FROM booking_videos WHERE booking_id=? AND pet_id=? AND day=? AND slot=?',
+                   (identity, data['petId'], data['day'], data['slot'])).fetchone():
+        raise engine.BookingError(409, 'Bu vaqt uchun video allaqachon saqlangan. Sahifani yangilang')
+    return booking
+
+
+def overview(con, identity, user, day, now):
+    con.execute('BEGIN')
+    booking = care.access(con, identity, user)
+    rules = policy.policy(now)
+    day = rules['today'] if day is None else care.day_value(day)
+    if day > rules['today']:
+        raise ValueError('Future video day')
+    rows = con.execute('SELECT * FROM booking_videos WHERE booking_id=? AND day=? ORDER BY pet_id,slot', (identity, day)).fetchall()
+    return {'bookingId': identity, 'day': day, 'policy': rules, 'status': booking['status'],
+            'canUpload': booking['myRole'] == 'sitter' and booking['status'] == 'active' and day == rules['today'] and media.available(),
+            'serviceAvailable': media.available(),
+            'pets': [{'id': p['id'], 'name': p.get('name') or p['type']} for p in booking['snapshot']['pets']],
+            'items': [metadata(row) for row in rows]}
+
+
+def store(con, root, identity, user, data, source, clock):
+    """Owns its transaction: decode outside DB lock, recheck before publication."""
+    options(data)
+    fingerprint = engine.retry_key(data['requestId'], {'booking': identity, **data, 'sha256': media.sha256(source)})
+    care.access(con, identity, user)
+    old = prior(con, user, fingerprint, data['requestId'])
+    if old:
+        return metadata(old)
+    writable(con, identity, user, data, clock())
+    root = Path(root)/'care-videos'
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with tempfile.TemporaryDirectory(prefix='.processing-', dir=root) as temporary:
+        prepared = media.prepare(source, temporary)
+        destination = None
+        try:
+            engine.begin(con)
+            care.access(con, identity, user)
+            old = prior(con, user, fingerprint, data['requestId'])
+            if old:
+                con.rollback()
+                return metadata(old)
+            now = clock()
+            writable(con, identity, user, data, now)
+            video_id = secrets.token_hex(16)
+            candidate = root/video_id
+            candidate.mkdir(mode=0o700)
+            destination = candidate
+            # Flush complete derivatives before committing their references.
+            for key, filename in [('videoFile', 'playback.mp4'), ('posterFile', 'poster.jpg')]:
+                target = destination/filename
+                with Path(prepared[key]).open('rb') as incoming, target.open('wb') as stream:
+                    shutil.copyfileobj(incoming, stream)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            if os.name != 'nt':
+                for folder in (destination,root):
+                    descriptor = os.open(folder,os.O_RDONLY | os.O_DIRECTORY)
+                    try: os.fsync(descriptor)
+                    finally: os.close(descriptor)
+            con.execute('INSERT INTO booking_videos VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                (video_id,identity,data['petId'],data['day'],data['slot'],user,data['requestId'],fingerprint,
+                 prepared['durationMs'],prepared['bytes'],prepared['width'],prepared['height'],
+                 prepared['videoHash'],prepared['posterHash'],engine.stamp(now)))
+            con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                        (user,'care-video',engine.encode({'bookingId':identity,'videoId':video_id}),engine.stamp(now)))
+            customer = engine.owned(con, identity, user)['customer_id']
+            notifications.publish(con, customer, f'care-video:{video_id}', 'care', identity, 'video', '')
+            result = metadata(con.execute('SELECT * FROM booking_videos WHERE id=?', (video_id,)).fetchone())
+            con.commit()
+            return result
+        except BaseException:
+            con.rollback()
+            if destination is not None:
+                # Only this call's randomly allocated private directory.
+                shutil.rmtree(destination)
+            raise
+
+
+def byte_range(value, size):
+    if value is None:
+        return 0, size-1, 200
+    match = re.fullmatch(r'bytes=(\d*)-(\d*)', value)
+    if not match or not (match[1] or match[2]):
+        raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
+    if not match[1]:
+        suffix = int(match[2])
+        if suffix <= 0:
+            raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
+        return max(0,size-suffix),size-1,206
+    start = int(match[1]); end = min(int(match[2]),size-1) if match[2] else size-1
+    if start > end or start >= size:
+        raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
+    return start,end,206
+
+
+def download(handler, con, root, identity, user, video, kind):
+    care.access(con, identity, user)
+    row = con.execute('SELECT * FROM booking_videos WHERE id=? AND booking_id=?', (video,identity)).fetchone()
+    if not row:
+        raise engine.BookingError(404, 'Video topilmadi')
+    path = Path(root)/'care-videos'/row['id']/('playback.mp4' if kind == 'playback' else 'poster.jpg')
+    try:
+        stream = path.open('rb')
+    except FileNotFoundError as error:
+        raise media.VideoUnavailable('Video fayli hozir mavjud emas') from error
+    with stream:
+        size = os.fstat(stream.fileno()).st_size
+        start,end,status = byte_range(handler.headers.get('Range'),size)
+        handler.send_response(status)
+        for key,value in {'Content-Type':'video/mp4' if kind=='playback' else 'image/jpeg',
+                          'Content-Length':str(end-start+1),'Accept-Ranges':'bytes',
+                          'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
+                          'Content-Disposition':'inline','Vary':'Authorization'}.items():
+            handler.send_header(key,value)
+        if status == 206:
+            handler.send_header('Content-Range',f'bytes {start}-{end}/{size}')
+        handler.end_headers()
+        stream.seek(start); remaining = end-start+1
+        while remaining:
+            chunk = stream.read(min(65536,remaining))
+            if not chunk: break
+            handler.wfile.write(chunk); remaining -= len(chunk)
+
+
+def route(handler, con, user, path, root, clock=lambda: datetime.now(timezone.utc)):
+    match = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/videos(?:/([a-f0-9]{32})/(playback|poster))?',path)
+    if not match:
+        return False
+    query = parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+    if any(len(v)!=1 for v in query.values()): raise ValueError('Duplicate video query')
+    if handler.command == 'GET':
+        if match[2]:
+            if query: raise ValueError('Unexpected media query')
+            download(handler,con,root,match[1],user,match[2],match[3])
+        else:
+            if set(query)-{'day'}: raise ValueError('Unexpected video query')
+            handler.reply(200,overview(con,match[1],user,query.get('day',[None])[0],clock()))
+        return True
+    if handler.command != 'POST' or match[2]:
+        raise engine.BookingError(405, 'Amal mavjud emas')
+    if not _uploads.acquire(blocking=False):
+        raise media.VideoUnavailable('Video xizmati band. Birozdan so‘ng qayta urining')
+    try:
+        return receive(handler,con,user,match,query,root,clock)
+    finally:
+        _uploads.release()
+
+
+def receive(handler, con, user, match, query, root, clock):
+    data = options({k:v[0] for k,v in query.items()})
+    care.access(con,match[1],user)
+    # Unknown old requests cannot bypass window/status checks or consume decoding.
+    if not con.execute('SELECT 1 FROM booking_videos WHERE actor=? AND request_id=?',(user,data['requestId'])).fetchone():
+        writable(con,match[1],user,data,clock())
+    if handler.headers.get('Content-Type') not in ('video/mp4','video/quicktime','application/octet-stream'):
+        raise engine.BookingError(415,'MP4/MOV video tanlang')
+    length = handler.headers.get('Content-Length','')
+    if not re.fullmatch(r'[0-9]{1,9}',length) or not 12 <= int(length) <= policy.MAX_BYTES:
+        raise engine.BookingError(413,'Video 32 MiB dan oshmasin')
+    if handler.headers.get('Transfer-Encoding'):
+        raise ValueError('Chunked request not supported')
+    engine.begin(con)
+    conversations.quota(con,user,'video-upload',6)
+    con.commit()
+    upload_root = Path(root)/'care-videos'
+    upload_root.mkdir(parents=True,exist_ok=True,mode=0o700)
+    with tempfile.TemporaryDirectory(prefix='.upload-',dir=upload_root) as folder:
+        source = Path(folder)/'source.mp4'
+        with source.open('wb') as stream:
+            remaining = int(length)
+            deadline = time.monotonic()+60
+            socket = getattr(handler,'connection',None)
+            previous_timeout = socket.gettimeout() if socket else None
+            try:
+                while remaining:
+                    left = deadline-time.monotonic()
+                    if left <= 0: raise ValueError('Video upload timeout')
+                    if socket: socket.settimeout(min(left,30))
+                    read = getattr(handler.rfile,'read1',handler.rfile.read)
+                    chunk = read(min(65536,remaining))
+                    if not chunk: raise ValueError('Incomplete video upload')
+                    stream.write(chunk); remaining -= len(chunk)
+            except TimeoutError as error:
+                raise engine.BookingError(408,'Yuklash vaqti tugadi. Qayta urinib ko‘ring') from error
+            finally:
+                if socket: socket.settimeout(previous_timeout)
+        handler.reply(200,store(con,root,match[1],user,data,source,clock))
+    return True

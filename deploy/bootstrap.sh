@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 src=/home/ubuntu/momiq-bootstrap
+apt-get update
+apt-get install -y --no-install-recommends ffmpeg
 id momiq >/dev/null 2>&1 || useradd --system --home /var/lib/momiq --shell /usr/sbin/nologin momiq
 id momiq-deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/bash momiq-deploy
 install -d -m 700 -o momiq -g momiq /var/lib/momiq

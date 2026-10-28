@@ -8,6 +8,7 @@ import booking_chat
 import booking_index
 import booking_care
 import booking_reviews
+import booking_videos
 
 
 def body(handler, allowed):
@@ -17,11 +18,13 @@ def body(handler, allowed):
     return value
 
 
-def route(handler, con, user, path, environment):
+def route(handler, con, user, path, environment, data_root):
     if path != '/api/bookings' and not path.startswith('/api/bookings/'):
         return False
     engine.test_gate(con, environment)
     now = datetime.now(timezone.utc)
+    if booking_videos.route(handler, con, user, path, data_root):
+        return True
     if booking_care.route(handler, con, user, path, now):
         return True
     review = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/review', path)

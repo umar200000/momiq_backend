@@ -158,6 +158,12 @@ MIGRATIONS = (
         "INSERT INTO booking_incidents(booking_id,user_id,kind,occurred_at) SELECT e.booking_id,e.actor,'late_cancellation',e.created FROM booking_events e JOIN bookings b ON b.id=e.booking_id JOIN booking_events previous ON previous.booking_id=e.booking_id AND previous.revision=e.revision-1 WHERE e.action='cancel' AND previous.status='accepted' AND e.actor IN (b.customer_id,b.sitter_id) AND momiq_migration_elapsed_us_v1(e.created,b.starts_at)>=0 AND momiq_migration_elapsed_us_v1(e.created,b.starts_at)<86400000000",
         "INSERT INTO incident_events(booking_id,user_id,revision,excused,actor,reason,created) SELECT booking_id,user_id,0,0,'migration','Historical confirmed late cancellation; emergency review remains available',occurred_at FROM booking_incidents",
     )),
+    (18, 'private immutable daily booking videos', (
+        "CREATE TABLE booking_videos(id TEXT PRIMARY KEY,booking_id TEXT NOT NULL,pet_id TEXT NOT NULL,day TEXT NOT NULL,slot TEXT NOT NULL CHECK(slot IN ('morning','evening')),actor TEXT NOT NULL REFERENCES users(id),request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,duration_ms INTEGER NOT NULL CHECK(duration_ms BETWEEN 10000 AND 60000),bytes INTEGER NOT NULL CHECK(bytes>0 AND bytes<33554432),width INTEGER NOT NULL,height INTEGER NOT NULL,video_hash TEXT NOT NULL,poster_hash TEXT NOT NULL,created TEXT NOT NULL,UNIQUE(actor,request_id),UNIQUE(booking_id,pet_id,day,slot),FOREIGN KEY(booking_id,pet_id) REFERENCES booking_animals(booking_id,animal_id))",
+        'CREATE INDEX booking_videos_day ON booking_videos(booking_id,day,pet_id,slot)',
+        "CREATE TRIGGER booking_videos_no_update BEFORE UPDATE ON booking_videos BEGIN SELECT RAISE(ABORT,'Video report is immutable'); END",
+        "CREATE TRIGGER booking_videos_no_delete BEFORE DELETE ON booking_videos BEGIN SELECT RAISE(ABORT,'Video report is immutable'); END",
+    )),
 )
 
 

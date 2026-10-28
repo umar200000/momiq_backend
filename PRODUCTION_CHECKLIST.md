@@ -4,6 +4,12 @@ Holat: foydalanuvchi barcha qolgan takliflarni tasdiqladi, bosqichma-bosqich ama
 
 **Foydalanuvchi tasdiqlagan mahsulot qarorlari**
 
+- 2026-10-28, M077 yopildi; M078/M079/M115 davom etmoqda: schema 18 va private video API serverdagi Toshkent 07:00–11:00 / 18:00–22:00 oynalari, 10–60s, faqat faol bron enagasi, hayvon/kun/slot uniqueness, aynan bir xil bayt+requestId retry, parallel dublikatdan himoya va commit oldidan vaqt/holatni qayta tekshirishni uladi. Telefon soati vakolat bermaydi. FFmpeg haqiqiy decode, H.264/AAC playback, JPEG poster, GPS metadata olib tashlash; 32MiB/1080p/60fps va vaqt/concurrency limitlari. Ilovada shifrlangan video outbox, progress/cancel/retry, server tasdig‘i, sanali ro‘yxat va bearer playback bor. M078 kamera/process-death, haqiqiy codec/playback va iOS qabul tekshiruvisiz yopilmadi. 196 backend test, 253 Flutter (+1 oldingi skip), analyzer toza, x64 build107.9s; native mavjud cancelled TEST bronida video oynasi, ikkala bo‘sh slot va taqiqlangan upload ko‘rildi (`.local/native-video-readonly.png`). Yangi live bron/video yaratilmagan; M055 bloklangan test takrorlanmadi. Preview migration18 integrity/FK toza, barcha eski bron/pul/qaydlar hash/count teng (`.local/video-migration-proof.json`), oldingi to‘liq backup `.local/backups/before-video-schema18`. Backup endi SQLite+reference video/poster+SHA256 manifestni tekshiradi; to‘liq bo‘lmasa publish qilmaydi. Hosted/offsite restore va retention hali M114/M115. Muammolar/yechim: Gyan download timeout -> rasmiy GitHub mirror+checksum; Windows fsync read-only handle -> flush/fsync writable handle; WSGI QUERY_STRING yo‘qolishi -> transport fix+test; widget test HTTP override -> alohida haqiqiy transport testi. Oldingi M010 backend649c4ae/appb145942 CI success tekshirildi. Jami66/139.
+
+- 2026-10-28 M079 tasdiq: video buyurtma tugaganidan keyin 30 kun saqlanadi; nizo ochilsa yopilguncha va yopilgandan keyin yana 30 kun. Nizo davomida avtomatik o‘chirish yo‘q. Qoidaning implementatsiyasi/cleanup/backup uyg‘unligi navbatda, M079 hali ochiq.
+
+
+
 - 2026-10-28 M077 tasdiq: har bir xizmat kunida ertalab 07:00–11:00 va kechqurun 18:00–22:00 (Toshkent vaqti), har video 10–60 soniya. Vaqt va davomiylik server tomonidan tekshiriladi; yuklanmagan video yuborildi deb hisoblanmaydi.
 
 - 2026-10-28 M041 tasdiq: uyga borib qarashda Toshkent ichida enaga uchun masofa/radius cheklovi yo‘q. Masofa axborot/qidiruv uchun ko‘rsatiladi; enaga radiusi sabab bron rad etilmaydi. Toshkent tashqi chegarasi M001/M029 geofence siyosati bo‘lib qoladi.
@@ -395,7 +401,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [x] M074 — Kundalik parvarish sahifasini faol buyurtma va hayvonlarga ulash: enaga navigatsiyasidan ochiladi, mijoz ayni hisobotni ko‘radi; lokal namuna mustaqil haqiqat bo‘lmaydi.
 - [x] M075 — Ovqat, dori, sayr va boshqa ko‘rsatmalarni buyurtma bilan saqlash: har hayvon uchun jadval, mijoz ko‘rsatmasi va o‘zgarish tarixi; bo‘sh ko‘rsatma sahifani yiqitmaydi.
 - [x] M076 — Vazifa bajarilishini saqlash: vaqt, bajaruvchi, izoh va tuzatish tarixi; faqat tegishli enaga ruxsatli sana/holatda belgilaydi, boshqa qurilmada tiklanadi.
-- [ ] M077 — Ertalab/kechki video qoidalarini bajarish: timezone, vaqt oynasi, davomiylik va kun almashishi; cheklov serverda tekshiriladi, telefon soatini o‘zgartirib chetlab o‘tilmaydi.
+- [x] M077 — Ertalab/kechki video qoidalarini bajarish: timezone, vaqt oynasi, davomiylik va kun almashishi; cheklov serverda tekshiriladi, telefon soatini o‘zgartirib chetlab o‘tilmaydi.
 - [ ] M078 — Video yozish/tanlash/yuklash/ko‘rishni tugatish: progress, bekor qilish, retry, format/siqish, thumbnail va qayta ochish; yuklanmagan video yuborilgan deb hisoblanmaydi.
 - [ ] M079 — Hisobot maxfiyligi va saqlash muddatini bajarish: faqat buyurtma tomonlari/ruxsatli operator, muddati cheklangan media havolasi, eski/lokal fayllarni reja asosida tozalash.
 - [ ] M080 — O‘tkazib yuborilgan vazifa/video va favqulodda holatni boshqarish: eslatma, sabab, mijoz/supportga eskalatsiya; oddiy checklist real xizmat bajarilganining yolg‘on tasdig‘iga aylanmaydi.

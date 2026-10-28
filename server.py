@@ -32,6 +32,7 @@ import booking_reviews
 import support_tickets
 import booking_disputes
 import booking_http
+from video_media import VideoUnavailable
 from media_validation import validate_photo, MediaBusy
 
 ROOT = Path(__file__).resolve().parent
@@ -426,7 +427,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if wallet.route(self,con,user,path,photo,ENVIRONMENT):
                 return
-            if booking_http.route(self,con,user,path,ENVIRONMENT):
+            if booking_http.route(self,con,user,path,ENVIRONMENT,DATA):
                 return
             if chat_moderation.route(self,con,user,path):
                 return
@@ -594,7 +595,7 @@ class Handler(BaseHTTPRequestHandler):
     def dispatch(self):
         try: self.handle_request()
         except (ApiError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError,booking_engine.BookingError) as e: self.reply(e.status,{'error':e.message})
-        except MediaBusy as e: self.reply(503,{'error':str(e)})
+        except (MediaBusy, VideoUnavailable) as e: self.reply(503,{'error':str(e)})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): pass
         except Exception as e:

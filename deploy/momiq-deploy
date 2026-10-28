@@ -20,6 +20,7 @@ release="$base/releases/$kind/$sha-$(date +%s)"
 mkdir "$release"
 git --git-dir="$mirror" archive "$sha" | tar -x -C "$release"
 if [[ "$kind" == backend ]]; then
+  command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || { echo 'Install the ffmpeg OS package before deploying this release'; exit 69; }
   python3 -m venv "$release/.venv"
   "$release/.venv/bin/pip" install --disable-pip-version-check -r "$release/requirements.txt"
   (cd "$release" && runuser -u momiq -- env MOMIQ_ADMIN_DIR="$base/current/admin" PYTHONDONTWRITEBYTECODE=1 "$release/.venv/bin/python" -m unittest -q)

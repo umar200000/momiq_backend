@@ -8,6 +8,12 @@ import server
 from wsgi import application
 
 class ProductionTests(unittest.TestCase):
+    def test_wsgi_preserves_query_parameters(self):
+        from wsgi import WsgiHandler
+        env={};setup_testing_defaults(env)
+        env.update(PATH_INFO='/api/bookings/test/videos',QUERY_STRING='petId=cat-a&slot=evening&day=2026-10-28')
+        self.assertEqual(WsgiHandler(env).path,'/api/bookings/test/videos?petId=cat-a&slot=evening&day=2026-10-28')
+
     def call(self, path, method='GET', data=None, origin=None):
         env = {}; setup_testing_defaults(env)
         raw = json.dumps(data).encode() if data is not None else b''
