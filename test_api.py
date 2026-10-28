@@ -391,6 +391,45 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(restored['pets'][0]['name'],'TEST cat')
         self.assertEqual(self.login('998909000021')['account'],restored)
 
+    def test_topup_corrections_admin_only_owner_history_and_pagination(self):
+        import wallet
+        a=self.req('/api/auth/login','POST',{'phone':'998909008065','code':'111111','role':'sitter'})
+        b=self.req('/api/auth/login','POST',{'phone':'998909008066','code':'111111','role':'sitter'})
+        tid='65000000000000000000000000000001'
+        with server.db() as con:
+            con.execute('BEGIN IMMEDIATE')
+            con.execute("INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created,transfer_reference) VALUES(?,?,10000,'TEST','test-correction-http',1,'v1','fixture','approved',?,'TEST-CORRECTION-HTTP')",(tid,a['userId'],server.now()))
+            wallet.post_entry(con,a['userId'],10000,'topup','topup:'+tid,'fixture-admin','TEST synthetic credit')
+        path='/api/admin/topups/'+tid+'/corrections'
+        body={'requestId':'correction-http','amountMinor':100,'expectedCorrectedMinor':0,'reason':'TEST over-credit'}
+        self.req(path,token=a['token'],expected=401)
+        self.req(path,'POST',body,token=a['token'],expected=401)
+        self.req('/api/wallet/topups/'+tid+'/corrections','POST',body,token=a['token'],expected=405)
+        result=self.req(path,'POST',body,admin=True)['correction']
+        self.assertEqual(self.req(path,'POST',body,admin=True)['correction'],result)
+        self.assertEqual(result['actor'],'admin')
+        for i in range(1,22):
+            self.req(path,'POST',dict(body,requestId='correction-http-'+str(i),expectedCorrectedMinor=i*100),admin=True)
+        private='/api/wallet/topups/'+tid+'/corrections'
+        self.req(private,token=b['token'],expected=404)
+        page=self.req(private,token=a['token'])
+        self.assertEqual(len(page['items']),20)
+        self.assertEqual(page['correctedMinor'],2200)
+        self.assertEqual(page['balanceMinor'],7800)
+        self.assertNotIn('actor',page['items'][0]);self.assertIsNone(page['transferReference'])
+        older=self.req(private+'?before='+page['nextCursor'],token=a['token'])
+        self.assertEqual(len(older['items']),2);self.assertIsNone(older['nextCursor'])
+        self.assertEqual(len({v['id'] for v in page['items']+older['items']}),22)
+        self.req(private+'?before='+('f'*32),token=a['token'],expected=400)
+        self.req(private+'?unknown=1',token=a['token'],expected=400)
+        admin=self.req(path,admin=True)
+        self.assertEqual(admin['transferReference'],'TEST-CORRECTION-HTTP')
+        ledger=self.req('/api/wallet',token=a['token'])
+        self.assertEqual(ledger['balanceMinor'],7800)
+        corrections=[entry for entry in ledger['entries'] if entry['kind']=='topup_correction']
+        self.assertEqual(len(corrections),22)
+        self.assertTrue(all(entry['topupId']==tid for entry in corrections))
+
     def test_manual_topup_verification_idempotency_and_access(self):
         from concurrent.futures import ThreadPoolExecutor
         a=self.req('/api/auth/login','POST',{'phone':'998909000006','code':'111111','role':'sitter'})

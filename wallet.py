@@ -127,6 +127,8 @@ def require_sitter(con, uid):
 
 
 def route(handler, con, uid, path, photo, environment):
+    import wallet_corrections
+    if wallet_corrections.route(handler, con, uid, path): return True
     method=handler.command
     one=re.fullmatch(r'/api/wallet/topups/([a-f0-9]{32})',path)
     if one and method=='GET':
@@ -202,8 +204,8 @@ def route(handler, con, uid, path, photo, environment):
         # Balance and entries must describe one snapshot during concurrent credit.
         con.execute('BEGIN')
         require_sitter(con,uid)
-        entries=[{'id':r['id'],'amountMinor':r['amount_minor'],'balanceAfter':r['balance_after'],'kind':r['kind'],'reason':r['reason'],'created':r['created']}
-                 for r in con.execute('SELECT * FROM wallet_entries WHERE user_id=? ORDER BY created DESC,id DESC LIMIT 50',(uid,))]
+        entries=[{'id':r['id'],'amountMinor':r['amount_minor'],'balanceAfter':r['balance_after'],'kind':r['kind'],'reason':r['reason'],'created':r['created'],'topupId':r['topup_id']}
+                 for r in con.execute('SELECT e.*,c.topup_id FROM wallet_entries e LEFT JOIN wallet_corrections c ON c.entry_id=e.id WHERE e.user_id=? ORDER BY e.created DESC,e.id DESC LIMIT 50',(uid,))]
         value=balance(con,uid)
         handler.reply(200,{'balanceMinor':value,'currency':'UZS','minimumBalanceMinor':MINIMUM_BALANCE_MINOR,
                            'balanceEligible':value>=MINIMUM_BALANCE_MINOR,'entries':entries,'config':settings(con)})

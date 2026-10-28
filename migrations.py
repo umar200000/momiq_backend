@@ -178,6 +178,12 @@ MIGRATIONS = (
         "CREATE TRIGGER video_explanations_no_update BEFORE UPDATE ON video_explanations BEGIN SELECT RAISE(ABORT,'Video explanation is immutable'); END",
         "CREATE TRIGGER video_explanations_no_delete BEFORE DELETE ON video_explanations BEGIN SELECT RAISE(ABORT,'Video explanation is immutable'); END",
     )),
+    (21, 'immutable source-linked topup corrections', (
+        'CREATE TABLE wallet_corrections(id TEXT PRIMARY KEY,topup_id TEXT NOT NULL REFERENCES topup_requests(id),original_entry_id TEXT NOT NULL REFERENCES wallet_entries(id),entry_id TEXT NOT NULL UNIQUE REFERENCES wallet_entries(id),amount_minor INTEGER NOT NULL CHECK(amount_minor>0),expected_minor INTEGER NOT NULL CHECK(expected_minor>=0),request_id TEXT NOT NULL UNIQUE,actor TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL,user_id TEXT NOT NULL REFERENCES users(id))',
+        'CREATE INDEX wallet_corrections_topup ON wallet_corrections(topup_id,created,id)',
+        "CREATE TRIGGER wallet_corrections_no_update BEFORE UPDATE ON wallet_corrections BEGIN SELECT RAISE(ABORT,'Correction is immutable'); END",
+        "CREATE TRIGGER wallet_corrections_no_delete BEFORE DELETE ON wallet_corrections BEGIN SELECT RAISE(ABORT,'Correction is immutable'); END",
+    )),
 )
 
 
