@@ -97,7 +97,7 @@ Clone the repositories into sibling folders. The backend detects `momiq_admin`, 
 git clone https://github.com/umar200000/momiq_backend.git
 git clone https://github.com/umar200000/momiq_admin.git momiq_admin_panel
 cd momiq_backend
-python -m pip install --require-hashes -r requirements.txt
+python -m pip install --only-binary=:all: --require-hashes -r requirements.txt
 python server.py
 ```
 
