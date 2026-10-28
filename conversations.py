@@ -137,6 +137,11 @@ def send(con, user, identity, data, validate_photo):
     role = 'customer' if row['customer_id'] == user else 'sitter'
     cursor = con.execute('INSERT INTO conversation_messages(conversation_id,sender_id,sender_role,text,image,request_id,created) VALUES(?,?,?,?,?,?,?)',
                          (identity, user, role, body, image, request, timestamp()))
+    # Commit the notice with the message. Never copy private message/media content
+    # into the notification payload or a future lock-screen delivery.
+    import notifications
+    notifications.publish(con, peer, f'conversation:{cursor.lastrowid}:{peer}',
+                          'conversation', identity, 'message', '')
     return message(con.execute('SELECT * FROM conversation_messages WHERE id=?', (cursor.lastrowid,)).fetchone(), user)
 
 

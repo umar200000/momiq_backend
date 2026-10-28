@@ -8,6 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from unittest.mock import patch
+import conversations
+import notifications
 
 import server
 import test_catalog
@@ -17,6 +20,27 @@ from test_media import fixture_image
 class ConversationTests(unittest.TestCase):
     save = test_catalog.CatalogTests.save
     review = test_catalog.CatalogTests.review
+
+    def test_message_notice_is_private_atomic_and_deduplicated(self):
+        identity=self.create_chat()['id']; request=secrets.token_hex(16)
+        original=notifications.publish
+        def fail(*args):
+            original(*args)
+            raise RuntimeError('TEST notice failure')
+        with patch.object(notifications,'publish',side_effect=fail):
+            with self.assertRaises(RuntimeError):
+                with server.db() as con:
+                    conversations.send(con,'customer',identity,{'text':'PRIVATE message','requestId':request},server.validate_photo)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM conversation_messages').fetchone()[0],0)
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE source_key LIKE 'conversation:%'").fetchone()[0],0)
+        self.send_chat(identity,text='PRIVATE message',request=request)
+        self.send_chat(identity,text='PRIVATE message',request=request)
+        with server.db() as con:
+            rows=con.execute("SELECT user_id,payload FROM notifications WHERE source_key LIKE 'conversation:%'").fetchall()
+            self.assertEqual(len(rows),1);self.assertEqual(rows[0]['user_id'],'abc')
+            self.assertNotIn('PRIVATE',rows[0]['payload']);self.assertEqual(json.loads(rows[0]['payload'])['targetId'],identity)
+
     def setUp(self):
         test_catalog.CatalogTests.setUp(self)
         self.save(); self.review()

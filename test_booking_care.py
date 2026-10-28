@@ -5,6 +5,8 @@ import sqlite3
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 import threading
+from unittest.mock import patch
+import notifications
 
 import booking_care as care
 import server
@@ -19,6 +21,25 @@ class BookingCareTests(unittest.TestCase):
     request = test_booking_engine.BookingEngineTests.request
     act = test_booking_engine.BookingEngineTests.act
     expect_error = test_booking_engine.BookingEngineTests.expect_error
+
+    def test_care_notice_rolls_back_with_report_and_omits_private_text(self):
+        b=self.active();p=self.payload();p['payload']['note']='PRIVATE medical note'
+        original=notifications.publish
+        def fail(*args):
+            original(*args)
+            raise RuntimeError('TEST notice failure')
+        with patch.object(notifications,'publish',side_effect=fail):
+            with self.assertRaises(RuntimeError):self.write(b,p)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM care_entries').fetchone()[0],0)
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE source_key LIKE 'care:%'").fetchone()[0],0)
+        self.write(b,p);self.write(b,p)
+        self.write(b,self.payload('instructions'),user='customer')
+        with server.db() as con:
+            rows=con.execute("SELECT user_id,payload FROM notifications WHERE source_key LIKE 'care:%' ORDER BY id").fetchall()
+            self.assertEqual([r['user_id'] for r in rows],['customer','abc'])
+            self.assertNotIn('PRIVATE',json.dumps([r['payload'] for r in rows]))
+            self.assertEqual([json.loads(r['payload'])['status'] for r in rows],['report','instructions'])
 
     def accepted(self):
         return self.act(self.request())

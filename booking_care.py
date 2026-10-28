@@ -10,6 +10,7 @@ import re
 
 import booking_engine as engine
 import conversations
+import notifications
 
 CATEGORIES = ('food', 'water', 'walk', 'medicine', 'other')
 VISIBLE = ('accepted', 'active', 'completed', 'disputed', 'cancelled')
@@ -139,6 +140,9 @@ def save(con, identity, user, data, now):
                          (identity,pet,kind,day,category,revision+1,user,data['requestId'],fingerprint,engine.encode(payload),engine.stamp(now)))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
                 (user,'care-'+kind,engine.encode({'bookingId':identity,'entryId':cursor.lastrowid}),engine.stamp(now)))
+    row = engine.owned(con, identity, user)
+    peer = row['sitter_id'] if kind == 'instructions' else row['customer_id']
+    notifications.publish(con, peer, f'care:{cursor.lastrowid}:{peer}', 'care', identity, kind, '')
     return entry(con.execute('SELECT * FROM care_entries WHERE id=?',(cursor.lastrowid,)).fetchone())
 
 
