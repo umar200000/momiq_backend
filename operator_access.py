@@ -13,7 +13,8 @@ NUMBER=r'[1-9][0-9]{0,17}'
 RULES={
     'support':(
         ('GET',rf'work-queue(?:/support/{HEX})?'),
-        ('POST',rf'work-queue/support/{HEX}'),
+        ('POST',rf'work-queue/support/{HEX}(?:/escalate)?'),
+        ('GET',rf'work-queue/support/{HEX}/escalation-operators'),
         ('GET',rf'support(?:/{HEX}(?:/messages/{NUMBER}/image)?)?'),
         ('POST',rf'support/{HEX}'),
     ),

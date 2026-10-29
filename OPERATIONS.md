@@ -11,7 +11,7 @@ Har hodisa uchun vaqtni UTC va zarur bo‘lsa Toshkent vaqti bilan, muhitni, oxi
 | Hodisa koordinatori va mijozga javob | Biznes egasi aniq operator va o‘rinbosarini belgilaydi; tashqi xabar avtomatik yuborilmaydi. |
 | Server/root, TLS, rollout va recovery | Imtiyozli host operatori kerak; CI forced-deploy kaliti bu huquq o‘rnini bosmaydi. |
 | Pul va tushum tekshiruvi | Shaxsiy finance/administrator hisobi; bank/provider tushumini ko‘ra oladigan mas’ul. |
-| Xavfsizlik/moderatsiya/apellyatsiya | Support sabab/dalilni oladi, tegishli qarorni ruxsatli moderator yoki administrator beradi; apellyatsiyani faqat administrator yopadi. |
+| Xavfsizlik/moderatsiya/apellyatsiya | Support sabab/dalilni oladi, bo‘sh yoki o‘ziga biriktirilgan kontent murojaatini amaldagi muddat va auditli sabab bilan faol administratorga topshiradi; tegishli qarorni ruxsatli moderator yoki administrator beradi; apellyatsiyani faqat administrator yopadi. |
 | Backup/offsite va monitoring | Storage/recovery kaliti egasi, navbatchi va alert manzili hali kelishiladi. |
 
 SLO, javob berish jadvali, RPO/RTO, ogohlantirish chegaralari va xarajat budjeti tasdiqlanmagan. Ularni o‘ylab topilgan raqam bilan ishlayapti deb ko‘rsatmang. 48 soat — tasdiqlangan no-show nizosini ko‘rib chiqish muddati, barcha support murojaatlari uchun va’da emas.
@@ -32,6 +32,20 @@ readlink -f /opt/momiq/current/admin
 ```
 
 Logni ruxsatli terminalda ko‘ring; eski/proxy error loglari maxfiy bo‘lishi mumkin. Ulardan ommaviy nusxa tayyorlamang. `event=http` yozuvlarida faqat method/group/status/durationMs/outcome yig‘iladi. `database_busy` + 503 bazadagi lock kutishini bildiradi; generic 500 bilan aralashtirmang. Handler vaqti mijozga to‘liq yetkazish vaqti emas.
+
+### Loglardan cheklangan diagnostika hisobotini olish
+
+[tool/request_report.py](tool/request_report.py) mavjud log faylini faqat o‘qiydi yoki `-` bilan stdin qabul qiladi; JSON hisobot stdoutga chiqadi. Masalan, backend katalogida:
+
+```sh
+.venv/bin/python tool/request_report.py /operator-selected/http.jsonl
+```
+
+Systemd logi ishlatilsa operator avval vaqt oralig‘ini tanlaydi, `journalctl -o cat` bilan faqat message qismini oladi; default sana/PID prefiksli satrlar JSON sifatida qabul qilinmaydi. Vosita tarmoqqa ulanmaydi, database ochmaydi va alert yubormaydi. Fayl yo‘li yoki xato tafsiloti natijaga ko‘chirilmaydi.
+
+Hisobot faqat oldindan ma’lum method/group/status/outcome qiymatlari va 0–86 400 000 ms davomiylikni oladi. Qo‘shimcha maydon, takroriy JSON kaliti, noma’lum label, noto‘g‘ri tur yoki maxfiy traceback bo‘lgan butun satr rad etiladi; `rejectedLines`ni doim tekshiring. Noto‘g‘ri yozuvlar yashirilgani uchun hisobotni barcha so‘rovlarning to‘liq sanog‘i deb qabul qilmang. 32 MiB, 100 000 satr yoki bir satrda 4096 baytdan oshsa qisman hisobot berilmaydi, exit 2 qaytadi. Bo‘sh/umuman yaroqsiz log ham exit 2; u sog‘lom tizim ko‘rsatkichi emas. Oldingi natijani almashtirmaslik uchun saqlashda yangi fayl nomidan foydalaning.
+
+Umumiy va group bo‘yicha so‘rovlar, status/outcome/method soni, `nearest-rank` p50/p95/p99/max handler vaqti beriladi. O‘lchanmagan/null davomiylik alohida `missing`, eski outcome’siz yozuv `unspecified`, uzilgan javobning status 0 qiymati alohida sanaladi. p95 barcha loglar uchun emas, faqat qabul qilingan va vaqt o‘lchovi bor so‘rovlar uchun. Yozuvlarda vaqt belgisi yo‘q: vosita interval, requests/second, uptime, client latency yoki SLO buzilishini hisoblamaydi. Hosil bo‘lgan hisobot namuna doirasini ko‘rsatadi; tashqi monitoring/ogohlantirishni o‘rnatish M116’da hali ochiq.
 
 [deployment_health.py](deployment_health.py) mavjud bazani read-only tekshiradi: muhit, migratsiya checksum va zarur jadvallar. Ishlayotgan release’ning o‘z runtime’i va amaldagi muhitini ishlating; `--mode production` yozish eski test serverni productionga aylantirmaydi.
 

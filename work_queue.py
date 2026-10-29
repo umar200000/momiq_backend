@@ -80,8 +80,15 @@ def deadline(value):
     return parsed.astimezone(timezone.utc).isoformat()
 
 
-def write(con,actor,role,kind,target,data,current):
+def can_escalate(con,actor,role,kind,item,state):
+    return bool(role=='support' and kind=='support' and item['active'] and state['assignee'] in (None,actor)
+                and con.execute("SELECT 1 FROM support_targets WHERE ticket_id=? AND kind IN ('listing','review')",(item['target'],)).fetchone())
+
+
+def write(con,actor,role,kind,target,data,current,escalate=False):
     allowed(role,kind)
+    if escalate and (role!='support' or kind!='support'):
+        raise engine.BookingError(403,'Administratorga yo‘naltirish support roli uchun')
     if not isinstance(data,dict) or set(data)!={'revision','sourceRevision','assignee','dueAt','reason','requestId'}:raise ValueError('Invalid assignment fields')
     for key in ('revision','sourceRevision'):
         if type(data[key]) is not int or data[key]<0:raise ValueError('Assignment revisions are required')
@@ -89,7 +96,7 @@ def write(con,actor,role,kind,target,data,current):
     if assignee is not None and (not isinstance(assignee,str) or not assignee.strip() or len(assignee)>100):raise ValueError('Invalid operator')
     if not isinstance(reason,str) or not reason.strip() or len(reason)>1000:raise ValueError('Reason required')
     reason=reason.strip()
-    fingerprint=engine.retry_key(data['requestId'],{'kind':kind,'target':target,**data,'dueAt':due,'reason':reason})
+    fingerprint=engine.retry_key(data['requestId'],{'kind':kind,'target':target,**data,'dueAt':due,'reason':reason,**({'operation':'escalate'} if escalate else {})})
     engine.begin(con)
     item=source(con,kind,target)
     previous=con.execute('SELECT * FROM work_assignment_events WHERE actor=? AND request_id=?',(actor,data['requestId'])).fetchone()
@@ -99,11 +106,16 @@ def write(con,actor,role,kind,target,data,current):
     old=assignment(con,kind,target,current)
     if not item['active'] or data['sourceRevision']!=item['revision'] or data['revision']!=old['revision']:
         raise engine.BookingError(409,'Ish yoki mas’ul o‘zgargan. Navbatni yangilang')
-    if role!='administrator' and (assignee!=actor or old['assignee'] not in (None,actor) or due!=old['dueAt']):
+    if escalate:
+        if not can_escalate(con,actor,role,kind,item,old) or due!=old['dueAt']:
+            raise engine.BookingError(409,'Faqat bo‘sh yoki o‘zingizga biriktirilgan kontent murojaatini amaldagi muddati bilan yo‘naltirish mumkin')
+        if not assignee or operator_access.role_for(con,assignee)!='administrator':
+            raise engine.BookingError(409,'Faol administratorni tanlang')
+    elif role!='administrator' and (assignee!=actor or old['assignee'] not in (None,actor) or due!=old['dueAt']):
         raise engine.BookingError(403,'Faqat bo‘sh ishni o‘zingizga olishingiz mumkin; muddat va qayta biriktirishni administrator boshqaradi')
     if assignee is not None and operator_access.role_for(con,assignee) not in ('administrator',KINDS[kind]):
         raise engine.BookingError(409,'Operator faol emas yoki mos rolga ega emas')
-    before={'assignee':old['assignee'],'dueAt':old['dueAt']};after={'assignee':assignee,'dueAt':due}
+    before={'assignee':old['assignee'],'dueAt':old['dueAt']};after={'assignee':assignee,'dueAt':due,**({'escalated':True} if escalate else {})}
     if before==after:raise ValueError('Assignment has not changed')
     conversations.quota(con,'admin:'+actor,'assignment',30)
     revision=old['revision']+1;stamp=current.isoformat()
@@ -112,7 +124,7 @@ def write(con,actor,role,kind,target,data,current):
     cursor=con.execute('INSERT INTO work_assignment_events(kind,target,revision,actor,reason,before_state,after_state,created,request_id,fingerprint) VALUES(?,?,?,?,?,?,?,?,?,?)',
                 (kind,target,revision,actor,reason,json.dumps(before),json.dumps(after),stamp,data['requestId'],fingerprint))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
-                (actor,'work-assignment',engine.encode({'kind':kind,'target':target,'revision':revision,'before':before,'after':after,'reason':reason}),stamp))
+                (actor,'work-escalation' if escalate else 'work-assignment',engine.encode({'kind':kind,'target':target,'revision':revision,'before':before,'after':after,'reason':reason}),stamp))
     return {'event':event(con.execute('SELECT * FROM work_assignment_events WHERE id=?',(cursor.lastrowid,)).fetchone()),'assignment':assignment(con,kind,target,current)}
 
 
@@ -137,12 +149,28 @@ def route(handler,con,actor,path):
         result={'items':[dict(r) for r in rows]}
         audit_view(con,actor,'work-operators-view',{'kind':kind},current)
         con.commit();handler.reply(200,result);return True
-    match=re.fullmatch(r'/api/admin/work-queue/(support|listing|chat_report)/([^/]{1,100})',path)
+    match=re.fullmatch(r'/api/admin/work-queue/(support|listing|chat_report)/([^/]{1,100})(?:/(escalate|escalation-operators))?',path)
     if not match:raise engine.BookingError(404,'Topilmadi')
-    kind,target=match[1],unquote(match[2]);allowed(role,kind)
+    kind,target,action=match[1],unquote(match[2]),match[3];allowed(role,kind)
+    if action:
+        if role!='support' or kind!='support':raise engine.BookingError(403,'Administratorga yo‘naltirish support roli uchun')
+        if action=='escalation-operators' and handler.command=='GET':
+            query(handler,());con.execute('BEGIN')
+            item=source(con,kind,target);state=assignment(con,kind,target,current)
+            if not can_escalate(con,actor,role,kind,item,state):raise engine.BookingError(409,'Murojaatni hozir yo‘naltirib bo‘lmaydi')
+            rows=con.execute("SELECT p.username,p.role FROM admin_permissions p JOIN admins a ON a.username=p.username WHERE p.enabled=1 AND p.role='administrator' ORDER BY p.username").fetchall()
+            result={'items':[dict(r) for r in rows]}
+            audit_view(con,actor,'work-escalation-operators-view',{'kind':kind,'target':target},current)
+            con.commit();handler.reply(200,result);return True
+        if action=='escalate' and handler.command=='POST':
+            if urlparse(handler.path).query:raise ValueError('Unexpected escalation query')
+            result=write(con,actor,role,kind,target,handler.body(),current,escalate=True)
+            con.commit();handler.reply(200,result);return True
+        raise engine.BookingError(405,'Amal ruxsat etilmagan')
     if handler.command=='GET':
         params=query(handler,('before',));con.execute('BEGIN')
         result=view(con,kind,target,current,params.get('before'))
+        result['canEscalate']=can_escalate(con,actor,role,kind,result['source'],result['assignment'])
         audit_view(con,actor,'work-history-view',{'kind':kind,'target':target,'before':int(params['before']) if params.get('before') else None},current)
         con.commit();handler.reply(200,result);return True
     if handler.command=='POST':
