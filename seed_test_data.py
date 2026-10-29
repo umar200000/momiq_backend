@@ -57,6 +57,10 @@ def seed(directory, mode='local', clean=False):
             if clean:
                 references = set(ids) | {uid+':'+service for uid in ids for service in ('boarding','homeVisit','personal')}
                 for uid in ids:
+                    if con.execute('SELECT 1 FROM support_tickets WHERE owner_id=? LIMIT 1', (uid,)).fetchone():
+                        raise ValueError('Fixture has support history; cleanup refused. Use a new isolated preview directory.')
+                    if con.execute('SELECT 1 FROM chat_blocks WHERE blocker_id=? OR blocked_id=? LIMIT 1', (uid,uid)).fetchone():
+                        raise ValueError('Fixture has contact-block history; cleanup refused. Use a new isolated preview directory.')
                     if con.execute('SELECT 1 FROM conversations WHERE customer_id=? OR sitter_id=? LIMIT 1',(uid,uid)).fetchone():
                         raise ValueError('Fixture has conversation history; cleanup refused. Use a new isolated preview directory.')
                     if con.execute('SELECT 1 FROM booking_quotes WHERE customer_id=? OR sitter_id=? LIMIT 1',(uid,uid)).fetchone():

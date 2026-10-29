@@ -27,7 +27,9 @@ def publish(con, user, source, kind, target, status, reason):
 
 def route(handler, con, user, path):
     if path == '/api/notifications' and handler.command == 'GET':
-        query = parse_qs(urlparse(handler.path).query)
+        query = parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+        if set(query)-{'before'} or any(len(values)!=1 for values in query.values()):
+            raise ValueError('Invalid notice query')
         cursor = query.get('before', [None])[0]
         if cursor is not None and not re.fullmatch(r'[1-9][0-9]{0,17}', cursor):
             raise ValueError('Invalid notice cursor')
@@ -43,12 +45,15 @@ def route(handler, con, user, path):
         return True
     match = re.fullmatch(r'/api/notifications/([1-9][0-9]{0,17})/read', path)
     if match and handler.command == 'POST':
+        if urlparse(handler.path).query or handler.body():raise ValueError('Read request must be empty')
         con.execute('BEGIN IMMEDIATE')
         row = con.execute('SELECT id FROM notifications WHERE id=? AND user_id=?', (int(match[1]), user)).fetchone()
         if not row: raise NotificationError(404, 'Bildirishnoma topilmadi')
         con.execute('UPDATE notifications SET read_at=COALESCE(read_at,?) WHERE id=? AND user_id=?',
                     (datetime.now(timezone.utc).isoformat(), int(match[1]), user))
+        read_at=con.execute('SELECT read_at FROM notifications WHERE id=? AND user_id=?',(int(match[1]),user)).fetchone()[0]
+        unread=con.execute('SELECT COUNT(*) FROM notifications WHERE user_id=? AND read_at IS NULL',(user,)).fetchone()[0]
         con.commit()
-        handler.reply(200, {'ok': True})
+        handler.reply(200, {'ok': True,'readAt':read_at,'unreadCount':unread})
         return True
     return False

@@ -41,14 +41,14 @@ Birinchi API sinovida appdan hisobdan chiqing, telefon bilan qayta kiring. Lokal
 
 Bu branchda enaga autentifikatsiyasi, profil/afzalliklar va Paynet Xolis chek orqali balans to‘ldirish ulangan. Admin QR/foizni versiya bilan saqlaydi, chek va haqiqiy tushumni tekshiradi; faqat tasdiqdan keyin atomar kredit yoziladi. Tafsilotlar `API_CONTRACT.md`da. Bu o‘zgarishlar hali productionga chiqarilmagan.
 
-Enaga e’lonlari serverga saqlanadi va test moderatsiyasi orqali katalogda ko‘rinadi; bu haqiqiy MyID tasdig‘i emas. Katalog sahifalash, jadval/sig‘im filtrlari va taxminiy koordinatalar asosida masofa saralash bilan ishlaydi. Haqiqiy mijoz–enaga chati, blok/shikoyat va auditli moderatsiya bor. Uchala xizmat uchun server quote, qabul/komissiya, bekor/qaytim, ikki tomon boshlash/yakunlash tasdig‘i, kunlik parvarish, o‘zgarmas sharh va admin ko‘radigan nizo local/test muhitida ulangan. Ichki bildirishnoma va 15/30 daqiqalik eslatmalar bor. Hozirgi sxema 25; bajarilgan va ochiq native sinovlar checklistda. Production/staging booking yo‘llari yopiq, tashqi push/SMS/MyID hali ulanmagan.
+Enaga e’lonlari serverga saqlanadi va test moderatsiyasi orqali katalogda ko‘rinadi; bu haqiqiy MyID tasdig‘i emas. Katalog sahifalash, jadval/sig‘im filtrlari va taxminiy koordinatalar asosida masofa saralash bilan ishlaydi. Haqiqiy mijoz–enaga chati, blok/shikoyat va auditli moderatsiya bor. Uchala xizmat uchun server quote, qabul/komissiya, bekor/qaytim, ikki tomon boshlash/yakunlash tasdig‘i, kunlik parvarish, o‘zgarmas sharh va admin ko‘radigan nizo local/test muhitida ulangan. Ichki bildirishnoma va 15/30 daqiqalik eslatmalar bor. Hozirgi sxema 26; bajarilgan va ochiq native sinovlar checklistda. Production/staging booking yo‘llari yopiq, tashqi push/SMS/MyID hali ulanmagan.
 
 Backendga ulangan rejimda hayvonlar serverda saqlanadi. Eski offline/test mock rejimida hayvonlar session ichida saqlanish qoidasi qoladi.
 
 ## Ma’lumotlar
 
-Baza: `data/momiq.sqlite3`. Server qayta ochilganda ma’lumotlar qoladi. SQLite backup API orqali nusxa oling; ishlayotgan bazaning faqat asosiy faylini WAL faylisiz ko‘chirmang.
-Sinov uchun `+998 90 000 00 01` hisobida `Sinov Mijoz` mavjud; bu haqiqiy mijoz emas.
+Baza: tanlangan `MOMIQ_DATA_DIR` ichidagi `momiq.sqlite3` (launcher standarti `.local/local`; joriy alohida preview `.local/preview`). Server qayta ochilganda ma’lumotlar qoladi. SQLite backup API orqali nusxa oling; ishlayotgan bazaning faqat asosiy faylini WAL faylisiz ko‘chirmang.
+Yangi baza avtomatik demo hisob bilan to‘ldirilmaydi. Belgilangan local/test seed va vaqtinchalik test fixture’lari, ularning tozalash va provayder chegaralari [TEST_DATA_BOUNDARIES.md](TEST_DATA_BOUNDARIES.md) da. Seed MyID tasdig‘i yoki haqiqiy tushum yaratmaydi.
 
 ## API
 
@@ -77,7 +77,7 @@ cd ..\momiq_app
 .\tool\flutter.ps1 test --dart-define=MOMIQ_INTEGRATION=true test/customer_api_integration_test.dart
 ```
 
-Oxirgi buyruq ishlayotgan localhost APIga ulanadi va belgilangan sinov hisobini ishlatadi. Oddiy testlar tarmoqsiz mock rejimda ishlaydi.
+Oxirgi buyruq ishlayotgan localhost APIga ulanadi va belgilangan sinov hisobini ishlatadi; opt-in sinovni avtomatik yoqmang. Mobil standart testlar fake API/storage ishlatadi; backend testlari alohida vaqtinchalik/memory bazalarda, ayrimlari o‘z loopback HTTP serverida ishlaydi. M055 live bron va APK install bloklangan sinovlari qayta urinilmaydi.
 
 ## Serverga ko‘chirish
 

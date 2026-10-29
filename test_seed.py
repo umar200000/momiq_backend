@@ -12,6 +12,37 @@ from seed_test_data import seed, fixture_id
 
 
 class SeedTests(unittest.TestCase):
+    def snapshot(self, target):
+        with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
+            names = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+            return {name: sorted(con.execute('SELECT * FROM "'+name.replace('"','""')+'"').fetchall(), key=repr) for name in names}
+
+    def test_cleanup_preserves_resolved_support_and_original_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'fixtures'
+            seed(target)
+            with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
+                con.execute('INSERT INTO support_tickets(id,owner_id,subject,topic,status,revision,created,updated) VALUES(?,?,?,?,?,1,?,?)',
+                            ('test-support', fixture_id('personal'), 'TEST support', 'general', 'resolved', 'now', 'now'))
+                con.execute('INSERT INTO support_messages(ticket_id,revision,actor,author_role,action,text,created) VALUES(?,1,?,?,?,?,?)',
+                            ('test-support', fixture_id('personal'), 'owner', 'create', 'TEST original evidence', 'now'))
+            before = self.snapshot(target)
+            with self.assertRaisesRegex(ValueError, 'support history'):
+                seed(target, clean=True)
+            self.assertEqual(self.snapshot(target), before)
+
+    def test_cleanup_preserves_inactive_contact_block_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'fixtures'
+            seed(target)
+            with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
+                con.execute('INSERT INTO chat_blocks VALUES(?,?,0,2,?)',
+                            (fixture_id('personal'), fixture_id('boarding'), 'now'))
+            before = self.snapshot(target)
+            with self.assertRaisesRegex(ValueError, 'contact-block history'):
+                seed(target, clean=True)
+            self.assertEqual(self.snapshot(target), before)
+
     def test_cleanup_preserves_booking_quotes_before_any_charge(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'fixtures'
