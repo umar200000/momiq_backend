@@ -9,6 +9,7 @@ import booking_engine as engine
 import conversations
 import notifications
 import support_targets
+import support_resolutions
 import operator_access
 
 
@@ -44,9 +45,12 @@ def view(con,identity,user,admin=False,before=None):
     if before is not None:clause=' AND id<?';args.append(int(before))
     rows=con.execute('SELECT * FROM support_messages WHERE ticket_id=?'+clause+' ORDER BY id DESC LIMIT 21',args).fetchall()
     target=support_targets.detail(con,identity)
-    return {'ticket':public(row),'items':[{'id':str(m['id']),'revision':m['revision'],'authorRole':m['author_role'],'action':m['action'],'text':m['text'],'hasImage':bool(m['image']),'created':m['created']} for m in reversed(rows[:20])],
+    can_resolve=bool(admin and (not target or target['purpose']!='appeal' or operator_access.role_for(con,user)=='administrator'))
+    resolutions=support_resolutions.message_rows(con,identity,rows[:20],admin)
+    return {'ticket':public(row),'items':[{'id':str(m['id']),'revision':m['revision'],'authorRole':m['author_role'],'action':m['action'],'text':m['text'],'hasImage':bool(m['image']),'created':m['created'],**({'resolution':resolutions[m['id']]} if m['id'] in resolutions else {})} for m in reversed(rows[:20])],
             'nextCursor':str(rows[19]['id']) if len(rows)>20 else None,
-            'target':target,'canResolve':bool(admin and (not target or target['purpose']!='appeal' or operator_access.role_for(con,user)=='administrator'))}
+            'target':target,'canResolve':can_resolve,
+            **({'decisionContext':support_resolutions.context(con,target)} if can_resolve and target and target['purpose']=='appeal' else {})}
 
 
 def audit_detail(con,identity,user,before,status=None):
@@ -59,12 +63,13 @@ def audit_detail(con,identity,user,before,status=None):
 def write(con,user,identity,data,validate_photo,admin=False,environment='production'):
     creating=identity is None
     required={'requestId','text','image','revision','action'}|({'subject','topic','bookingId'} if creating else set())
-    if not isinstance(data,dict) or set(data) not in (required,required|({'target'} if creating else set())):raise ValueError('Invalid support fields')
+    if not isinstance(data,dict) or set(data) not in (required,required|({'target'} if creating else {'decisionVersion'})):raise ValueError('Invalid support fields')
     target=data.get('target')
     if 'target' in data:support_targets.validate(target)
     action=data['action'];revision=data['revision']
     if type(revision) is not int or revision<0:raise ValueError('Revision required')
     if action not in ('reply','resolve') or (action=='resolve' and (creating or not admin)):raise ValueError('Invalid support action')
+    if 'decisionVersion' in data and (creating or not admin or action!='resolve'):raise ValueError('Decision version is only for appeal closure')
     body=text(data['text'],4000,action=='resolve')
     if target and not body:raise ValueError('Report reason required')
     image=data['image']
@@ -82,6 +87,7 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     engine.begin(con)
     if not admin:engine.account(con,user)
     if not creating:row=ticket(con,identity,user,admin)
+    existing_target=None
     if admin and action=='resolve':
         existing_target=support_targets.detail(con,identity)
         if existing_target and existing_target['purpose']=='appeal' and operator_access.role_for(con,user)!='administrator':
@@ -90,6 +96,10 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if previous:
         if previous['fingerprint']!=fingerprint:raise engine.BookingError(409,'So‘rov boshqa murojaat uchun ishlatilgan')
         return view(con,previous['ticket_id'],user,admin)
+    decision=None
+    if existing_target and existing_target['purpose']=='appeal':
+        decision=support_resolutions.checked_context(con,existing_target,data.get('decisionVersion'))
+    elif 'decisionVersion' in data:raise ValueError('Decision version is only for appeal closure')
     conversations.quota(con,key,'support',30 if admin else 10)
     current=datetime.now(timezone.utc).isoformat()
     if creating:
@@ -103,9 +113,10 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     elif row['revision']!=revision:raise engine.BookingError(409,'Murojaat o‘zgargan. Yangilang')
     state='resolved' if action=='resolve' else ('waiting_user' if admin else 'open')
     con.execute('UPDATE support_tickets SET status=?,revision=revision+1,updated=? WHERE id=?',(state,current,identity))
-    con.execute('INSERT INTO support_messages(ticket_id,revision,actor,author_role,action,text,image,created) VALUES(?,?,?,?,?,?,?,?)',(identity,revision+1,key,'support' if admin else 'owner',action,body,image,current))
+    message=con.execute('INSERT INTO support_messages(ticket_id,revision,actor,author_role,action,text,image,created) VALUES(?,?,?,?,?,?,?,?)',(identity,revision+1,key,'support' if admin else 'owner',action,body,image,current)).lastrowid
+    if decision:support_resolutions.attach(con,identity,message,decision,current)
     con.execute('INSERT INTO support_requests VALUES(?,?,?,?)',(key,data['requestId'],fingerprint,identity))
-    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'support-'+action,engine.encode({'ticketId':identity,'revision':revision+1}),current))
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'support-'+action,engine.encode({'ticketId':identity,'revision':revision+1,**({'resolutionMessageId':message,'decisionVersion':decision['version'],'sourceEvent':decision['sourceEvent']} if decision else {})}),current))
     if admin:notifications.publish(con,row['owner_id'],f'support:{identity}:{revision+1}','support',identity,state,'')
     return view(con,identity,user,admin)
 

@@ -74,7 +74,8 @@ class SupportTargetTests(unittest.TestCase):
         self.admin(path,self.reply())
         with server.db() as con:con.execute("UPDATE admin_permissions SET role='administrator' WHERE username='test-admin'")
         del self.admin_token
-        closed=self.admin(path,self.reply(revision=2,action='resolve',text='TEST reviewed decision'))
+        version=self.admin(path)['decisionContext']['version']
+        closed=self.admin(path,self.reply(revision=2,action='resolve',text='TEST reviewed decision',decisionVersion=version))
         self.assertEqual(closed['ticket']['status'],'resolved')
         with server.db() as con:self.assertEqual(catalog.document(con,'abc')['moderation']['boarding']['status'],'rejected')
 

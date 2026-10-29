@@ -221,6 +221,14 @@ MIGRATIONS = (
         "CREATE TRIGGER support_target_no_delete BEFORE DELETE ON support_targets BEGIN SELECT RAISE(ABORT,'Support target is immutable'); END",
         "CREATE TRIGGER support_target_no_replace BEFORE INSERT ON support_targets WHEN EXISTS(SELECT 1 FROM support_targets WHERE ticket_id=NEW.ticket_id) BEGIN SELECT RAISE(ABORT,'Support target is immutable'); END",
     )),
+    (27, 'appeal resolution links to observed moderation decisions', (
+        "CREATE TABLE support_resolutions(message_id INTEGER PRIMARY KEY REFERENCES support_messages(id),ticket_id TEXT NOT NULL REFERENCES support_targets(ticket_id),source_version TEXT NOT NULL CHECK(length(source_version)=64),source_event TEXT,snapshot TEXT NOT NULL,created TEXT NOT NULL)",
+        'CREATE INDEX support_resolution_ticket ON support_resolutions(ticket_id,message_id)',
+        "CREATE TRIGGER support_resolution_message BEFORE INSERT ON support_resolutions WHEN NOT EXISTS(SELECT 1 FROM support_messages WHERE id=NEW.message_id AND ticket_id=NEW.ticket_id AND author_role='support' AND action='resolve') BEGIN SELECT RAISE(ABORT,'Resolution must reference its support closure'); END",
+        "CREATE TRIGGER support_resolution_no_update BEFORE UPDATE ON support_resolutions BEGIN SELECT RAISE(ABORT,'Appeal resolution is immutable'); END",
+        "CREATE TRIGGER support_resolution_no_delete BEFORE DELETE ON support_resolutions BEGIN SELECT RAISE(ABORT,'Appeal resolution is immutable'); END",
+        "CREATE TRIGGER support_resolution_no_replace BEFORE INSERT ON support_resolutions WHEN EXISTS(SELECT 1 FROM support_resolutions WHERE message_id=NEW.message_id) BEGIN SELECT RAISE(ABORT,'Appeal resolution is immutable'); END",
+    )),
 )
 
 

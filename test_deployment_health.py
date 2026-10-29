@@ -57,7 +57,7 @@ class DeploymentHealthTests(unittest.TestCase):
             result = self.call()
             self.assertEqual(result['status'], 200)
             self.assertEqual(result['body'], {'ok': True, 'mode': 'test', 'releaseSha': 'a' * 40,
-                                             'schemaVersion': 26})
+                                             'schemaVersion': 27})
             self.assertEqual(result['headers']['Cache-Control'], 'no-store')
             with server.db() as con:
                 self.assertEqual('\n'.join(con.iterdump()), before)
