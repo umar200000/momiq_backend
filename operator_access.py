@@ -5,8 +5,8 @@ ROLES=('support','moderation','finance','administrator')
 PANELS={
     'support':('support',),
     'moderation':('listings','chatReports','reviews'),
-    'finance':('topups',),
-    'administrator':('users','sitters','listings','topups','chatReports','bookings','disputes','support','reviews','settings'),
+    'finance':('topups','metrics'),
+    'administrator':('users','sitters','listings','topups','chatReports','bookings','disputes','support','reviews','settings','metrics'),
 }
 HEX=r'[a-f0-9]{32}'
 NUMBER=r'[1-9][0-9]{0,17}'
@@ -24,6 +24,7 @@ RULES={
         ('POST',rf'reviews/{NUMBER}/moderate'),
     ),
     'finance':(
+        ('GET',r'metrics(?:\.csv)?'),
         ('GET',rf'topups(?:/{HEX}/(?:receipt|corrections|history(?:/[0-9]{{1,9}}/receipt)?))?'),
         ('POST',rf'topups/{HEX}/(?:review|corrections)'),
     ),
