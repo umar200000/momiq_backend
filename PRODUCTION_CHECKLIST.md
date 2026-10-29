@@ -64,7 +64,39 @@ Mock/test ma’lumotlari qo‘shish va keyingi ish davomida zarur deploy uchun f
 
 Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda belgilanadi. Ish boshlanganda mas’ul, bog‘liqlik, commit/PR va test dalili shu ID ostida yoziladi. Shartli vazifa faqat mahsulot qarori yozilgandan keyin qo‘llanmaydi deb yopiladi; jimgina tashlab ketilmaydi. Quyidagi ro‘yxat auditda ma’lum bo‘lgan ko‘lamni qamraydi; ish davomida topilgan yangi holatlar yangi ID bilan qo‘shiladi.
 
+**Joriy bajarish navbati — 2026-10-29**
+
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 78 bajarilgan, 61 ochiq**. Ochiq bandlarning **12 tasi yakuniy navbatga ko‘chirildi**, qolgan **49 tasi qisman bajarilgan yoki davom ettiriladigan bandlar**. Bu 49 tasining hammasi tashqi bog‘liqliksiz to‘liq yopiladi degani emas. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+
+Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
+
+| Navbat | Bandlar | Hozir davom etadigan ish | Yakunda qoladigan qismi |
+| --- | --- | --- | --- |
+| 1 | M102, M105, M124 | Sessiya/rol almashishi, kech javob, parallel saqlash, offline/retry va timeout oqimlarini kod hamda izolyatsiyalangan testlarda tekshirish. | Haqiqiy qurilma/lifecycle va to‘liq hosted ruxsat sinovi. |
+| 2 | M101, M103, M097 | API shartnomasi va endpoint qamrovi, input/upload chegaralari, sabab/audit va maxfiy ma’lumot chiqishini tekshirish. | Audit retention siyosati va hosted qamrovni qabul qilish. |
+| 3 | M090 | Mavjud support/moderatsiyadan foydalanib e’lon/profil/sharh/media shikoyati va apellyatsiya qamrovini tugatish; ruxsat va dalil testlari. | Operatsion mas’ul va haqiqiy navbat qabuli. |
+| 4 | M123 | Uch tildagi matn, xato holati, kattalashtirilgan shrift/kichik ekran va accessibility widget tekshiruvlari. | Android/iPhone screen reader va haqiqiy klaviatura/ruxsat tekshiruvlari. |
+| 5 | M012, M014 | Izolyatsiyalangan test fixture/seed va test provider chegaralarini inventarizatsiya qilish; xavfsiz takrorlash tekshiruvlari. | Live bronni yaratib/qabul qilib bloklangan sinovni aylanib o‘tish yo‘q; SMS/push haqiqiy provayderlari keyin. |
+| 6 | M001, M007, M008, M009, M019, M029, M042 | Mavjud muhit/build/hudud/map xato himoyalarini tekshirish; 1000 hisob/100 faol mezoni va o‘lchangan katalog dalillarini saqlash. | Aniq Toshkent poligoni, provider egalari/kalitlar/kvota, SLO/xarajat va haqiqiy staging; eski hosted test-login sozlamasini almashtirish. |
+| 7 | M024, M066, M108 | Hisob/pul/ma’lumot hayot davridagi mavjud kod va UI bo‘shliqlarini belgilash; tasdiqlangan qoldiq qaytarilmasligini bir xil ko‘rsatish. | O‘chirish/retention/aktiv majburiyat/fiskal siyosatini kelishmasdan qaytarilmas o‘chirish yoki yuridik tasdiq qilinmaydi. |
+| 8 | M078, M139 | Video/chek/QR picker, progress, cancel/retry, process-death qoralamasi va maxfiylikning avtomatlashtiriladigan qismlari. | APK install bloklangan; native kamera/playback/haqiqiy iPhone qabul sinovi oxirida. |
+| 9 | M081, M082, M083, M084, M085 | In-app notice, afzallik, event/dedupe va sahifaga o‘tish qamrovini tekshirish; providerga bog‘liq bo‘lmagan kamchiliklarni tuzatish. | Push loyihasi/kalitlar, APNs, OS token delivery va haqiqiy qurilma sinovi. |
+| 10 | M092, M099, M100, M104, M107 | Operator huquqlari, bazaning concurrency dalillari, migration/backup mosligi, media/secrets inventari va konfiguratsiya tekshiruvlari. | MFA recovery siyosati, saqlash joyi/credential/budjet, eski hosted ma’lumotni ko‘chirish va kalit rotatsiyasi. |
+| 11 | M106, M109, M110, M111, M112, M113, M114, M115, M116, M117 | Release juftligi, CI, read-only smoke, HTTPS/origin/rate limit, backup/recovery va monitoring vositalari hamda yo‘riqnomalarining tekshiriladigan qismlari. | Root bootstrap, haqiqiy staging/promotion, offsite encryption/storage, tashqi alert egasi va real recovery mashqi. |
+| 12 | M122, M125 | Haqiqiy imkoniyatlarga mos review/material inventari, versiya/artifact/symbol/pilot tayyorgarligi. | Signed build, store hisoblari, haqiqiy screenshot va public support/privacy/delete manzillari. |
+| 13 | M128, M129, M130, M131, M133 | Izolyatsiyalangan nosozlik/parallel testlar, API va dependency qamrovi; hujjat/placeholder cheklovlari va dalillarni yangilash. | M055ga bog‘langan live E2E, ikki qurilma, hosted/provider uzilishi va pilot qabul sinovlari. |
+
+**To‘liq bajarildi** belgisi kod va kerakli tekshiruvlar tugagandagina qo‘yiladi. Har ichki bosqich dalili bajarilish jurnaliga qo‘shiladi. Staging yoki providerga bog‘liq yakuniy tekshiruv qolsa band ochiq turadi; uning boshqa mustaqil qismi davom etadi.
+
 **Bajarilish jurnali — 2026-10-27**
+
+- [x] **Mijoz hisobida kech javob va parallel saqlash himoyasi — 2026-10-29 (M102/M105/M124 ichki bosqichi).** Profil yoki hayvon tahriri tugagandan keyin oldin boshlangan refresh kelib yangi revision/profil/arxiv holatini bosishi mumkin edi. Endi mutation boshlanishi eski refreshni bekor qiladi; uning kech xatosi ham yangi holatga yozilmaydi. Dastlabki parallel load bitta so‘rovni bo‘lishadi, xatodan keyin retry mumkin. API/cache kutishlaridan keyin sessiya/dispose qayta tekshiriladi; eski store qo‘shimcha so‘rov, lokal pet yozuvi, cache to‘ldirish yoki muvaffaqiyat natijasini chiqarmaydi. API yoqilgan, sessiya yo‘q build mock profilga o‘tmaydi. Legacy message submit bir vaqtda bittadan bajariladi. Bu allaqachon server qabul qilgan amalni ortga qaytarish yoki yuborilmagan forma matnini doimiy saqlash emas.
+
+- [x] **Sessiya tiklash/chiqish/startup javobini o‘z hisobiga bog‘lash — 2026-10-29 (M102/M124 ichki bosqichi).** Parallel restore bitta API instance beradi; logout cleanup tugamaguncha yangi restore kutadi. Eski vault o‘qishi almashtirilgan credentialni tozalay olmaydi. Kech logout javobi boshqa hisobni o‘chirmaydi va muvaffaqiyat navigatsiyasini qo‘zg‘atmaydi; eski startup GET yoki 401/403 yangi sessiya cache’ini bosmaydi/tozalamaydi, retry ko‘rinishi qaytadi. Haqiqiy secure-storage qurilma testi va barcha login/form lifecycle qamrovi hali ota bandlarda ochiq.
+
+- [x] **Katalogdagi mavjudlikni taxmin qilmaslik va uch tildagi jadval — 2026-10-29 (M123/M133 ichki bosqichi).** `availabilityKnown=true`, lekin `freeCapacity` yo‘q/yaroqsiz bo‘lsa eski lokal hisob bo‘sh joyni o‘ylab topishi mumkin edi. Endi faqat server bergan 0–30 butun son ko‘rsatiladi; qolgan holat “tasdiqlanmagan”. Uyga tashrifda0 joy “band emas” bo‘lib ko‘rsatilmaydi. Sig‘im, hafta kunlari, olib kelish/ketish, tungi qolish, yopiq sanalar va rezerv emasligi matnlari uz/en/ru qilindi; vaqt Toshkent bo‘lib qoladi.3til,320px ekran,2xshrift va yaroqsiz/0sig‘im regressionlari o‘tdi. Butun ilovaning accessibility/native qabul sinovi bajarildi deb belgilanmaydi.
+
+  **Tekshiruv:**10yangi store race,9yangi auth lifecycle,5yangi availability testi; dastlab11store/revision, keyin34session/store va11availability/catalog maqsadli test o‘tdi. Yakuniy **297 Flutter testi o‘tdi,1oldingi opt-in skip**, analyzer toza (`app .local/customer-final-full-flutter.log`, `.local/customer-final-analyze.log`, `.local/customer-session-final-target.log`, `.local/customer-availability-target.log`). Analyzer bitta testdagi brace lintini topdi; qavs qo‘shilib qayta tekshirildi. Reja qamrov tekshiruvi dastlab M106 navbat jadvalida qolib ketganini aniqladi; qo‘shilgach139unikalID va78yopiq/61ochiq aynan saqlandi.12band oxiriga ko‘chirildi,49bandning mustaqil/tashqi qismlari ajratildi. Bloklangan test yoki APK install bajarilmadi; yangi live bron/pul amali va production deploy yo‘q. Bu bosqich runtime backendni o‘zgartirmaydi, preview restart talab qilinmadi.
 
 
 - [x] **Kutib turgan so‘rov huquqini tranzaksiyada qayta tekshirish — 2026-10-29 (M092/M102/M105 ichki bosqichi).** Authenticated connection foydalanuvchi va sessiya chegarasini saqlaydi; har BEGIN’dan keyin sessiya/expiry/blok/operator route ruxsati qayta tekshiriladi. BEGIN IMMEDIATE’da tekshiruv writer lock olingandan keyin bajariladi. Mavjud implicit yozuv/batch yo‘llari ham oldin lock va tekshiruvdan o‘tadi; SQL script authenticated requestda rad etiladi. Shu sabab sekin profil validation’i, kutayotgan eski xabar redaction’i yoki finance top-up tasdig‘i paytida huquq bekor qilinsa amal rollback bo‘ladi. Tasdiqlangan tranzaksiya yoki oldin yuborilgan javob orqaga qaytarilmaydi; tekshiruv tranzaksiya boshlangan vaqtdagi tartibni kafolatlaydi, doimiy bekor qilish mexanizmi emas.
@@ -400,7 +432,7 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 - [x] M003 — Har xizmat uchun enaga kiritadigan bir hayvon/bir kun tarifini bajarish: hayvonlar kunlik tariflari yig‘indisi × kunlar soni; shaxsiy enagada faqat 1 hayvon, alohida paket yoki qo‘shimcha hayvon chegirmasi yo‘q; har boshlangan 24 soat bir kun.
 - [x] M004 — Buyurtma holatlari va muddatlarini tasdiqlash: qabul/rad, javobsiz so‘rov, boshlash/yakunlash, bekor qilish, no-show, uzaytirish va nizo; har o‘tishning egasi belgilanadi.
 - [x] M005 — Tasdiqlangan hisob-kitob modelini bajarish: enaga balans to‘ldiradi, admin belgilaydigan komissiya (boshlang‘ich 10%) balansdan yechiladi, 15 000 so‘mdan past balansda yangi mijoz berilmaydi; yechish hodisasi/bazasi va qaytarish takliflari kelishiladi.
-- [ ] M006 — MyID orqali tekshirish talabini saqlash: integratsiya kelishuv tugagach yakuniy bosqichda; tekshirish/moderatsiya alohida holatlar, testga haqiqiy MyID tasdig‘i berilmaydi.
+
 - [ ] M007 — Ishlash mezonlari va xizmat xarajatlarini kelishish: kutilgan foydalanuvchi/so‘rov/video hajmi, tezlik, mavjudlik, backupdan tiklanish va support muddati; SMS/xarita/storage/to‘lov hisoblari va egalari belgilanadi.
 
 **B. Muhitlar va takrorlanadigan ish jarayoni**
@@ -418,14 +450,14 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 
 SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayder kelishuvi hali tugamagan. Hozir lokal test kirishi ishlatiladi; SMS integratsiyasi bajarilgan deb belgilanmaydi. M019 test kirishini productiondan ajratish himoyasi hozir ishlab chiqiladi, yakuniy reliz tekshiruvi SMS ulangach bajariladi.
 
-- [ ] M016 — Haqiqiy SMS kodini so‘rashni ulash: telefon normallashtiriladi, challenge yaratiladi, provider natijasi va yuborish xatosi foydalanuvchiga to‘g‘ri ko‘rsatiladi.
-- [ ] M017 — OTP tekshirishni server boshqarishi: kodning amal muddati, bir martalik ishlatilishi, urinish limiti va xavfsiz saqlanishi bor; noto‘g‘ri/eskirgan/qayta ishlatilgan kod rad etiladi.
-- [ ] M018 — Qayta SMS yuborish va suiiste’mol cheklovlarini ulash: telefon/IP bo‘yicha limit, kutish vaqti va xarajat nazorati; ekrandagi taymer server holatiga mos keladi.
+
+
+
 - [ ] M019 — Umumiy 111111 kodini production oqimidan chiqarish: test mexanizmi faqat belgilangan sinov muhitida ishlaydi; release va deploy tekshiruvi test login yoqilganini to‘sadi.
 - [x] M020 — Tokenlarni platformaning himoyalangan xotirasiga ko‘chirish: eski SharedPreferences tokenini ko‘chirish/tozalash; backup, log va xato hisobotlari tokenni oshkor qilmaydi.
 - [x] M021 — Sessiya muddatini va ko‘p qurilmali ishlashni yakunlash: yangilash yoki qayta kirish siyosati, bir/barcha sessiyadan chiqish, bloklanganda bekor qilish; offline logout ham lokal hisobni tozalaydi.
 - [x] M022 — Ro‘yxatdan o‘tishni davom ettirish va rol almashishni yakunlash: tugallanmagan profil qayta ochiladi, mijoz/enaga roli adashmaydi, rol tanlashning o‘zi ortiqcha huquq bermaydi.
-- [ ] M023 — Telefon almashtirish va hisobni tiklash oqimini belgilash: egalik qayta tekshiriladi, dublikat hisob va raqam qayta berilishi holatlari boshqariladi, muhim o‘zgarish sessiyalarga ta’sir qiladi.
+
 - [ ] M024 — Hisobni o‘chirishni ulash: ilova ichidagi so‘rov va tashqi veb yo‘li, qayta tasdiqlash, faol buyurtma/to‘lovlar siyosati, media/sessiya/push tokenlarini tozalash va zarur saqlash istisnolari foydalanuvchiga ko‘rsatiladi.
 
 **D. Profil, hayvonlar va manzillar**
@@ -446,7 +478,7 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 - [x] M035 — Uch xizmat validatsiyasini birlashtirish: cat/dog/Boshqa mosligi, narx, manzil, sig‘im va shaxsiy enaga ziddiyatlari barcha kirish yo‘llarida tekshiriladi.
 - [x] M036 — Ish haftasi, vaqt oralig‘i, ta’til va yopiq sanalarni serverda saqlash: kalendar va qidiruv shu ma’lumotga tayanadi; timezone va tungi chegaralar kelishilgan qoidaga mos.
 - [x] M037 — E’lonni tahrirlash/to‘xtatish/arxivlash ta’sirini boshqarish: oldingi buyurtmaning narxi/manzili o‘zgarmaydi; faol majburiyatlar sig‘im yoki uy turi o‘zgarishidan buzilmaydi.
-- [ ] M038 — MyID integratsiyasini yakuniy bosqichda bajarish: kelishuv/kalitlardan keyin callback, takroriy javob, rad/timeout, foydalanuvchiga bog‘lash va minimal hujjat saqlash tekshiriladi; hozir test chegarasi ajratiladi, integratsiya boshlanmaydi.
+
 - [x] M039 — Enaga bosh sahifasini haqiqiy ma’lumotga ulash: profil/e’lon holati, yangi so‘rov, yaqin buyurtma, bugungi parvarish va kerakli ogohlantirishlar; sun’iy raqamlar bo‘lmaydi.
 
 **F. Qidiruv, xarita va tanlash**
@@ -469,7 +501,7 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 - [x] M052 — Enaga qabul/rad etishini ulash: javob muddati, sabab, buyurtma egasi huquqi va bandlik qayta tekshiruvi; ikkala tomondagi holat mos yangilanadi.
 - [x] M053 — Mijoz va enaga buyurtma ro‘yxati/tafsilotlarini ulash: kutilayotgan, faol, tarix, sahifalash va qidiruv; ruxsatsiz hisob buyurtmani ko‘rolmaydi.
 - [x] M054 — Kelishilgan bekor qilish siyosatini ulash: kim/qachon/sabab, komissiyani enaga balansiga qaytarish, sig‘im va bildirishnoma; takroriy so‘rov pulni ikki marta qaytarmaydi, mijozning xizmat puliga aralashilmaydi.
-- [ ] M055 — Boshlash va yakunlashni ulash: hayvonni topshirish/qabul qilish tasdig‘i, vaqt chegaralari va rol huquqlari; nizoli holat avtomatik yakunlanmaydi.
+
 - [x] M056 — Javobsiz bron, vaqtinchalik rezerv va no-show holatlarini boshqarish: restartdan keyin ham muddatli ishlar davom etadi; tugagan so‘rov sig‘imni band qilib qolmaydi.
 - [x] M057 — Sana/hayvon/xizmat o‘zgarishi va uzaytirish siyosatini bajarish: qayta narxlash, mavjudlik va rozilik; imkon berilmasa aniq rad etiladi, yashirin tahrir bo‘lmaydi.
 - [x] M058 — Buyurtma tarixini o‘zgarmas snapshot bilan saqlash: xizmat/narx/manzil/hayvon ko‘rsatmalari va barcha holat o‘tishlari; keyingi profil tahriri eski kelishuvni o‘zgartirmaydi.
@@ -528,7 +560,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [x] M088 — Mijoz va enaga yordam murojaatini yagona ticket oqimiga ulash: mavzu, buyurtma, matn/media, javoblar va holat; yuborilgan murojaat qayta ochilganda ko‘rinadi.
 - [x] M089 — Nizo va takroriy holatlarni boshqarish: 30 kun ichida 3 ta kech bekor/tasdiqlangan kelmaslik admin ko‘rigiga, favqulodda vaziyat va yagona hodisa hisobi; kelmaslik nizosi 48 soatda ko‘riladi, xizmat boshlanmagan bo‘lsa komissiya balansga qaytadi, mijozning xizmat puli qaytarilmaydi.
 - [ ] M090 — E’lon, profil, sharh va mediaga shikoyat/moderatsiya qo‘shish: sabab, ko‘rib chiqish, yashirish, apellyatsiya; qoidabuzarlik va operator harakati kuzatiladi.
-- [ ] M091 — Foydalanish shartlari, maxfiylik, bekor qilish va hamjamiyat qoidalarini tayyorlash: biznes egasi tasdiqlaydi, versiya/rozilik qayd etiladi; shaxsiy ma’lumotlar va hududiy talablar mutaxassis bilan tekshiriladi.
+
 
 **M. Boshqaruv va kundalik operatsiyalar**
 
@@ -568,9 +600,9 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 **P. Reliz sifati va tarqatish**
 
 - [x] M118 — Yakuniy applicationId/bundle ID va brend ma’lumotlarini o‘rnatish: com.example o‘rniga doimiy identifikator, ikonka, nom, versiya/build raqami va haqiqiy tavsif.
-- [ ] M119 — Yakuniy bosqichda Android release signing va AAB tayyorlash: hozir signing o‘rnatilmaydi; oxirida debug signing almashtiriladi, kalitlar egaga tegishli va xavfsiz saqlanadi, release real qurilmada sinaladi.
-- [ ] M120 — iOS relizini tayyorlash: hozir Mac/macOS CI orqali kod va simulator mosligi; signing/provisioning, APNs entitlement, archive va real iPhone/TestFlight tekshiruvi yakuniy bosqichda bajariladi.
-- [ ] M121 — Nashr kunidagi store talablarini tekshirish: target API, native kutubxona mosligi, SDK privacy deklaratsiyalari, Data safety/App Privacy, account deletion, yosh reytingi va kontent moderatsiyasi.
+
+
+
 - [ ] M122 — Store sahifasi va review materiallarini tayyorlash: haqiqiy screenshot/tavsif, support/privacy/delete URL, review uchun cheklangan kirish va test ko‘rsatmasi; mavjud bo‘lmagan imkoniyat reklama qilinmaydi.
 - [ ] M123 — Uch tilda to‘liq UX tekshiruvi: tarjima, pul/sana/plural, xato matni, kichik ekran, katta shrift, screen reader, kontrast, klaviatura va ruxsat rad etilishi; sahifa/CTA yopilib qolmaydi.
 - [ ] M124 — Yuklash/offline/xato holatlarini barcha asosiy oqimlarda yakunlash: forma yo‘qolmasligi, retry, session expired, sekin tarmoq, app background/restart; server tasdiqlamagan amal bajarildi deyilmaydi.
@@ -584,7 +616,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [ ] M129 — Muqobil oqimlarni sinash: rad, timeout, bekor/refund, no-show, nizo, blok, hisob o‘chirish, telefon/rol almashish; hech biri begona ma’lumot yoki noto‘g‘ri balans qoldirmaydi.
 - [ ] M130 — Parallel va nosozlik sinovlari: bir joyga ikki bron, chekni ikki admin tasdiqlashi, retry/dublikat chek, kredit yozilayotganida deploy/DB uzilishi, storage/SMS uzilishi; tiklanganda pul yoki majburiyat ikki marta yozilmaydi.
 - [ ] M131 — Yuklama, maxfiylik va qurilma sinovlarini bajarish: M007 hajmi, eski/yangi Android, kelishilgan iOS, Wi-Fi/mobil/offline, katta media; ruxsatlar, API va dependency xavfsizlik tekshiruvi yakunlanadi.
-- [ ] M132 — Pilot va chiqarish qarorini rasmiylashtirish: test hisoblari ajratilgan, muhim xatolar yopilgan, providerlar production rejimida, backup/monitoring/support ishlaydi; biznes egasi haqiqiy oqimni qabul qiladi.
+
 - [ ] M133 — Hujjat va yakuniy auditni yangilash: README/API/deploy/operator ko‘rsatmalari amaldagi kodga mos, eski mock/placeholder/TODO inventari yopilgan; ma’lum cheklovlar, ochiq vazifalar va reliz dalillari yozilgan.
 
 **Bajarish tartibi va bog‘liqliklar**
@@ -617,3 +649,70 @@ Android release uchun signing va AAB tayyorgarligi [Flutter rasmiy yo‘riqnomas
 Hisob yaratadigan ilovada hisobni o‘chirish yo‘li mavjud bo‘lishi kerak; Google Play tashqi veb yo‘lini ham talab qiladi. [Google Play account deletion](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en), [Apple account deletion](https://developer.apple.com/support/offering-account-deletion-in-your-app/).
 
 Chat, rasm va sharh kabi foydalanuvchi kontenti uchun shikoyat, bloklash, moderatsiya va ochiq support aloqasi rejalashtirilgan. [Apple App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/). Store talablari nashr oldidan qayta tekshiriladi.
+
+
+**Yakuniy navbat — qaror yoki tashqi bog‘liqlik kutilayotgan ishlar**
+
+Bu bo‘lim foydalanuvchining 2026-10-29 ko‘rsatmasi bilan ro‘yxat oxiriga ko‘chirildi. Hozir shu masalalar sabab boshqa mustaqil ish to‘xtatilmaydi. Tasdiqlangan mahsulot qarorlari qayta so‘ralmaydi; faqat quyidagi yetishmayotgan shartlar oxirida birga ko‘riladi.
+
+- [ ] M006 — MyID orqali tekshirish talabini saqlash: integratsiya kelishuv tugagach yakuniy bosqichda; tekshirish/moderatsiya alohida holatlar, testga haqiqiy MyID tasdig‘i berilmaydi.
+
+  **Kutish sababi / davom etish sharti:** MyID kelishuvi va haqiqiy tasdiq mezoni; foydalanuvchi oxiriga qoldirgan.
+
+- [ ] M016 — Haqiqiy SMS kodini so‘rashni ulash: telefon normallashtiriladi, challenge yaratiladi, provider natijasi va yuborish xatosi foydalanuvchiga to‘g‘ri ko‘rsatiladi.
+
+  **Kutish sababi / davom etish sharti:** SMS provayder kelishuvi, hisob va kalit; foydalanuvchi oxiriga qoldirgan.
+
+- [ ] M017 — OTP tekshirishni server boshqarishi: kodning amal muddati, bir martalik ishlatilishi, urinish limiti va xavfsiz saqlanishi bor; noto‘g‘ri/eskirgan/qayta ishlatilgan kod rad etiladi.
+
+  **Kutish sababi / davom etish sharti:** SMS bilan birga yakunlanadi; umumiy test kodi haqiqiy OTP hisoblanmaydi.
+
+- [ ] M018 — Qayta SMS yuborish va suiiste’mol cheklovlarini ulash: telefon/IP bo‘yicha limit, kutish vaqti va xarajat nazorati; ekrandagi taymer server holatiga mos keladi.
+
+  **Kutish sababi / davom etish sharti:** SMS provayderning limit/xarajat shartlari bilan birga yakunlanadi.
+
+- [ ] M023 — Telefon almashtirish va hisobni tiklash oqimini belgilash: egalik qayta tekshiriladi, dublikat hisob va raqam qayta berilishi holatlari boshqariladi, muhim o‘zgarish sessiyalarga ta’sir qiladi.
+
+  **Kutish sababi / davom etish sharti:** Raqam egaligi, qayta berilgan raqam va tiklash siyosati SMS bilan kelishiladi.
+
+- [ ] M038 — MyID integratsiyasini yakuniy bosqichda bajarish: kelishuv/kalitlardan keyin callback, takroriy javob, rad/timeout, foydalanuvchiga bog‘lash va minimal hujjat saqlash tekshiriladi; hozir test chegarasi ajratiladi, integratsiya boshlanmaydi.
+
+  **Kutish sababi / davom etish sharti:** MyID shartnoma/kalit/callback muhiti tayyor bo‘lgach; hozir integratsiya boshlanmaydi.
+
+- [ ] M055 — Boshlash va yakunlashni ulash: hayvonni topshirish/qabul qilish tasdig‘i, vaqt chegaralari va rol huquqlari; nizoli holat avtomatik yakunlanmaydi.
+
+  **Kutish sababi / davom etish sharti:** Izolyatsiyalangan kod testlari bor; jonli mahalliy TEST bron yaratish/qabul qilish tekshiruvini avtomatik approval «blocked by policy» bilan rad etgan. Foydalanuvchi tegmaslikni buyurgan; boshqa vosita bilan aylanib o‘tilmaydi.
+
+- [ ] M091 — Foydalanish shartlari, maxfiylik, bekor qilish va hamjamiyat qoidalarini tayyorlash: biznes egasi tasdiqlaydi, versiya/rozilik qayd etiladi; shaxsiy ma’lumotlar va hududiy talablar mutaxassis bilan tekshiriladi.
+
+  **Kutish sababi / davom etish sharti:** Matnlarning yuridik/shaxsiy ma’lumot talablari va biznes egasi tasdig‘i yakunda kelishiladi; qabul qilinmagan shart amaldagi shart sifatida nashr qilinmaydi.
+
+- [ ] M119 — Yakuniy bosqichda Android release signing va AAB tayyorlash: hozir signing o‘rnatilmaydi; oxirida debug signing almashtiriladi, kalitlar egaga tegishli va xavfsiz saqlanadi, release real qurilmada sinaladi.
+
+  **Kutish sababi / davom etish sharti:** Android signing kaliti va yakuniy chiqarish; foydalanuvchi oxiriga qoldirgan.
+
+- [ ] M120 — iOS relizini tayyorlash: hozir Mac/macOS CI orqali kod va simulator mosligi; signing/provisioning, APNs entitlement, archive va real iPhone/TestFlight tekshiruvi yakuniy bosqichda bajariladi.
+
+  **Kutish sababi / davom etish sharti:** Unsigned iOS simulator CI ishlaydi; signing/provisioning/APNs/haqiqiy iPhone/TestFlight Apple hisobi bilan yakunda.
+
+- [ ] M121 — Nashr kunidagi store talablarini tekshirish: target API, native kutubxona mosligi, SDK privacy deklaratsiyalari, Data safety/App Privacy, account deletion, yosh reytingi va kontent moderatsiyasi.
+
+  **Kutish sababi / davom etish sharti:** Nashr kuni store talablarini yana tekshirish, yakuniy SDK/permission/privacy deklaratsiyalari va hisob o‘chirish siyosati kerak.
+
+- [ ] M132 — Pilot va chiqarish qarorini rasmiylashtirish: test hisoblari ajratilgan, muhim xatolar yopilgan, providerlar production rejimida, backup/monitoring/support ishlaydi; biznes egasi haqiqiy oqimni qabul qiladi.
+
+  **Kutish sababi / davom etish sharti:** Haqiqiy provider, hosted backup/monitoring, signed qurilmalar va biznes egasining yakuniy pilot qabuli kerak.
+
+**Davom etayotgan bandlarning tashqi qabul bosqichlari**
+
+Bu yerda yangi asosiy band yaratilmaydi; yuqoridagi 49 bandning faqat hozir ochib bo‘lmaydigan qismi sanaladi.
+
+- **Server va staging:** M008/M009/M019/M100/M106/M109–M113. Hozirgi CI SSH kaliti forced-deploy bilan cheklangan; root-owned Nginx/systemd/deploy script/timer/bootstrapni oddiy push o‘rnatmaydi. Legacy test-login konfiguratsiyasi yangi production runtime bilan mos emas. Mos backend/admin SHA juftligi avval nazoratli staging/promotion va imtiyozli bootstrapdan o‘tadi. Draft branch CI muvaffaqiyati production deploy tasdig‘i emas.
+- **Bloklangan native yo‘l:** M055 hamda M078/M124/M128/M129/M131/M139 qabul bosqichlari. M055 live bron testi va yangilangan APKni o‘rnatish avtomatik approval tomonidan rad etilgan; qayta urinish yoki boshqa vosita bilan chetlash yo‘q. Eski emulator buildi yangi kod ishlayapti degan dalil emas. Brauzer avtomatizatsiyasidagi `browser.user is unavailable` ham haqiqiy UI qabulining o‘rnini API testi bilan yopishga asos bo‘lmaydi.
+- **Hudud va xarita:** M001/M029/M042. Aniq Toshkent poligoni va muhit/applicationId bo‘yicha cheklangan xarita/geokodlash hisobi/kalit/kvota kerak. Toshkent ichida masofa cheklovi yo‘qligi allaqachon tasdiqlangan.
+- **Push:** M014/M081–M085/M120. Android/iOS push loyihalari, kalit egasi va APNs/signing, keyin qurilma tokeni/yetkazish/deep link tekshiruvi. In-app notice yetib kelishi tashqi push tasdig‘i emas.
+- **Ma’lumot va balans siyosati:** M024/M066/M091/M097/M108. Faol bron/nizo, audit va moliyaviy dalilni qancha saqlash, hisob o‘chirish/eksport va restore paytida qayta ochmaslik, fiskal talablar mutaxassis/biznes egasi bilan kelishiladi. Qoldiq qaytarilmasligi va commission refundning ichki balansga qaytishi allaqachon tasdiqlangan.
+- **Operatsiya va xarajat:** M007/M092/M099/M104/M107/M114–M117. Object storage/offsite backup joyi va credential, encryption/recovery kaliti egasi, MFA recovery, SLO/RPO/RTO, alert va support mas’uli/budjet kerak. Mavjud SQLite/load natijasi bazani amalda almashtirish yoki xarajat qilish uchun avtomatik qaror emas.
+- **Store va pilot:** M119–M122/M125/M128/M131/M132. Imzolash egasi, Apple/Google hisoblari, real Android/iPhone, public support/privacy/delete URL va egasining haqiqiy oqim qabuli kerak. Signing foydalanuvchi aytganidek oxirida.
+
+Ochiq bandlar sanog‘i tekshiruvi: **78 yopiq + 49 davom etayotgan/qisman + 12 yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
