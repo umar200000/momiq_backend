@@ -476,6 +476,14 @@ class Handler(BaseHTTPRequestHandler):
             if admin:
                 if not operator_access.permits(self.operator_role,self.command,path):
                     raise ApiError(403,'Bu amal uchun operator huquqi yo‘q')
+            if urlparse(self.path).query and (
+                    path in {'/api/me','/api/me/role','/api/me/dashboard','/api/me/listings',
+                             '/api/me/pets/archive','/api/messages','/api/admin/me',
+                             '/api/auth/logout','/api/auth/logout-all','/api/admin/logout'}
+                    or re.fullmatch(r'/api/admin/users/[a-f0-9]+(?:/messages)?',path)
+                    or re.fullmatch(r'/api/admin/messages/[a-f0-9]+',path)):
+                raise ValueError('Bu so‘rovda query maydonlari qabul qilinmaydi')
+            if admin:
                 if path=='/api/admin/me' and self.command=='GET':
                     self.reply(200,operator_access.identity(user,self.operator_role))
                     return
@@ -523,11 +531,13 @@ class Handler(BaseHTTPRequestHandler):
             if notifications.route(self,con,user,path):
                 return
             if path == '/api/auth/logout-all' and self.command == 'POST':
+                if self.body():raise ValueError('Chiqish uchun bo‘sh JSON yuboring')
                 con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (user,))
                 con.commit()
                 self.reply(200, {'ok':True})
                 return
             if path in ["/api/auth/logout", "/api/admin/logout"] and self.command == "POST":
+                if self.body():raise ValueError('Chiqish uchun bo‘sh JSON yuboring')
                 if admin:
                     cookie = SimpleCookie(self.headers.get('Cookie',''))
                     token = cookie['momiq_admin'].value
@@ -539,6 +549,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == '/api/me/pets/archive' and self.command == 'POST':
                 data = self.body()
+                if set(data)-{'petId','archived','_revision'}:raise ValueError('Hayvon arxiv maydonlari noto‘g‘ri')
                 if type(data.get('archived')) is not bool: raise ValueError('Arxiv holati majburiy')
                 pet_id = string(data.get('petId'),100)
                 con.execute('BEGIN IMMEDIATE')
