@@ -20,6 +20,7 @@ release="$base/releases/$kind/$sha-$(date +%s)"
 mkdir "$release"
 git --git-dir="$mirror" archive "$sha" | tar -x -C "$release"
 if [[ "$kind" == backend ]]; then
+  python3 "$release/release_pair.py" --backend "$release" --admin "$base/current/admin"
   command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || { echo 'Install the ffmpeg OS package before deploying this release'; exit 69; }
   for timer in momiq-backup.timer momiq-media-retention.timer momiq-backup-retention.timer; do
     systemctl cat "$timer" >/dev/null || { echo 'Install the updated bootstrap units before deploying private media'; exit 69; }
@@ -29,6 +30,8 @@ if [[ "$kind" == backend ]]; then
   (cd "$release" && runuser -u momiq -- env MOMIQ_ADMIN_DIR="$base/current/admin" PYTHONDONTWRITEBYTECODE=1 "$release/.venv/bin/python" -m unittest -q)
   (set -a; source /etc/momiq/backend.env; set +a; cd "$release"; runuser -u momiq -- "$release/.venv/bin/python" -c 'import server; server.setup()')
 else
+  test -f "$base/current/backend/release_pair.py" || { echo 'Install a contract-aware backend/admin pair during the initial controlled rollout'; exit 69; }
+  python3 "$base/current/backend/release_pair.py" --backend "$base/current/backend" --admin "$release"
   test -s "$release/index.html" && test -s "$release/app.js" && test -s "$release/style.css"
 fi
 old=$(readlink -f "$base/current/$kind" || true)

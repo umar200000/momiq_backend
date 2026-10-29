@@ -43,11 +43,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
-      - name: Fetch admin fixtures
+      - name: Resolve the exact tested admin revision
+        id: admin_pair
+        run: |
+          revision="$(python release_pair.py --backend . --print-revision)"
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Fetch pinned admin fixtures
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: umar200000/momiq_admin
+          ref: ${{ steps.admin_pair.outputs.revision }}
           path: admin-fixture
+      - name: Verify admin contract and checkout identity
+        run: python release_pair.py --backend . --admin admin-fixture --actual-admin-revision "$(git -C admin-fixture rev-parse HEAD)"
       - run: python -m unittest -q
         env:
           MOMIQ_ADMIN_DIR: ${{ github.workspace }}/admin-fixture
