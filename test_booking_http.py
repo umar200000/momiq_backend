@@ -108,7 +108,7 @@ class BookingHttpTests(unittest.TestCase):
             con.execute("INSERT OR IGNORE INTO admin_permissions VALUES('test-admin','administrator',1)")
             con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
         request=Request(self.base+'/api/admin/users/abc',method='PUT',
-                        data=json.dumps({'account':changed,'_revision':account['_revision']}).encode(),
+                        data=json.dumps({'account':changed,'_revision':account['_revision'],'reason':'TEST changed terms'}).encode(),
                         headers={'Cookie':'momiq_admin='+token,'Content-Type':'application/json'})
         with self.assertRaises(HTTPError) as caught:urlopen(request)
         self.assertEqual(caught.exception.code,409);caught.exception.close()

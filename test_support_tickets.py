@@ -73,7 +73,7 @@ class SupportTests(unittest.TestCase):
         message=result['messages'][-1]
         self.assertEqual(message['senderRole'],'support');self.assertFalse(message['mine'])
         # Cookie-only administrator credentials never become client authority.
-        req=Request(self.base+'/api/admin/messages/'+message['id'],method='DELETE',headers={'Cookie':'momiq_admin='+self.admin_token})
+        req=Request(self.base+'/api/admin/messages/'+message['id'],method='DELETE',data=json.dumps({'reason':'TEST legacy cleanup'}).encode(),headers={'Cookie':'momiq_admin='+self.admin_token,'Content-Type':'application/json'})
         with urlopen(req) as response:self.assertEqual(response.status,200)
         with server.db() as con:
             rows=con.execute("SELECT actor,action FROM audit WHERE action IN ('legacy-chat-view','reply','delete-message') ORDER BY id").fetchall()

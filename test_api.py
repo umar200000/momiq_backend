@@ -7,6 +7,8 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 from urllib.request import Request, build_opener, HTTPCookieProcessor
 from urllib.error import HTTPError
 from http.server import ThreadingHTTPServer
@@ -185,7 +187,7 @@ class ApiTests(unittest.TestCase):
         saved = self.req('/api/me','PUT',current,token=a['token'])['account']
         stale['profile']['first'] = 'Lost change'
         self.req('/api/me','PUT',stale,token=a['token'],expected=409)
-        self.req('/api/admin/users/'+a['userId'],'PUT',{'account':stale,'_revision':stale['_revision']},admin=True,expected=409)
+        self.req('/api/admin/users/'+a['userId'],'PUT',{'account':stale,'_revision':stale['_revision'],'reason':'TEST conflict check'},admin=True,expected=409)
         self.assertEqual(self.req('/api/me',token=a['token'])['account'],saved)
         missing = dict(saved); missing.pop('_revision')
         self.req('/api/me','PUT',missing,token=a['token'],expected=428)
@@ -272,7 +274,7 @@ class ApiTests(unittest.TestCase):
                 invalid=dict(saved,**{key:value})
                 self.req('/api/me','PUT',invalid,token=a['token'],expected=400)
                 self.req('/api/admin/users/'+a['userId'],'PUT',
-                         {'account':invalid,'_revision':saved['_revision']},admin=True,expected=400)
+                         {'account':invalid,'_revision':saved['_revision'],'reason':'TEST invalid data'},admin=True,expected=400)
                 self.assertEqual(self.req('/api/me',token=a['token'])['account'],saved)
         for invalid in [[],{'housing':'house','listings':[[]]}]:
             self.req('/api/me/listings','PUT',invalid,token=a['token'],expected=400)
@@ -642,17 +644,99 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(data['messages'][-1]['senderRole'],'support')
         self.assertEqual(data['messages'][-2]['senderRole'],'customer')
         self.req('/api/admin/users/'+a['userId']+'/messages','POST',{'sitter':'hoji','text':'Changed reply','requestId':'reply'},admin=True,expected=409)
-        self.req('/api/admin/messages/'+data['messages'][-1]['id'],'DELETE',admin=True)
+        self.req('/api/admin/messages/'+data['messages'][-1]['id'],'DELETE',{'reason':'TEST remove reply'},admin=True)
         self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][-1]['text'],'Xabar o‘chirildi')
     def test_admin_block_and_unblock(self):
         a=self.login('998905555555')
-        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':True,'_revision':a['account']['_revision']},admin=True)
+        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':True,'_revision':a['account']['_revision'],'reason':'TEST restriction'},admin=True)
         self.req('/api/me',token=a['token'],expected=401)
         self.req('/api/auth/login','POST',{'phone':'998905555555','code':'111111'},expected=403)
-        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':False,'_revision':a['account']['_revision']+1},admin=True)
+        self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':False,'_revision':a['account']['_revision']+1,'reason':'TEST restored access'},admin=True)
         self.req('/api/me',token=a['token'],expected=401)
         fresh=self.login('998905555555')
         self.req('/api/me',token=fresh['token'])
+
+    def test_admin_change_requires_reason_and_audits_bounded_before_after(self):
+        a=self.login('998909880001');path='/api/admin/users/'+a['userId']
+        original=self.req('/api/me',token=a['token'])['account']
+        base={'blocked':False,'_revision':original['_revision']}
+        for data in (base,{**base,'reason':''},{**base,'reason':True},{**base,'reason':'x'*1001},{**base,'reason':'TEST','actor':'forged'}):
+            self.req(path,'PUT',data,admin=True,expected=400)
+        self.assertEqual(self.req('/api/me',token=a['token'])['account'],original)
+        account=json.loads(json.dumps(original));account['profile']={'first':'TEST corrected','last':'Owner','photo':fixture_image()}
+        account['addresses']=[{'id':'test-home','label':'PRIVATE LABEL','address':'PRIVATE STREET 999','lat':41.3,'lon':69.2}]
+        self.req(path,'PUT',{'account':account,'_revision':original['_revision'],'reason':' TEST operator correction '},admin=True)
+        with server.db() as con:
+            row=con.execute("SELECT actor,target FROM audit WHERE action='update-user' ORDER BY id DESC LIMIT 1").fetchone()
+            self.assertEqual(row['actor'],'admin');detail=json.loads(row['target'])
+            self.assertEqual(detail['userId'],a['userId']);self.assertEqual(detail['reason'],'TEST operator correction')
+            self.assertEqual(detail['before']['revision'],original['_revision']);self.assertEqual(detail['after']['revision'],original['_revision']+1)
+            self.assertEqual(detail['before']['profile']['first'],original['profile']['first'])
+            self.assertEqual(detail['after']['profile']['first'],'TEST corrected')
+            self.assertEqual(len(detail['after']['profile']['photoSha256']),64)
+            self.assertNotEqual(detail['before']['accountSha256'],detail['after']['accountSha256'])
+            self.assertEqual(detail['changedFields'],['addresses','profile'])
+            for secret in (a['token'],account['profile']['photo'],'PRIVATE STREET 999','PRIVATE LABEL'):
+                self.assertNotIn(secret,row['target'])
+
+    def test_admin_audit_failure_rolls_back_profile_revision_block_and_sessions(self):
+        a=self.login('998909880002');path='/api/admin/users/'+a['userId'];revision=a['account']['_revision']
+        change={'blocked':True,'_revision':revision,'reason':'TEST restriction with audit'}
+        with server.db() as con:con.execute("CREATE TRIGGER test_reject_user_audit BEFORE INSERT ON audit WHEN NEW.action='update-user' BEGIN SELECT RAISE(ABORT,'TEST audit failure'); END")
+        try:self.req(path,'PUT',change,admin=True,expected=500)
+        finally:
+            with server.db() as con:con.execute('DROP TRIGGER test_reject_user_audit')
+        self.assertEqual(self.req('/api/me',token=a['token'])['account']['_revision'],revision)
+        self.req(path,'PUT',change,admin=True);self.req(path,'PUT',change,admin=True,expected=409)
+        self.req('/api/me',token=a['token'],expected=401)
+        with server.db() as con:
+            detail=json.loads(con.execute("SELECT target FROM audit WHERE action='update-user' ORDER BY id DESC LIMIT 1").fetchone()[0])
+            self.assertFalse(detail['before']['blocked']);self.assertTrue(detail['after']['blocked'])
+            self.assertEqual(detail['changedFields'],[])
+            self.assertNotIn('profile',detail['before']);self.assertNotIn('profile',detail['after'])
+
+    def test_admin_profile_decode_does_not_hold_the_database_writer_lock(self):
+        a=self.login('998909880003');entered=threading.Event();release=threading.Event();original=server.validate_account
+        account=dict(a['account'],profile={'first':'TEST','last':'Concurrent','photo':None})
+        def decoding(value):
+            entered.set()
+            if not release.wait(5):raise RuntimeError('TEST validation release timeout')
+            return original(value)
+        with patch.object(server,'validate_account',side_effect=decoding),ThreadPoolExecutor(max_workers=1) as pool:
+            pending=pool.submit(self.req,'/api/admin/users/'+a['userId'],'PUT',{'account':account,'_revision':a['account']['_revision'],'reason':'TEST pre-lock validation'},admin=True)
+            try:
+                self.assertTrue(entered.wait(5))
+                with server.db() as con:
+                    con.execute('PRAGMA busy_timeout=50');con.execute('BEGIN IMMEDIATE')
+                    con.execute("INSERT OR REPLACE INTO attempts VALUES('TEST independent write',1,0)")
+            finally:release.set()
+            pending.result(timeout=5)
+
+    def test_legacy_message_removal_is_reasoned_atomic_and_retry_does_not_duplicate_audit(self):
+        a=self.login('998909880004');image=fixture_image('pink');text='PRIVATE TEST removal evidence'
+        messages=self.req('/api/admin/users/'+a['userId']+'/messages','POST',{'sitter':'hoji','text':text,'image':image,'requestId':'TEST audit removal'},admin=True)['messages']
+        identity=messages[-1]['id'];path='/api/admin/messages/'+identity
+        self.req(path,'DELETE',{},admin=True,expected=400)
+        self.req(path,'DELETE',{'reason':'TEST','actor':'forged'},admin=True,expected=400)
+        self.req(path,'DELETE',{'reason':'TEST'},token=a['token'],expected=401)
+        with server.db() as con:con.execute("CREATE TRIGGER test_reject_delete_audit BEFORE INSERT ON audit WHEN NEW.action='delete-message' BEGIN SELECT RAISE(ABORT,'TEST audit failure'); END")
+        try:self.req(path,'DELETE',{'reason':'TEST remove'},admin=True,expected=500)
+        finally:
+            with server.db() as con:con.execute('DROP TRIGGER test_reject_delete_audit')
+        with server.db() as con:
+            row=con.execute('SELECT * FROM messages WHERE id=?',(identity,)).fetchone()
+            self.assertEqual(row['text'],text);self.assertEqual(row['image'],image);self.assertFalse(row['deleted'])
+            before=con.execute("SELECT COUNT(*) FROM audit WHERE action='delete-message'").fetchone()[0]
+        self.req(path,'DELETE',{'reason':' TEST remove '},admin=True)
+        self.req(path,'DELETE',{'reason':'TEST retry'},admin=True)
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action='delete-message'").fetchone()[0],before+1)
+            event=con.execute("SELECT actor,target FROM audit WHERE action='delete-message' ORDER BY id DESC LIMIT 1").fetchone()
+            self.assertEqual(event['actor'],'admin');self.assertNotIn(text,event['target']);self.assertNotIn(image,event['target'])
+            detail=json.loads(event['target']);self.assertEqual(detail['messageId'],identity);self.assertEqual(detail['reason'],'TEST remove')
+            self.assertFalse(detail['before']['deleted']);self.assertTrue(detail['after']['deleted']);self.assertIsNone(detail['after']['imageSha256'])
+        visible=self.req('/api/messages',token=a['token'])['messages'][-1]
+        self.assertEqual(visible['text'],'Xabar o‘chirildi');self.assertIsNone(visible['image'])
     def test_validation_origin_and_revocation(self):
         a=self.login('998906666666')
         self.req('/api/messages','POST',{'sitter':'unknown','text':'x'},token=a['token'],expected=400)

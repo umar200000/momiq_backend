@@ -558,6 +558,11 @@ class Handler(BaseHTTPRequestHandler):
             if match:
                 uid, chat = match.groups()
                 if not chat and self.command == 'PUT':
+                    data=self.body()
+                    reason=admin_accounts.change_reason(data)
+                    # Decode/validate potentially large photos before taking the
+                    # writer lock; the revision is rechecked inside the transaction.
+                    validated=validate_account(data['account']) if 'account' in data else None
                     con.execute('BEGIN IMMEDIATE')
                 row = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
                 if not row:
@@ -574,26 +579,35 @@ class Handler(BaseHTTPRequestHandler):
                     self.save_message(con,uid,False,self.body(),operator=user)
                     return
                 if not chat and self.command == "PUT":
-                    data = self.body()
-                    if type(data.get('blocked',False)) is not bool:
-                        raise ValueError('Holat noto‘g‘ri')
-                    account = validate_account(data['account']) if 'account' in data else json.loads(row['account'])
+                    previous=json.loads(row['account'])
+                    account = validated if validated is not None else json.loads(row['account'])
                     claim_account_revision(con, uid, data.get('_revision'))
-                    sitter_availability.preserve_omitted(json.loads(row['account']),account,data.get('account',account))
-                    catalog.invalidate_profile(con,uid,json.loads(row['account']),account)
+                    sitter_availability.preserve_omitted(previous,account,data.get('account',account))
+                    catalog.invalidate_profile(con,uid,previous,account)
                     blocked = int(data.get('blocked',row['blocked']))
                     con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),blocked,uid))
                     if blocked:
                         con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (uid,))
-                    self.audit(con,user,'update-user',uid)
+                    detail=admin_accounts.change_record(uid,previous,account,row['blocked'],blocked,data['_revision'],reason)
+                    self.audit(con,user,'update-user',json.dumps(detail,ensure_ascii=True))
                     con.commit()
                     self.reply(200,{"ok":True})
                     return
             match = re.fullmatch(r"/api/admin/messages/([a-f0-9]+)",path)
             if match and self.command == 'DELETE':
-                changed = con.execute("UPDATE messages SET deleted=1,text='',image=NULL WHERE id=?", (match[1],)).rowcount
-                if not changed: raise ApiError(404,'Xabar topilmadi')
-                self.audit(con,user,'delete-message',match[1])
+                data=self.body()
+                if set(data)!={'reason'}:raise ValueError('Faqat o‘chirish sababini yuboring')
+                reason=admin_accounts.required_reason(data['reason'])
+                con.execute('BEGIN IMMEDIATE')
+                message=con.execute('SELECT * FROM messages WHERE id=?',(match[1],)).fetchone()
+                if not message:raise ApiError(404,'Xabar topilmadi')
+                if not message['deleted']:
+                    detail={'messageId':match[1],'userId':message['user_id'],'reason':reason,
+                            'before':{'deleted':False,'textSha256':hashlib.sha256((message['text'] or '').encode()).hexdigest(),
+                                      'imageSha256':hashlib.sha256(message['image'].encode()).hexdigest() if message['image'] else None},
+                            'after':{'deleted':True,'textSha256':hashlib.sha256(b'').hexdigest(),'imageSha256':None}}
+                    con.execute("UPDATE messages SET deleted=1,text='',image=NULL WHERE id=?", (match[1],))
+                    self.audit(con,user,'delete-message',json.dumps(detail,ensure_ascii=True))
                 con.commit()
                 self.reply(200,{"ok":True})
                 return

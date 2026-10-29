@@ -9,6 +9,36 @@ from urllib.parse import parse_qs, urlparse
 import catalog
 
 
+def required_reason(reason):
+    if not isinstance(reason,str) or not reason.strip() or len(reason)>1000:
+        raise ValueError('Amal sababi majburiy (1–1000 belgi)')
+    return reason.strip()
+
+
+def change_reason(data):
+    """Validate the admin write envelope before any write lock or profile decode."""
+    if set(data)-{'account','blocked','_revision','reason'} or not ({'account','blocked'} & set(data)):
+        raise ValueError('Profil o‘zgarishi maydonlari noto‘g‘ri')
+    if 'blocked' in data and type(data['blocked']) is not bool:
+        raise ValueError('Holat noto‘g‘ri')
+    return required_reason(data.get('reason'))
+
+
+def change_record(uid,before,after,blocked_before,blocked_after,revision,reason):
+    def snapshot(account,blocked,version):
+        profile=account.get('profile') or {};photo=profile.get('photo')
+        result={'blocked':bool(blocked),'revision':version,
+                'accountSha256':hashlib.sha256(json.dumps(account,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
+        if before.get('profile')!=after.get('profile'):
+            result['profile']={'first':profile.get('first'),'last':profile.get('last'),
+                               'photoSha256':hashlib.sha256(photo.encode()).hexdigest() if photo else None}
+        return result
+    return {'userId':uid,'reason':reason,
+            'changedFields':sorted(key for key in set(before)|set(after) if before.get(key)!=after.get(key)),
+            'before':snapshot(before,blocked_before,revision),
+            'after':snapshot(after,blocked_after,revision+1)}
+
+
 def filters(params, kind):
     if set(params)-{'q','status','role','service','after'} or any(len(v)!=1 for v in params.values()):
         raise ValueError('Index query is invalid')
