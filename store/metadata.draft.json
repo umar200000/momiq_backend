@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "draft",
+  "publishReady": false,
+  "applicationId": "net.momiq.app",
+  "displayName": "Momiq",
+  "lastSourceReview": "2026-10-29",
+  "localeCodesVerified": false,
+  "limits": {
+    "name": 30,
+    "subtitle": 30,
+    "shortDescription": 80,
+    "fullDescription": 4000
+  },
+  "sources": [
+    "https://support.google.com/googleplay/android-developer/answer/9859152?hl=en-EN",
+    "https://developer.apple.com/help/app-store-connect/reference/app-information/app-information"
+  ],
+  "contact": {
+    "supportUrl": null,
+    "privacyUrl": null,
+    "accountDeletionUrl": null,
+    "supportEmail": null
+  },
+  "copy": {
+    "uz": {
+      "name": "Momiq",
+      "subtitle": "It va mushuk uchun enaga",
+      "shortDescription": "Toshkentda it va mushuk uchun enaga toping va parvarishni kelishing.",
+      "fullDescription": "Momiq Toshkentdagi it va mushuk egalarini enagalar bilan bog‘laydi. Hayvoningiz uchun mos xizmatni tanlang, enaga bilan yozishing va buyurtma tafsilotlarini kelishing.\n\nUCH XIZMAT\n• Uyda qarash — hayvoningiz enaganing uyida qoladi.\n• Uyga borib qarash — enaga sizning manzilingizga keladi.\n• Shaxsiy enaga — enaga bir vaqtda bitta hayvonga qaraydi.\n\nMIJOZ UCHUN\nEnaga profili, xizmat narxi va mavjudligini ko‘ring. Hayvoningiz haqidagi ma’lumotlarni kiriting, sanalarni tanlang va so‘rov yuboring. Buyurtma, suhbat va parvarish hisobotlarini ilovadan kuzating. Tugallangan buyurtma uchun sharh qoldiring, muammo bo‘lsa yordam xizmatiga murojaat qiling.\n\nNARX VA TO‘LOV\nHar bir xizmat uchun bir hayvonning kunlik narxini enaga belgilaydi. Har boshlangan 24 soat bir kun hisoblanadi. Uyga borib qarash narxi enaga uyda qancha qolishiga qarab o‘zgarmaydi. Buyurtma yuborishdan oldin hisoblangan jami narxni ko‘rasiz. Xizmat haqini mijoz va enaga o‘zaro kelishib to‘laydi; Momiq bu pulni qabul qilmaydi.\n\nENAGA UCHUN\nXizmatlaringiz, narxlaringiz va ish jadvalingizni kiriting. Mijoz so‘rovlarini boshqaring, yozishing va parvarish hisobotlarini yuboring. Momiq balansi platforma komissiyasi uchun ishlatiladi. Balansni QR orqali to‘ldirishda chek yuboriladi va administrator haqiqiy tushumni tekshiradi. Ishlatilmagan qoldiq qaytarilmaydi.\n\nBirinchi xizmat hududi — Toshkent. Xizmatlar it va mushuklar uchun."
+    },
+    "en": {
+      "name": "Momiq",
+      "subtitle": "Cat and dog care in Tashkent",
+      "shortDescription": "Find cat and dog sitters in Tashkent and arrange care for your pet.",
+      "fullDescription": "Momiq connects cat and dog owners with sitters in Tashkent. Choose a service, message a sitter and agree on your pet’s care.\n\nTHREE SERVICES\n• Boarding: your pet stays at the sitter’s home.\n• Home visits: the sitter comes to your address.\n• Personal care: the sitter cares for one pet at a time.\n\nFOR PET OWNERS\nView sitter profiles, service prices and availability. Add your pet’s details, choose dates and send a booking request. Follow bookings, conversations and care reports in the app. Leave a review after a completed booking and contact support when you need help.\n\nPRICES AND PAYMENT\nSitters set a daily price per animal for each service. Every started 24-hour period counts as one day. The home-visit price does not change with the time the sitter spends at your home. See the calculated total before sending a request. Owners and sitters arrange payment for the care directly; Momiq does not collect that service payment.\n\nFOR SITTERS\nSet up your services, prices and schedule. Manage requests, chat with owners and send care reports. The Momiq balance is used for platform commission. For a QR top-up, submit a receipt; an administrator checks the actual incoming payment. Unused balance is non-refundable.\n\nThe initial service area is Tashkent. Services are for cats and dogs."
+    },
+    "ru": {
+      "name": "Momiq",
+      "subtitle": "Забота о кошках и собаках",
+      "shortDescription": "Найдите няню для кошки или собаки в Ташкенте и договоритесь об уходе.",
+      "fullDescription": "Momiq помогает владельцам кошек и собак найти няню в Ташкенте. Выберите услугу, напишите няне и согласуйте уход за питомцем.\n\nТРИ УСЛУГИ\n• Передержка: питомец остаётся дома у няни.\n• Визиты на дом: няня приезжает по вашему адресу.\n• Индивидуальная няня: уход только за одним питомцем одновременно.\n\nДЛЯ ВЛАДЕЛЬЦЕВ\nСмотрите профили нянь, цены и доступность. Добавьте сведения о питомце, выберите даты и отправьте запрос. Следите за заказом, перепиской и отчётами об уходе в приложении. После завершённого заказа оставьте отзыв, а при возникновении проблемы обратитесь в поддержку.\n\nЦЕНЫ И ОПЛАТА\nНяня устанавливает суточную цену за одно животное отдельно для каждой услуги. Каждый начавшийся 24-часовой период считается сутками. Цена визита на дом не зависит от продолжительности пребывания няни. До отправки запроса вы увидите рассчитанную общую стоимость. Владелец и няня договариваются об оплате ухода напрямую; Momiq не принимает оплату этой услуги.\n\nДЛЯ НЯНЬ\nУкажите услуги, цены и расписание. Управляйте запросами, общайтесь с владельцами и отправляйте отчёты об уходе. Баланс Momiq используется для комиссии платформы. Для пополнения по QR отправьте чек: администратор проверит фактическое поступление денег. Неиспользованный остаток не возвращается.\n\nПервый регион обслуживания — Ташкент. Услуги доступны для кошек и собак."
+    }
+  }
+}
