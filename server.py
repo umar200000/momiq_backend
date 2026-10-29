@@ -24,6 +24,7 @@ import catalog_search
 import admin_accounts
 import operator_access
 import admin_metrics
+import work_queue
 import pet_safety
 import sitter_dashboard
 import notifications
@@ -346,7 +347,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if self.command == "GET" and not path.startswith("/api/"):
-            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/reviews.js": "reviews.js", "/admin/support.js": "support.js", "/admin/disputes.js": "disputes.js", "/admin/bookings.js": "bookings.js", "/admin/metrics.js": "metrics.js", "/admin/style.css": "style.css"}.get(path)
+            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/reviews.js": "reviews.js", "/admin/support.js": "support.js", "/admin/disputes.js": "disputes.js", "/admin/bookings.js": "bookings.js", "/admin/metrics.js": "metrics.js", "/admin/work_queue.js": "work_queue.js", "/admin/style.css": "style.css"}.get(path)
             if not name or not (ADMIN / name).is_file():
                 raise ApiError(404, "Topilmadi")
             raw = (ADMIN / name).read_bytes()
@@ -432,6 +433,8 @@ class Handler(BaseHTTPRequestHandler):
                 result={'userId':user,'role':data['role'],'roles':roles_for(con,user),'account':account_snapshot(con,row)}
                 con.commit()
                 self.reply(200,result)
+                return
+            if work_queue.route(self,con,user,path):
                 return
             if admin_metrics.route(self,con,user,path):
                 return

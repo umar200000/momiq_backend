@@ -3,19 +3,23 @@ import re
 
 ROLES=('support','moderation','finance','administrator')
 PANELS={
-    'support':('support',),
-    'moderation':('listings','chatReports','reviews'),
+    'support':('support','workQueue'),
+    'moderation':('listings','chatReports','reviews','workQueue'),
     'finance':('topups','metrics'),
-    'administrator':('users','sitters','listings','topups','chatReports','bookings','disputes','support','reviews','settings','metrics'),
+    'administrator':('users','sitters','listings','topups','chatReports','bookings','disputes','support','reviews','settings','metrics','workQueue'),
 }
 HEX=r'[a-f0-9]{32}'
 NUMBER=r'[1-9][0-9]{0,17}'
 RULES={
     'support':(
+        ('GET',rf'work-queue(?:/support/{HEX})?'),
+        ('POST',rf'work-queue/support/{HEX}'),
         ('GET',rf'support(?:/{HEX}(?:/messages/{NUMBER}/image)?)?'),
         ('POST',rf'support/{HEX}'),
     ),
     'moderation':(
+        ('GET',r'work-queue(?:/(?:listing|chat_report)/[^/]{1,100})?'),
+        ('POST',r'work-queue/(?:listing|chat_report)/[^/]{1,100}'),
         ('GET',r'listings(?:/[a-f0-9]{1,64}/(?:boarding|homeVisit|personal))?'),
         ('POST',r'listings/[a-f0-9]+/(?:boarding|homeVisit|personal)/review'),
         ('GET',rf'chat-reports(?:/{NUMBER}/(?:evidence|image))?'),

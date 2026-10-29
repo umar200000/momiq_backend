@@ -205,6 +205,15 @@ MIGRATIONS = (
         "CREATE TRIGGER admin_permissions_revoke_delete AFTER DELETE ON admin_permissions BEGIN DELETE FROM sessions WHERE role='admin' AND user_id=OLD.username; END",
         "CREATE TRIGGER admin_permissions_revoke_insert AFTER INSERT ON admin_permissions BEGIN DELETE FROM sessions WHERE role='admin' AND user_id=NEW.username; END",
     )),
+    (25, 'audited support and moderation assignment queue', (
+        "CREATE TABLE work_assignments(kind TEXT NOT NULL CHECK(kind IN ('support','listing','chat_report')),target TEXT NOT NULL,assignee TEXT,due_at TEXT,revision INTEGER NOT NULL CHECK(revision>0),updated_by TEXT NOT NULL,updated TEXT NOT NULL,PRIMARY KEY(kind,target))",
+        'CREATE INDEX work_assignment_owner ON work_assignments(kind,assignee,due_at)',
+        "CREATE TABLE work_assignment_events(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,target TEXT NOT NULL,revision INTEGER NOT NULL,actor TEXT NOT NULL,reason TEXT NOT NULL,before_state TEXT NOT NULL,after_state TEXT NOT NULL,created TEXT NOT NULL,request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,UNIQUE(kind,target,revision),UNIQUE(actor,request_id))",
+        'CREATE INDEX work_assignment_history ON work_assignment_events(kind,target,id)',
+        "CREATE TRIGGER work_history_no_update BEFORE UPDATE ON work_assignment_events BEGIN SELECT RAISE(ABORT,'Assignment history is immutable'); END",
+        "CREATE TRIGGER work_history_no_delete BEFORE DELETE ON work_assignment_events BEGIN SELECT RAISE(ABORT,'Assignment history is immutable'); END",
+        "CREATE TRIGGER work_history_no_replace BEFORE INSERT ON work_assignment_events WHEN EXISTS(SELECT 1 FROM work_assignment_events WHERE id=NEW.id OR (kind=NEW.kind AND target=NEW.target AND revision=NEW.revision) OR (actor=NEW.actor AND request_id=NEW.request_id)) BEGIN SELECT RAISE(ABORT,'Assignment history is immutable'); END",
+    )),
 )
 
 
