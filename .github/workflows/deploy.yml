@@ -39,6 +39,16 @@ jobs:
           python -m venv .audit-venv
           .audit-venv/bin/python -m pip install pip-audit==2.10.1
           .audit-venv/bin/python -m pip_audit --disable-pip --require-hashes -r requirements.txt
+      - name: Collect exact runtime license evidence
+        run: python tool/license_inventory.py --output ci-artifacts/runtime-licenses
+      - name: Retain runtime license evidence for seven days
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runtime-licenses-${{ github.sha }}-${{ github.run_attempt }}
+          path: ci-artifacts/runtime-licenses/
+          if-no-files-found: error
+          retention-days: 7
+          include-hidden-files: false
       - name: Install video validation runtime
         run: |
           sudo apt-get update

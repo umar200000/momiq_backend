@@ -145,3 +145,10 @@ Schema 19 implements approved video retention: 30 days after terminal booking ti
 
 
 Schema25 adds the support/moderation work queue: administrator assignment and explicit due time, limited staff self-claim, optimistic source/assignment revisions, stable retries and immutable audit/history. Closed sources disappear from active work but retain detail/history. Source decisions and financial state are unaffected. See API_CONTRACT.md for routes and DEPLOYMENT.md for operator provisioning.
+
+
+### Runtime license evidence
+
+After installing the hash-pinned requirements, run `python tool/license_inventory.py --output <new-output-folder>`. The tool checks installed names/versions against every exact runtime pin and gathers the complete declared license files from installed distribution metadata. `inventory.json` records the lock and document SHA-256 values; `NOTICES.txt` preserves the source license text. Missing/empty files, unsupported requirements, version drift and paths escaping distribution metadata fail the collection. Existing evidence folders are not overwritten. CI performs the collection and retains the two files for seven days, attached to the tested checkout.
+
+This is an inventory, not license compatibility approval or a claim that all dependencies are covered. Python/OS, ffmpeg, native binaries, mobile/provider SDK terms, app fonts/images and other assets require their own review. The operator should review the preserved notices and distribution obligations before release. Source-provided license expressions/classifiers are recorded without guessing an SPDX expression for older metadata. Runtime configuration, machine paths and application data are not collected.

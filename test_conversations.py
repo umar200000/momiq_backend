@@ -92,7 +92,7 @@ class ConversationTests(unittest.TestCase):
 
     def send_chat(self, identity, text='hello', user='customer', request=None, status=200, image=None):
         return self.req('/api/conversations/'+identity+'/messages', 'POST',
-                        {'text':text,'requestId':request or secrets.token_hex(16),'image':image,'senderRole':'support'}, user, status)
+                        {'text':text,'requestId':request or secrets.token_hex(16),'image':image}, user, status)
 
     def test_delivery_receipts_are_monotonic_private_and_do_not_mark_read(self):
         chat=self.create_chat();base='/api/conversations/'+chat['id']

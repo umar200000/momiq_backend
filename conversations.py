@@ -80,6 +80,7 @@ def summary(con, row, user):
 
 
 def create(con, user, data, environment):
+    if not isinstance(data,dict) or set(data)-{'listingId'}:raise ValueError('Unexpected conversation fields')
     listing_id = data.get('listingId')
     if not isinstance(listing_id, str) or len(listing_id) > 120 or ':' not in listing_id:
         raise ValueError('Invalid listing')
@@ -116,6 +117,7 @@ def create(con, user, data, environment):
 
 
 def send(con, user, identity, data, validate_photo):
+    if not isinstance(data,dict) or set(data)-{'requestId','text','image'}:raise ValueError('Unexpected message fields')
     body = data.get('text', '')
     request = data.get('requestId')
     if not isinstance(body, str) or len(body) > 4000:
@@ -155,8 +157,11 @@ def send(con, user, identity, data, validate_photo):
 def route(handler, con, user, path, validate_photo, environment):
     if path != '/api/conversations' and not path.startswith('/api/conversations/'):
         return False
-    query = parse_qs(urlparse(handler.path).query)
+    query = parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+    if any(len(values)!=1 for values in query.values()):raise ValueError('Duplicate conversation query')
+    if handler.command=='POST' and urlparse(handler.path).query:raise ValueError('Unexpected mutation query')
     if path == '/api/conversations':
+        if set(query)-{'before'}:raise ValueError('Unexpected conversation query')
         if handler.command == 'POST':
             result = create(con, user, handler.body(), environment)
             con.commit()
@@ -187,6 +192,8 @@ def route(handler, con, user, path, validate_photo, environment):
     if not match:
         raise ChatError(404, 'Topilmadi')
     identity, action, image_id = match.groups()
+    allowed={'before','after','changesAfter'} if action=='messages' and not image_id else set()
+    if set(query)-allowed:raise ValueError('Unexpected conversation query')
     if action == 'messages' and handler.command == 'POST' and not image_id:
         result = send(con, user, identity, handler.body(), validate_photo)
         con.commit()
@@ -194,6 +201,7 @@ def route(handler, con, user, path, validate_photo, environment):
         return True
     if action in ('read','received') and handler.command == 'POST' and not image_id:
         data = handler.body()
+        if set(data)-{'throughId'}:raise ValueError('Unexpected acknowledgement fields')
         last = number(data.get('throughId'))
         con.execute('BEGIN IMMEDIATE')
         participant(con, identity, user)

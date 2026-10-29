@@ -166,6 +166,7 @@ def admin_route(handler,con,actor,path,now):
     if not match:return False
     identity=int(match[1])
     if match[2]=='moderate' and handler.command=='POST':
+        if urlparse(handler.path).query:raise ValueError('Unexpected review mutation query')
         result=moderate(con,actor,identity,handler.body(),now);con.commit();handler.reply(200,result)
         return True
     if match[2]=='history' and handler.command=='GET':

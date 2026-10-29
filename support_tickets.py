@@ -147,5 +147,6 @@ def route(handler,con,user,path,validate_photo,environment='production'):
             con.commit()
         handler.reply(200,result);return True
     if handler.command=='POST' and not image_id:
+        if urlparse(handler.path).query:raise ValueError('Unexpected support mutation query')
         result=write(con,user,identity,handler.body(),validate_photo,admin,environment);con.commit();handler.reply(200,result);return True
     raise engine.BookingError(404,'Topilmadi')

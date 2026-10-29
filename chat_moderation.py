@@ -32,10 +32,14 @@ def route(handler, con, user, path):
     match = re.fullmatch(r'/api/conversations/([a-f0-9]{32})/(block|reports)', path)
     if match:
         identity, action = match.groups()
+        query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+        if any(len(values)!=1 for values in query.values()) or set(query)-({'before'} if action=='reports' and handler.command=='GET' else set()):
+            raise ValueError('Unexpected moderation query')
+        if handler.command=='POST' and urlparse(handler.path).query:raise ValueError('Unexpected mutation query')
         if action == 'reports' and handler.command == 'GET':
             con.execute('BEGIN')
             participant(con, identity, user)
-            before = parse_qs(urlparse(handler.path).query).get('before', [None])[0]
+            before = query.get('before', [None])[0]
             args = [identity, user]; clause = ''
             if before is not None: clause = ' AND r.id<?'; args.append(number(before))
             rows = con.execute('SELECT r.* FROM chat_reports r JOIN conversation_messages m ON m.id=r.message_id WHERE m.conversation_id=? AND r.reporter_id=?'+clause+' ORDER BY r.id DESC LIMIT 21', args).fetchall()
@@ -43,6 +47,8 @@ def route(handler, con, user, path):
             return True
         if handler.command != 'POST': raise ChatError(404, 'Topilmadi')
         data = handler.body()
+        allowed={'blocked','revision'} if action=='block' else {'messageId','reason','requestId'}
+        if set(data)-allowed:raise ValueError('Unexpected moderation fields')
         con.execute('BEGIN IMMEDIATE')
         row = participant(con, identity, user)
         peer = row['sitter_id'] if row['customer_id'] == user else row['customer_id']

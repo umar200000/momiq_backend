@@ -17,3 +17,4 @@ admin-login.txt
 .local/
 .venv/
 .release-sha
+ci-artifacts/

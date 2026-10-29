@@ -25,6 +25,8 @@ def route(handler, con, user, path, environment, data_root):
     now = datetime.now(timezone.utc)
     if booking_videos.route(handler, con, user, path, data_root):
         return True
+    if handler.command in ('POST','PUT','PATCH','DELETE') and urlparse(handler.path).query:
+        raise ValueError('Unexpected booking mutation query')
     if booking_care.route(handler, con, user, path, now):
         return True
     review = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/review', path)
