@@ -214,6 +214,13 @@ MIGRATIONS = (
         "CREATE TRIGGER work_history_no_delete BEFORE DELETE ON work_assignment_events BEGIN SELECT RAISE(ABORT,'Assignment history is immutable'); END",
         "CREATE TRIGGER work_history_no_replace BEFORE INSERT ON work_assignment_events WHEN EXISTS(SELECT 1 FROM work_assignment_events WHERE id=NEW.id OR (kind=NEW.kind AND target=NEW.target AND revision=NEW.revision) OR (actor=NEW.actor AND request_id=NEW.request_id)) BEGIN SELECT RAISE(ABORT,'Assignment history is immutable'); END",
     )),
+    (26, 'immutable public content references for support', (
+        "CREATE TABLE support_targets(ticket_id TEXT PRIMARY KEY REFERENCES support_tickets(id),kind TEXT NOT NULL CHECK(kind IN ('listing','review')),target_id TEXT NOT NULL,snapshot TEXT NOT NULL,created TEXT NOT NULL)",
+        'CREATE INDEX support_target_lookup ON support_targets(kind,target_id)',
+        "CREATE TRIGGER support_target_no_update BEFORE UPDATE ON support_targets BEGIN SELECT RAISE(ABORT,'Support target is immutable'); END",
+        "CREATE TRIGGER support_target_no_delete BEFORE DELETE ON support_targets BEGIN SELECT RAISE(ABORT,'Support target is immutable'); END",
+        "CREATE TRIGGER support_target_no_replace BEFORE INSERT ON support_targets WHEN EXISTS(SELECT 1 FROM support_targets WHERE ticket_id=NEW.ticket_id) BEGIN SELECT RAISE(ABORT,'Support target is immutable'); END",
+    )),
 )
 
 

@@ -8,6 +8,7 @@ from urllib.parse import parse_qs,urlparse
 import booking_engine as engine
 import conversations
 import notifications
+import support_targets
 
 
 def text(value,limit,required=False):
@@ -42,7 +43,8 @@ def view(con,identity,user,admin=False,before=None):
     if before is not None:clause=' AND id<?';args.append(int(before))
     rows=con.execute('SELECT * FROM support_messages WHERE ticket_id=?'+clause+' ORDER BY id DESC LIMIT 21',args).fetchall()
     return {'ticket':public(row),'items':[{'id':str(m['id']),'revision':m['revision'],'authorRole':m['author_role'],'action':m['action'],'text':m['text'],'hasImage':bool(m['image']),'created':m['created']} for m in reversed(rows[:20])],
-            'nextCursor':str(rows[19]['id']) if len(rows)>20 else None}
+            'nextCursor':str(rows[19]['id']) if len(rows)>20 else None,
+            'target':support_targets.detail(con,identity)}
 
 
 def audit_detail(con,identity,user,before):
@@ -52,14 +54,17 @@ def audit_detail(con,identity,user,before):
                 (user,'support-view',target,datetime.now(timezone.utc).isoformat()))
 
 
-def write(con,user,identity,data,validate_photo,admin=False):
+def write(con,user,identity,data,validate_photo,admin=False,environment='production'):
     creating=identity is None
     required={'requestId','text','image','revision','action'}|({'subject','topic','bookingId'} if creating else set())
-    if not isinstance(data,dict) or set(data)!=required:raise ValueError('Invalid support fields')
+    if not isinstance(data,dict) or set(data) not in (required,required|({'target'} if creating else set())):raise ValueError('Invalid support fields')
+    target=data.get('target')
+    if 'target' in data:support_targets.validate(target)
     action=data['action'];revision=data['revision']
     if type(revision) is not int or revision<0:raise ValueError('Revision required')
     if action not in ('reply','resolve') or (action=='resolve' and (creating or not admin)):raise ValueError('Invalid support action')
     body=text(data['text'],4000,action=='resolve')
+    if target and not body:raise ValueError('Report reason required')
     image=data['image']
     if image is not None:image=validate_photo(image)
     if not body and not image:raise ValueError('Message or image required')
@@ -84,8 +89,10 @@ def write(con,user,identity,data,validate_photo,admin=False):
     if creating:
         if revision!=0:raise engine.BookingError(409,'Yangi murojaat versiyasi 0 bo‘lsin')
         if booking:engine.owned(con,booking,user)
+        snapshot=support_targets.capture(con,target,environment) if target else None
         identity=secrets.token_hex(16)
         con.execute('INSERT INTO support_tickets(id,owner_id,booking_id,subject,topic,status,revision,created,updated) VALUES(?,?,?,?,?,?,0,?,?)',(identity,user,booking,subject,topic,'open',current,current))
+        if target:support_targets.attach(con,identity,target,snapshot,current)
         row=ticket(con,identity,user)
     elif row['revision']!=revision:raise engine.BookingError(409,'Murojaat o‘zgargan. Yangilang')
     state='resolved' if action=='resolve' else ('waiting_user' if admin else 'open')
@@ -97,7 +104,7 @@ def write(con,user,identity,data,validate_photo,admin=False):
     return view(con,identity,user,admin)
 
 
-def route(handler,con,user,path,validate_photo):
+def route(handler,con,user,path,validate_photo,environment='production'):
     match=re.fullmatch(r'/api/(admin/)?support(?:/([a-f0-9]{32})(?:/messages/([1-9][0-9]{0,17})/image)?)?',path)
     if not match:return False
     admin=bool(match[1]);identity=match[2];image_id=match[3]
@@ -131,5 +138,5 @@ def route(handler,con,user,path,validate_photo):
         if not admin and not before:result['legacyItems']=engine.account(con,user).get('support',[])
         handler.reply(200,result);return True
     if handler.command=='POST' and not image_id:
-        result=write(con,user,identity,handler.body(),validate_photo,admin);con.commit();handler.reply(200,result);return True
+        result=write(con,user,identity,handler.body(),validate_photo,admin,environment);con.commit();handler.reply(200,result);return True
     raise engine.BookingError(404,'Topilmadi')

@@ -24,13 +24,13 @@ class PredeployBackupTests(unittest.TestCase):
                 server.setup()
                 with server.db() as con: before = '\n'.join(con.iterdump())
                 result = predeploy_backup.create(data, backups, 'a' * 40, 'test')
-                self.assertEqual(result['schemaBefore'], 24)
+                self.assertEqual(result['schemaBefore'], 25)
                 self.assertEqual(result['verified'], {'database': 'ok', 'mediaFiles': 0})
                 target = backups / result['backupName']
                 self.assertEqual(backup_bundle.verify(target), result['verified'])
                 with server.db() as con: self.assertEqual('\n'.join(con.iterdump()), before)
                 with closing(sqlite3.connect(target / 'momiq.sqlite3')) as con:
-                    self.assertEqual(con.execute('SELECT max(version) FROM schema_migrations').fetchone()[0], 24)
+                    self.assertEqual(con.execute('SELECT max(version) FROM schema_migrations').fetchone()[0], 25)
                 self.assertNotIn(str(root), json.dumps(result))
                 self.assertLessEqual((backup_bundle.bundle_expiry(target) - datetime.now(timezone.utc)).days, 14)
 

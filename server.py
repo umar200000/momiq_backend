@@ -506,7 +506,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if admin_bookings.route(self,con,user,path):
                 return
-            if support_tickets.route(self,con,user,path,photo):
+            if support_tickets.route(self,con,user,path,photo,ENVIRONMENT):
                 return
             if booking_disputes.route(self,con,user,path,photo,ENVIRONMENT):
                 return
