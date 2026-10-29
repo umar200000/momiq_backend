@@ -58,6 +58,40 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 class ClosingConnection(sqlite3.Connection):
+    request_authorizer = None
+
+    def _authorize_transaction(self):
+        try:
+            self.request_authorizer(self)
+        except BaseException:
+            self.rollback()
+            raise
+
+    def execute(self, sql, parameters=()):
+        # Request SQL is fixed application code. Revalidate after acquiring the
+        # transaction, never while decoding a potentially slow request body.
+        if not self.request_authorizer:
+            return super().execute(sql, parameters)
+        verb = sql.lstrip().split(None, 1)[0].upper() if sql.strip() else ''
+        if self.request_authorizer and not self.in_transaction and verb in ('INSERT', 'UPDATE', 'DELETE', 'REPLACE'):
+            super().execute('BEGIN IMMEDIATE')
+            self._authorize_transaction()
+        cursor = super().execute(sql, parameters)
+        if self.request_authorizer and verb == 'BEGIN':
+            self._authorize_transaction()
+        return cursor
+
+    def executemany(self, sql, parameters):
+        if self.request_authorizer and not self.in_transaction:
+            super().execute('BEGIN IMMEDIATE')
+            self._authorize_transaction()
+        return super().executemany(sql, parameters)
+
+    def executescript(self, sql):
+        if self.request_authorizer:
+            raise RuntimeError('SQL scripts are not permitted in authenticated requests')
+        return super().executescript(sql)
+
     def __exit__(self, *args):
         try:
             return super().__exit__(*args)
@@ -277,10 +311,16 @@ class ApiError(Exception):
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "MomiqLocal/1"
+    def send_response(self, code, message=None):
+        self._dispatch_status = code
+        super().send_response(code, message)
     def log_message(self, fmt, *args):
         # BaseHTTPRequestHandler diagnostics can contain the raw request line.
         print('http diagnostic')
     def log_request(self, code='-', size='-'):
+        if getattr(self, '_dispatch_logging', False):
+            self._dispatch_status = code
+            return
         from request_logging import access_record
         print(access_record(getattr(self,'command',''),getattr(self,'path',''),code))
     def reply(self, status, body, cookie=None):
@@ -301,7 +341,7 @@ class Handler(BaseHTTPRequestHandler):
             # Never reuse an HTTP connection with unread/ambiguous request bytes.
             self.close_connection=True
             raise
-    def auth(self, con, role="client"):
+    def auth(self, con, role="client", *, bind=True):
         token = self.headers.get("Authorization", "").removeprefix("Bearer ")
         if role == "admin":
             cookie = SimpleCookie(self.headers.get("Cookie", ""))
@@ -317,6 +357,14 @@ class Handler(BaseHTTPRequestHandler):
             user = con.execute("SELECT * FROM users WHERE id=?", (session["user_id"],)).fetchone()
             if not user or user["blocked"]:
                 raise ApiError(403, "Hisob bloklangan")
+        if bind:
+            principal = session['user_id']
+            def authorize_transaction(connection):
+                if self.auth(connection, role, bind=False) != principal:
+                    raise ApiError(401, 'Qayta kiring')
+                if role == 'admin' and not operator_access.permits(self.operator_role, self.command, urlparse(self.path).path):
+                    raise ApiError(403, 'Bu amal uchun operator huquqi yo‘q')
+            con.request_authorizer = authorize_transaction
         return session["user_id"]
     def session(self, con, user, role):
         token = secrets.token_urlsafe(40)
@@ -328,9 +376,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.headers.get('X-Real-IP', self.client_address[0])
         return self.client_address[0]
     def throttle(self, con, key):
+        con.execute('BEGIN IMMEDIATE')
+        current = time.time()
         row = con.execute("SELECT * FROM attempts WHERE key=?", (key,)).fetchone()
-        count = row["count"] if row and row["reset"] > time.time() else 0
-        reset = row["reset"] if count else time.time()+60
+        count = row["count"] if row and row["reset"] > current else 0
+        reset = row["reset"] if count else current+60
         if count >= 15:
             raise ApiError(429, "Biroz kutib qayta urinib ko‘ring")
         con.execute("INSERT OR REPLACE INTO attempts VALUES(?,?,?)", (key,count+1,reset))
@@ -648,14 +698,31 @@ class Handler(BaseHTTPRequestHandler):
         con.commit()
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):
+        from request_logging import access_record
+        started=time.monotonic();outcome='ok'
+        self._dispatch_logging=True;self._dispatch_status=0
         try: self.handle_request()
-        except (ApiError,request_json.BodyError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError,booking_engine.BookingError) as e: self.reply(e.status,{'error':e.message})
-        except (MediaBusy, VideoUnavailable) as e: self.reply(503,{'error':str(e)})
-        except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
-        except (BrokenPipeError,ConnectionResetError): pass
-        except Exception as e:
-            print(type(e).__name__)
+        except (ApiError,request_json.BodyError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError,booking_engine.BookingError) as e:
+            outcome='rejected';self.reply(e.status,{'error':e.message})
+        except (MediaBusy, VideoUnavailable) as e:
+            outcome='media_busy';self.reply(503,{'error':str(e)})
+        except (ValueError,KeyError,TypeError):
+            outcome='invalid_input';self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
+        except (BrokenPipeError,ConnectionResetError): outcome='disconnected'
+        except sqlite3.OperationalError as e:
+            if (getattr(e,'sqlite_errorcode',0)&255) in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED):
+                outcome='database_busy';self.reply(503,{'error':'Xizmat vaqtincha band. Biroz kutib qayta urining.'})
+            else:
+                outcome='server_error';self.reply(500,{'error':'Server xatosi'})
+        except Exception:
+            outcome='server_error'
             self.reply(500,{'error':'Server xatosi'})
+        finally:
+            status=self._dispatch_status
+            if outcome=='ok' and isinstance(status,int) and status>=400:outcome='rejected'
+            print(access_record(getattr(self,'command',''),getattr(self,'path',''),status,
+                                elapsed_seconds=time.monotonic()-started,outcome=outcome))
+            self._dispatch_logging=False
     do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = dispatch
 
 class LocalHTTPServer(ThreadingHTTPServer):

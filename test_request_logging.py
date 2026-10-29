@@ -1,14 +1,71 @@
-from contextlib import redirect_stdout
-from io import StringIO
+from contextlib import redirect_stdout, closing
+from io import StringIO, BytesIO
 from pathlib import Path
 import json
 import runpy
+import sqlite3
+import tempfile
 import unittest
+from unittest.mock import patch
+from wsgiref.util import setup_testing_defaults
 import server
 from request_logging import access_record
+from wsgi import WsgiHandler
 
 
 class RequestLoggingTests(unittest.TestCase):
+    def handler(self, hosted):
+        if hosted:
+            env={};setup_testing_defaults(env)
+            env.update(PATH_INFO='/api/bookings/PRIVATE-ID',QUERY_STRING='token=SECRET',HTTP_AUTHORIZATION='Bearer SECRET',HTTP_COOKIE='PRIVATE cookie')
+            return WsgiHandler(env)
+        class Local(server.Handler):
+            def send_response(self, code, message=None): self.log_request(code)
+            def send_header(self, *_): pass
+            def end_headers(self): pass
+        handler=Local.__new__(Local);handler.path='/api/bookings/PRIVATE-ID?token=SECRET';handler.command='GET';handler.wfile=BytesIO()
+        return handler
+
+    def test_completed_native_and_wsgi_request_emit_one_private_safe_timing_record(self):
+        for hosted in (False,True):
+            with self.subTest(hosted=hosted):
+                handler=self.handler(hosted);stream=StringIO()
+                def success():handler.reply(200,{'private':'response stays out of logs'})
+                with patch.object(handler,'handle_request',success), patch.object(server.time,'monotonic',side_effect=[10,10.125]), redirect_stdout(stream):
+                    handler.dispatch()
+                lines=stream.getvalue().splitlines();self.assertEqual(len(lines),1)
+                self.assertEqual(json.loads(lines[0]),{'event':'http','method':'GET','group':'bookings','status':200,'durationMs':125.0,'outcome':'ok'})
+                self.assertNotIn('PRIVATE',lines[0]);self.assertNotIn('SECRET',lines[0]);self.assertNotIn('response stays',lines[0])
+
+    def test_sqlite_contention_is_retryable_but_other_failures_remain_generic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'db.sqlite3'
+            with closing(sqlite3.connect(path)) as writer, closing(sqlite3.connect(path,timeout=.001)) as reader:
+                writer.execute('CREATE TABLE item(value)');writer.commit();writer.execute('BEGIN IMMEDIATE')
+                try:reader.execute('INSERT INTO item VALUES(1)')
+                except sqlite3.OperationalError as error:busy=error
+                else:self.fail('Expected real SQLite writer contention')
+                for error,status,outcome in [(busy,503,'database_busy'),
+                                             (sqlite3.OperationalError('PRIVATE path SECRET SQL'),500,'server_error'),
+                                             (RuntimeError('PRIVATE body SECRET token'),500,'server_error'),
+                                             (ConnectionResetError('SECRET peer'),0,'disconnected')]:
+                    handler=self.handler(True);stream=StringIO()
+                    with patch.object(handler,'handle_request',side_effect=error), redirect_stdout(stream):handler.dispatch()
+                    record=json.loads(stream.getvalue());self.assertEqual(record['outcome'],outcome)
+                    self.assertEqual(record['status'],status)
+                    self.assertNotIn('SECRET',stream.getvalue());self.assertNotIn('PRIVATE',stream.getvalue())
+                    if outcome!='disconnected':
+                        self.assertEqual(handler.response_status,status)
+                        self.assertNotIn(b'SECRET',handler.wfile.getvalue())
+                writer.rollback()
+
+    def test_invalid_metric_values_are_normalized_without_dynamic_labels(self):
+        for elapsed in (-1, float('nan'), float('inf'), 'SECRET', True):
+            record=json.loads(access_record('GET','/api/ready',503,elapsed_seconds=elapsed,outcome='SECRET outcome'))
+            self.assertIsNone(record['durationMs']);self.assertEqual(record['outcome'],'server_error')
+            self.assertNotIn('SECRET',json.dumps(record))
+        self.assertEqual(json.loads(access_record('GET','/api/admin/work-queue?owner=PRIVATE',200,elapsed_seconds=1))['group'],'admin/work-queue')
+
     def test_query_path_identity_and_header_like_injection_are_never_logged(self):
         for path in ['/api/sitters?lat=41.123456&lng=69.654321',
                      '/api/admin/users?q=998901234567',

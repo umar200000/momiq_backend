@@ -24,6 +24,7 @@ class WsgiHandler(Handler):
         self.response_status = 500
 
     def send_response(self, code, message=None):
+        self._dispatch_status = code
         self.response_status = code
         self.response_headers = []
 
