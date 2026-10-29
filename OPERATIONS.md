@@ -97,3 +97,10 @@ Vakolatli operator o‘zgarishni bajargach mos SHA juftligi, read-only health/re
 | Support/moderatsiya/moliya | Ochiq/muddati o‘tgan ish, tayinlash va javob/qaror vaqti | Navbatchi jadvali, kundalik tekshiruv egasi, umumiy SLA. |
 
 Alert yoki byudjet oshganda kimga va qaysi kanalga xabar borishi kelishilib, test xabari amalda olingandan keyingina monitoring yopiladi. Ushbu hujjat hech kimga xabar yubormaydi va yangi avtomatsiya yaratmaydi.
+
+
+### Isolated wallet correction process-death evidence
+
+`python -m unittest -q test_wallet_process_recovery` runs three crash scenarios in temporary TEST databases under both SQLite DELETE and WAL journal modes with `synchronous=FULL`. A real child process exits without connection cleanup after the debit, before commit, or after commit but before returning a response. Reopening checks integrity/FKs and all table snapshots: incomplete transactions leave every table unchanged; a committed correction survives and its exact retry leaves ledger, audit and notification counts unchanged. Changed-payload and stale new-request retries are rejected. No server, user balance or production database is contacted.
+
+This evidence covers abrupt process exit, including a lost post-commit response. It does not certify host power loss, a failing filesystem, offsite backups, deploy interruption, external SMS/storage behavior or an agreed RPO/RTO. Those acceptance gates remain M115/M130/M131.
