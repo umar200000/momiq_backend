@@ -26,6 +26,8 @@ The older hosted test setup used `MOMIQ_ALLOW_TEST_LOGIN=1` with HTTPS. This is 
 
 ## Operations
 
+Incident triage, money/retry handling, backup/recovery boundaries and responsibility/cost gaps are documented in [OPERATIONS.md](OPERATIONS.md). This is a source-grounded runbook, not proof of installed monitoring or hosted acceptance.
+
 ```sh
 sudo systemctl status momiq nginx
 sudo journalctl -u momiq -n 100 --no-pager
@@ -83,7 +85,7 @@ This protects subsequent authentication, not cancellation of a request already a
 
 | Role | Allowed work | Restricted work |
 | --- | --- | --- |
-| `support` | Private support ticket list, replies, resolution and attached evidence | Accounts, wallet, bookings, disputes and settings |
+| `support` | Private support ticket list, replies, ordinary-ticket resolution and attached evidence; appeal closure is administrator-only | Accounts, wallet, bookings, disputes and settings |
 | `moderation` | Listings and their moderation; reported chat evidence and review moderation | Full private account profiles, wallet, support, bookings and settings |
 | `finance` | Top-up queue, private receipts/history, verified credit decisions, source-linked corrections and financial aggregates | Profiles, chat, care, disputes and commission/QR configuration |
 | `administrator` | Existing full administration, commission/QR and dispute decisions | Cannot edit/delete immutable audit or financial history through the API |
@@ -164,7 +166,7 @@ Before `server.setup()` or release switching, the deploy source runs `predeploy_
 
 The helper takes the existing media-maintenance lock and delegates to the WAL-safe database/private-media bundle creator. It verifies database integrity, foreign keys and hashes of referenced unexpired media before publishing a new non-overwriting snapshot. It uses the normal timestamp/random naming and manifest so existing retention rules apply; it does not extend video retention or preserve expired videos for longer. A compact `pre-migration-backup.json` in the candidate release records candidate SHA, prior schema, backup name and verification outcome, never credentials or content. Any preflight/copy/verification failure stops the script before setup or symlink replacement. The ordinary service may still accept business writes after the snapshot: it is not a zero-loss recovery point, and the snapshot must never automatically replace newer data.
 
-Validation uses isolated schema24/25 databases, verifies unchanged source contents, rejects missing/foreign/invalid-history instances and nested destinations, preserves existing snapshots on name collision, checks fatal copy failure and sanitized nonzero CLI failure. The existing media/retention backup tests run alongside it. Host filesystem permissions, space, installed privileged script, migration/restart choreography, whole-service recovery and offsite encryption remain acceptance gates. No real server backup/migration/deploy was performed by these tests.
+Validation uses isolated pre-current/current schema databases, verifies unchanged source contents, rejects missing/foreign/invalid-history instances and nested destinations, preserves existing snapshots on name collision, checks fatal copy failure and sanitized nonzero CLI failure. The existing media/retention backup tests run alongside it. Host filesystem permissions, space, installed privileged script, migration/restart choreography, whole-service recovery and offsite encryption remain acceptance gates. No real server backup/migration/deploy was performed by these tests.
 
 
 ## Request authorization and operational diagnostics
