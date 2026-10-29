@@ -167,7 +167,10 @@ class BookingHttpTests(unittest.TestCase):
         self.assertEqual(self.req(path+'/care','POST',payload),saved)
         current=self.req(path+'/care',user='abc')
         self.assertEqual(current['pets'][0]['instructions']['payload']['food'],'TEST 08:00')
-        self.assertEqual(self.req(path+'/care/history',user='abc')['items'][0],saved)
+        self.assertEqual(saved['bookingId'],booking['id'])
+        self.assertEqual(saved['requestId'],payload['requestId'])
+        self.assertEqual(self.req(path+'/care/history',user='abc')['items'][0],
+                         {k:v for k,v in saved.items() if k not in ('bookingId','requestId')})
         self.req(path+'/care/history',user='stranger',status=404)
         for suffix in ['?day=bad','?day=2026-01-01&day=2026-01-02','?other=1','/history?before=0','/history?before=']:
             self.req(path+'/care'+suffix,status=400)

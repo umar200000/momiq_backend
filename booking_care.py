@@ -51,6 +51,10 @@ def entry(row):
             'payload': json.loads(row['payload']), 'created': row['created']}
 
 
+def acknowledgement(row, identity):
+    return {**entry(row),'bookingId':identity,'requestId':row['request_id']}
+
+
 def latest(con, identity, pet, kind, day, category):
     return con.execute('SELECT * FROM care_entries WHERE booking_id=? AND pet_id=? AND kind=? AND day=? AND category=? ORDER BY revision DESC LIMIT 1',
                        (identity, pet, kind, day, category)).fetchone()
@@ -122,7 +126,7 @@ def save(con, identity, user, data, now):
     if prior:
         if prior['fingerprint'] != fingerprint:
             raise engine.BookingError(409, 'Bu so‘rov boshqa yozuv uchun ishlatilgan')
-        return entry(prior)
+        return acknowledgement(prior,identity)
     if not any(p['id'] == pet for p in booking['snapshot']['pets']):
         raise engine.BookingError(404, 'Hayvon bu buyurtmaga tegishli emas')
     if kind == 'instructions':
@@ -143,7 +147,7 @@ def save(con, identity, user, data, now):
     row = engine.owned(con, identity, user)
     peer = row['sitter_id'] if kind == 'instructions' else row['customer_id']
     notifications.publish(con, peer, f'care:{cursor.lastrowid}:{peer}', 'care', identity, kind, '')
-    return entry(con.execute('SELECT * FROM care_entries WHERE id=?',(cursor.lastrowid,)).fetchone())
+    return acknowledgement(con.execute('SELECT * FROM care_entries WHERE id=?',(cursor.lastrowid,)).fetchone(),identity)
 
 
 def route(handler, con, user, path, now):

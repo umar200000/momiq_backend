@@ -27,12 +27,19 @@ def owner_view(con, identity, user, now):
     row=con.execute('SELECT * FROM booking_reviews WHERE booking_id=?',(identity,)).fetchone()
     mine=booking['customer_id']==user
     decision=moderation_reason(con,row) if row and mine else None
-    return {'review':dict(public(row),hidden=bool(row['hidden']),withdrawn=bool(row['withdrawn'])) if row else None,
+    return {'bookingId':identity,'review':dict(public(row),hidden=bool(row['hidden']),withdrawn=bool(row['withdrawn'])) if row else None,
             'canCreate':mine and not row and booking['status']=='completed',
             'canEdit':False,'canWithdraw':bool(row and mine and not row['withdrawn']),
             'canRestore':bool(row and mine and row['withdrawn']), 'reviewEditable':False,
             'moderation':decision,
             'appealTarget':{'kind':'review','id':str(row['id']),'purpose':'appeal','revision':str(row['revision'])} if decision else None}
+
+
+def acknowledged_view(con,identity,user,now,request_id,action):
+    receipt=con.execute('SELECT review_id,revision FROM review_requests WHERE actor=? AND request_id=?',(user,request_id)).fetchone()
+    return {**owner_view(con,identity,user,now),'acknowledgement':{
+        'requestId':request_id,'reviewId':str(receipt['review_id']),
+        'revision':receipt['revision'],'action':action}}
 
 
 def summary(con,sitter,service):
@@ -69,7 +76,7 @@ def write(con,identity,user,data,now):
     prior=con.execute('SELECT * FROM review_requests WHERE actor=? AND request_id=?',(user,data['requestId'])).fetchone()
     if prior:
         if prior['fingerprint']!=fingerprint:raise engine.BookingError(409,'So‘rov boshqa sharh uchun ishlatilgan')
-        return owner_view(con,identity,user,now)
+        return acknowledged_view(con,identity,user,now,data['requestId'],action)
     if booking['status']!='completed':raise engine.BookingError(409,'Sharh faqat tugallangan buyurtma uchun')
     row=con.execute('SELECT * FROM booking_reviews WHERE booking_id=?',(identity,)).fetchone()
     if revision!=(row['revision'] if row else 0):raise engine.BookingError(409,'Sharh o‘zgargan. Yangilab qayta tekshiring')
@@ -96,7 +103,7 @@ def write(con,identity,user,data,now):
     con.execute('INSERT INTO review_history VALUES(?,?,?,?,?,?)',(review_id,updated['revision'],user,action,payload,current))
     con.execute('INSERT INTO review_requests VALUES(?,?,?,?,?)',(user,data['requestId'],fingerprint,review_id,updated['revision']))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'review-'+action,engine.encode({'reviewId':review_id,'revision':updated['revision']}),current))
-    return owner_view(con,identity,user,now)
+    return acknowledged_view(con,identity,user,now,data['requestId'],action)
 
 
 def query_cursor(handler):

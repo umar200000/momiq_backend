@@ -33,6 +33,10 @@ def metadata(row):
             'height': row['height'], 'created': row['created']}
 
 
+def acknowledgement(row,identity):
+    return {**metadata(row),'bookingId':identity,'requestId':row['request_id']}
+
+
 def options(data):
     if not isinstance(data, dict) or set(data) != {'petId', 'day', 'slot', 'requestId'}:
         raise ValueError('Invalid video fields')
@@ -96,7 +100,7 @@ def store(con, root, identity, user, data, source, clock):
     care.access(con, identity, user)
     old = prior(con, user, fingerprint, data['requestId'])
     if old:
-        return metadata(old)
+        return acknowledgement(old,identity)
     writable(con, identity, user, data, clock())
     root = Path(root)/'care-videos'
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -109,7 +113,7 @@ def store(con, root, identity, user, data, source, clock):
             old = prior(con, user, fingerprint, data['requestId'])
             if old:
                 con.rollback()
-                return metadata(old)
+                return acknowledgement(old,identity)
             now = clock()
             writable(con, identity, user, data, now)
             video_id = secrets.token_hex(16)
@@ -136,7 +140,7 @@ def store(con, root, identity, user, data, source, clock):
                         (user,'care-video',engine.encode({'bookingId':identity,'videoId':video_id}),engine.stamp(now)))
             customer = engine.owned(con, identity, user)['customer_id']
             notifications.publish(con, customer, f'care-video:{video_id}', 'care', identity, 'video', '')
-            result = metadata(con.execute('SELECT * FROM booking_videos WHERE id=?', (video_id,)).fetchone())
+            result = acknowledgement(con.execute('SELECT * FROM booking_videos WHERE id=?', (video_id,)).fetchone(),identity)
             con.commit()
             return result
         except BaseException:

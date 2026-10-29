@@ -74,6 +74,12 @@ def overview(con,identity,user,day,now,role):
     return items
 
 
+def acknowledgement(row):
+    return {'ok':True,'bookingId':row['booking_id'],'requestId':row['request_id'],
+            'petId':row['pet_id'],'day':row['day'],'slot':row['slot'],
+            'reason':row['reason'],'emergency':bool(row['emergency']),'created':row['created']}
+
+
 def explain(con,identity,user,data,now):
     if not isinstance(data,dict) or set(data)!={'petId','day','slot','reason','emergency','requestId'}:raise ValueError('Invalid explanation fields')
     day=care.day_value(data['day']);slot=data['slot'];pet=data['petId']
@@ -86,7 +92,7 @@ def explain(con,identity,user,data,now):
     prior=con.execute('SELECT * FROM video_explanations WHERE actor=? AND request_id=?',(user,data['requestId'])).fetchone()
     if prior:
         if prior['fingerprint']!=fingerprint:raise engine.BookingError(409,'So‘rov o‘zgargan')
-        return {'ok':True}
+        return acknowledgement(prior)
     row=con.execute('SELECT c.*,b.status,b.updated FROM video_checks c JOIN bookings b ON b.id=c.booking_id WHERE c.booking_id=? AND c.day=? AND c.slot=?',(identity,day,slot)).fetchone()
     if not row or not relevant(con,row) or pet not in missing(con,row):raise engine.BookingError(409,'Yuborilmagan video vazifasi topilmadi')
     if now<engine.parse(row['due_at']):raise engine.BookingError(409,'Video muddati hali tugamagan')
@@ -95,4 +101,4 @@ def explain(con,identity,user,data,now):
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'video-explanation',engine.encode({'bookingId':identity,'petId':pet,'day':day,'slot':slot,'emergency':data['emergency']}),engine.stamp(now)))
     customer=engine.owned(con,identity,user)['customer_id']
     notifications.publish(con,customer,f'video-explanation:{identity}:{pet}:{day}:{slot}','care',identity,'video_explanation','')
-    return {'ok':True}
+    return acknowledgement(con.execute('SELECT * FROM video_explanations WHERE actor=? AND request_id=?',(user,data['requestId'])).fetchone())

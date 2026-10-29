@@ -47,6 +47,8 @@ class BookingVideoTests(unittest.TestCase):
     def test_real_upload_retry_private_playback_and_immutable_slot(self):
         b=self.active();source=self.source();data=self.data()
         first=self.upload(b,data,source)
+        self.assertEqual(first['bookingId'],b['id'])
+        self.assertEqual(first['requestId'],data['requestId'])
         # A lost response can be retried after the window; same bytes/identity only.
         self.assertEqual(first,self.upload(b,data,source,clock=lambda:self.start+timedelta(days=1)))
         self.expect_error(409,lambda:self.upload(b,self.data(),source))
@@ -54,7 +56,8 @@ class BookingVideoTests(unittest.TestCase):
         self.expect_error(409,lambda:self.upload(b,data,source))
         with server.db() as con:
             result=videos.overview(con,b['id'],'customer',data['day'],self.start+timedelta(hours=1))
-            self.assertFalse(result['canUpload']);self.assertEqual(result['items'],[dict(first,available=True,expiresAt=None)])
+            self.assertFalse(result['canUpload'])
+            self.assertEqual(result['items'],[{**{k:v for k,v in first.items() if k not in ('bookingId','requestId')},'available':True,'expiresAt':None}])
             self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_videos').fetchone()[0],1)
             self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE source_key LIKE 'care-video:%'").fetchone()[0],1)
             with self.assertRaises(sqlite3.IntegrityError):con.execute("UPDATE booking_videos SET day='2026-01-01'")

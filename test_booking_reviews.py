@@ -85,6 +85,38 @@ class BookingReviewTests(unittest.TestCase):
             self.assertEqual(reviews.summary(con,'abc','boarding'),{'count':0,'rating':0})
             self.assertEqual(reviews.page(con,'abc','boarding','production')['items'],[])
 
+    def test_receipt_identifies_original_request_even_after_moderation_and_visibility_changes(self):
+        b=self.complete();data=self.data();created=self.write(b,data)
+        self.assertEqual(created['bookingId'],b['id'])
+        self.assertEqual(created['acknowledgement'],{'requestId':data['requestId'],
+            'reviewId':created['review']['id'],'revision':1,'action':'save'})
+        with server.db() as con:
+            reviews.moderate(con,'test-operator',int(created['review']['id']),{
+                'hidden':True,'revision':1,'requestId':secrets.token_hex(16),'reason':'TEST decision'},self.start)
+            self.assertNotIn('acknowledgement',reviews.owner_view(con,b['id'],'customer',self.start))
+        retry=self.write(b,data)
+        self.assertEqual(retry['acknowledgement'],created['acknowledgement'])
+        self.assertEqual(retry['review']['revision'],2)
+        self.assertTrue(retry['review']['hidden'])
+        withdraw=self.data(revision=2,action='withdraw');hidden=self.write(b,withdraw)
+        self.assertEqual(hidden['acknowledgement']['revision'],3)
+        restored=self.write(b,self.data(revision=3,action='restore'))
+        retry=self.write(b,withdraw)
+        self.assertEqual(retry['acknowledgement'],hidden['acknowledgement'])
+        self.assertFalse(retry['review']['withdrawn'])
+        self.assertEqual(retry['review']['revision'],restored['review']['revision'])
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_reviews').fetchone()[0],1)
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM review_history').fetchone()[0],4)
+
+    def test_receipt_never_acknowledges_a_different_payload_or_booking(self):
+        b=self.complete();data=self.data();self.write(b,data)
+        self.expect_error(409,lambda:self.write(b,{**data,'action':'withdraw','revision':1}))
+        self.expect_error(403,lambda:self.write(b,data,user='abc'))
+        self.expect_error(404,lambda:self.write(b,data,user='stranger'))
+        other={'id':'e'*32}
+        self.expect_error(404,lambda:self.write(other,data))
+
     def test_parallel_retry_one_review_no_edits_even_immediately(self):
         b=self.complete();data=self.data();barrier=threading.Barrier(2)
         def write():barrier.wait();return self.write(b,data)['review']['id']

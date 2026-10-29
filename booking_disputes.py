@@ -93,6 +93,16 @@ def remember(con,actor,key,fingerprint,identity):
     con.execute('INSERT INTO dispute_requests VALUES(?,?,?,?)',(actor,key,fingerprint,identity))
 
 
+def acknowledged_view(con,identity,user,data,current):
+    # The request fingerprint has already matched the immutable original payload.
+    event=con.execute('SELECT id,revision FROM dispute_events WHERE booking_id=? AND revision=? AND actor=? AND action=?',
+                      (identity,data['revision']+1,user,data['action'])).fetchone()
+    if not event:raise RuntimeError('Missing dispute acknowledgement')
+    return {**view(con,identity,user,current),'acknowledgement':{
+        'requestId':data['requestId'],'messageId':str(event['id']),
+        'revision':event['revision'],'action':data['action'],'kind':data['kind']}}
+
+
 def append(con,row,user,role,action,body,image,current):
     con.execute('INSERT INTO dispute_events(booking_id,revision,actor,role,action,text,image,created) VALUES(?,?,?,?,?,?,?,?)',
                 (row['booking_id'],row['revision'],user,role,action,body,image,engine.stamp(current)))
@@ -109,7 +119,7 @@ def write(con,identity,user,data,photo,current,environment):
     engine.begin(con);engine.test_gate(con,environment)
     b=booking(con,identity,user,False);key='owner:'+user
     fingerprint,old=retry(con,key,data['requestId'],data,identity)
-    if old:return view(con,identity,user,current)
+    if old:return acknowledged_view(con,identity,user,data,current)
     row=case_row(con,identity)
     if b['revision']!=data['bookingRevision']:raise engine.BookingError(409,'Buyurtma o‘zgargan; yangilang')
     conversations.quota(con,key,'dispute',10)
@@ -127,7 +137,7 @@ def write(con,identity,user,data,photo,current,environment):
     row=case_row(con,identity)
     append(con,row,user,'customer' if user==b['customer_id'] else 'sitter',data['action'],body,image,current)
     remember(con,key,data['requestId'],fingerprint,identity)
-    return view(con,identity,user,current)
+    return acknowledged_view(con,identity,user,data,current)
 
 
 def resolve(con,identity,admin,data,current,environment):

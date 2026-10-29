@@ -73,7 +73,12 @@ class VideoFollowupTests(unittest.TestCase):
         self.expect_error(403,lambda:self.explain(b,data,user='customer'))
         self.expect_error(404,lambda:self.explain(b,data,user='stranger'))
         self.expect_error(409,lambda:self.explain(b,self.data(petId='cat-b')))
-        self.explain(b,data);self.explain(b,data)
+        first=self.explain(b,data)
+        self.assertEqual(first['requestId'],data['requestId'])
+        self.assertEqual(first['bookingId'],b['id'])
+        self.assertEqual(first['reason'],data['reason'])
+        self.assertTrue(first['emergency'])
+        self.assertEqual(first,self.explain(b,data,hours=10))
         self.expect_error(409,lambda:self.explain(b,dict(data,reason='changed')))
         self.expect_error(409,lambda:self.explain(b,self.data()))
         with server.db() as con:

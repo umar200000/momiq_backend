@@ -90,6 +90,34 @@ class DisputeTests(unittest.TestCase):
             self.assertEqual(con.execute("SELECT COUNT(*) FROM wallet_entries WHERE kind='commission_refund'").fetchone()[0],1)
         self.expect_error(409,lambda:self.resolve(b,{**decisions[winner],'reason':'Changed'}))
 
+    def test_participant_receipt_keeps_original_evidence_after_resolution(self):
+        b=self.act(self.request());data=self.payload(b);created=self.report(b,data)
+        receipt=created['acknowledgement']
+        self.assertEqual(receipt,{'requestId':data['requestId'],'messageId':created['items'][0]['id'],
+            'revision':1,'action':'report','kind':'no_show'})
+        self.assertNotIn('acknowledgement',self.read(b))
+        self.resolve(b,self.decision(created))
+        with server.db() as con:
+            before=[tuple(r) for r in con.execute('SELECT * FROM wallet_entries ORDER BY id')]
+        replay=self.report(b,data)
+        self.assertEqual(replay['acknowledgement'],receipt)
+        self.assertEqual(replay['case']['status'],'resolved')
+        self.assertFalse(replay['canAddEvidence'])
+        with server.db() as con:
+            self.assertEqual([tuple(r) for r in con.execute('SELECT * FROM wallet_entries ORDER BY id')],before)
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM dispute_events').fetchone()[0],2)
+        self.expect_error(409,lambda:self.report(b,{**data,'text':'different'}))
+        self.expect_error(404,lambda:self.report(b,data,user='stranger'))
+
+    def test_receipt_never_discloses_opposing_private_evidence(self):
+        b=self.act(self.request());created=self.report(b)
+        payload=self.payload({'revision':created['bookingRevision']},action='evidence',revision=1,text='TEST opposing private')
+        evidence=self.report(b,payload,user='abc')
+        self.assertEqual(evidence['acknowledgement']['messageId'],evidence['items'][0]['id'])
+        self.assertEqual(evidence['acknowledgement']['revision'],2)
+        self.assertNotIn('TEST private evidence',json.dumps(evidence))
+        self.assertNotIn('TEST opposing private',json.dumps(self.read(b)))
+
     def test_notification_failure_rolls_back_resolution_and_money(self):
         b=self.act(self.request());case=self.report(b);data=self.decision(case)
         original=notifications.publish

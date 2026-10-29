@@ -83,6 +83,22 @@ class BookingCareTests(unittest.TestCase):
         self.expect_error(409,lambda:self.write(b,self.payload('instructions'),user='customer'))
         self.assertEqual(first['actorRole'],'customer')
 
+    def test_care_acknowledgement_keeps_original_source_and_request_after_correction(self):
+        b=self.active();data=self.payload();first=self.write(b,data)
+        self.assertEqual(first['bookingId'],b['id'])
+        self.assertEqual(first['requestId'],data['requestId'])
+        correction=self.payload(revision=1,payload={'state':'undone','note':'TEST correction'})
+        latest=self.write(b,correction)
+        self.assertEqual(latest['revision'],2)
+        self.assertEqual(self.write(b,data),first)
+        self.assertEqual(self.read(b)['pets'][0]['reports'][0]['id'],latest['id'])
+        with server.db() as con:
+            history=care.history(con,b['id'],'customer')['items']
+            self.assertEqual(len(history),2)
+            self.assertTrue(all('requestId' not in item for item in history))
+        self.expect_error(409,lambda:self.write(b,{**data,'category':'water'}))
+        self.expect_error(404,lambda:self.write(b,data,user='stranger'))
+
     def test_reports_roles_date_retry_correction_and_immutable_history(self):
         b=self.active()
         with self.assertRaises(ValueError):
