@@ -89,6 +89,50 @@ class SupportTests(unittest.TestCase):
         self.req('/api/support','POST',{**data,'text':'Changed'},status=409)
         with server.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM support_messages').fetchone()[0],1)
 
+    def test_private_ticket_pages_audit_only_authorized_operator_and_page_identity(self):
+        created=self.req('/api/support','POST',self.data(subject='TEST private subject',text='TEST private support text'))
+        identity=created['ticket']['id'];path='/api/admin/support/'+identity
+        message_id=created['items'][0]['id']
+        self.req('/api/support/'+identity)
+        self.admin('/api/admin/support')
+        self.admin('/api/admin/support/'+'0'*32,status=404)
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT count(*) FROM audit WHERE action='support-view'").fetchone()[0],0)
+            con.execute("UPDATE admin_permissions SET role='finance' WHERE username='test-admin'")
+        self.admin(path,status=401)  # Role changes revoke the previous session.
+        del self.admin_token
+        self.admin(path,status=403)
+        with server.db() as con:con.execute("UPDATE admin_permissions SET role='support' WHERE username='test-admin'")
+        del self.admin_token
+        detail=self.admin(path)
+        self.assertEqual(detail['items'][0]['text'],'TEST private support text')
+        self.assertEqual(self.admin(path+'?before='+message_id)['items'],[])
+        with server.db() as con:
+            rows=[dict(r) for r in con.execute("SELECT actor,action,target,time FROM audit WHERE action='support-view' ORDER BY id")]
+            self.assertEqual(len(rows),2)
+            self.assertEqual([r['actor'] for r in rows],['test-admin']*2)
+            self.assertEqual([json.loads(r['target']) for r in rows],[{'ticketId':identity,'before':None},{'ticketId':identity,'before':int(message_id)}])
+            self.assertNotIn('TEST private',json.dumps(rows))
+            self.assertTrue(all(r['time'] for r in rows))
+            row=con.execute('SELECT status,revision FROM support_tickets WHERE id=?',(identity,)).fetchone()
+            self.assertEqual(tuple(row),('open',1))
+            self.assertEqual(con.execute('SELECT count(*) FROM support_messages WHERE ticket_id=?',(identity,)).fetchone()[0],1)
+
+    def test_private_ticket_is_not_disclosed_when_read_audit_fails(self):
+        created=self.req('/api/support','POST',self.data(text='TEST private secret'))
+        identity=created['ticket']['id'];original=support.audit_detail
+        def fail(*args):
+            original(*args)
+            raise RuntimeError('TEST private audit failure')
+        with patch.object(support,'audit_detail',side_effect=fail):
+            response=self.admin('/api/admin/support/'+identity,status=500)
+        self.assertEqual(set(response),{'error'})
+        self.assertNotIn('TEST private',json.dumps(response))
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT count(*) FROM audit WHERE action='support-view'").fetchone()[0],0)
+            self.assertEqual(con.execute('SELECT revision FROM support_tickets WHERE id=?',(identity,)).fetchone()[0],1)
+        self.assertEqual(self.admin('/api/admin/support/'+identity)['items'][0]['text'],'TEST private secret')
+
     def test_both_booking_parties_create_private_tickets_without_financial_side_effects(self):
         # All fixtures are in the isolated temporary HTTP-test database.
         booking=self.book()

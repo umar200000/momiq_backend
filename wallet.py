@@ -22,6 +22,11 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def audit_read(con,actor,action,identity,**metadata):
+    target=json.dumps({'topupId':identity,**metadata},separators=(',',':'),sort_keys=True)
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(actor,action,target,now()))
+
+
 def text(value, limit, required=True):
     if not isinstance(value,str) or len(value)>limit or (required and not value.strip()):
         raise ValueError('Matn noto‘g‘ri')
@@ -138,25 +143,39 @@ def route(handler, con, uid, path, photo, environment):
         handler.reply(200,{'topup':topup_view(row)});return True
     history_match=re.fullmatch(r'/api/(admin|wallet)/topups/([a-f0-9]{32})/history(?:/([0-9]{1,9})/receipt)?',path)
     if history_match and method=='GET':
+        query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+        allowed=set() if history_match[3] is not None else {'before'}
+        if set(query)-allowed or any(len(v)!=1 for v in query.values()):raise ValueError('Invalid history query')
+        before=query.get('before',[None])[0]
+        if before is not None and not re.fullmatch(r'[0-9]{1,9}',before):raise ValueError('Invalid history cursor')
+        con.execute('BEGIN')
         row=con.execute('SELECT user_id FROM topup_requests WHERE id=?',(history_match[2],)).fetchone()
         if history_match[1]=='wallet': require_sitter(con,uid)
         if not row or (history_match[1]=='wallet' and row['user_id']!=uid): raise WalletError(404,'So‘rov topilmadi')
         if history_match[3] is not None:
             evidence=con.execute('SELECT c.receipt FROM topup_history h JOIN topup_evidence_claims c ON c.receipt_hash=h.receipt_hash AND c.topup_id=h.topup_id WHERE h.topup_id=? AND h.revision=?',(history_match[2],int(history_match[3]))).fetchone()
             if not evidence: raise WalletError(404,'Chek nusxasi topilmadi')
+            if history_match[1]=='admin':
+                audit_read(con,uid,'topup-history-receipt-view',history_match[2],revision=int(history_match[3]))
+                con.commit()
             handler.reply(200,{'receipt':evidence['receipt']});return True
-        query=parse_qs(urlparse(handler.path).query)
-        before=query.get('before',[None])[0]
-        if before is not None and not re.fullmatch(r'[0-9]{1,9}',before): raise ValueError('Invalid history cursor')
         rows=con.execute('SELECT * FROM topup_history WHERE topup_id=?'+(' AND revision<?' if before is not None else '')+' ORDER BY revision DESC LIMIT 21',
                          (history_match[2],int(before)) if before is not None else (history_match[2],)).fetchall()
+        if history_match[1]=='admin':
+            audit_read(con,uid,'topup-history-view',history_match[2],before=int(before) if before is not None else None)
+            con.commit()
         handler.reply(200,{'items':[dict(topup_history.view(r),actor=r['actor']) if history_match[1]=='admin' else topup_history.view(r) for r in rows[:20]],'nextCursor':str(rows[19]['revision']) if len(rows)>20 else None});return True
     receipt_match=re.fullmatch(r'/api/(admin|wallet)/topups/([a-f0-9]{32})/receipt',path)
     if receipt_match and method=='GET':
+        if parse_qs(urlparse(handler.path).query,keep_blank_values=True):raise ValueError('Receipt has no query parameters')
+        con.execute('BEGIN')
         row=con.execute('SELECT t.user_id,t.receipt,t.revision,s.qr_image,s.version,s.recipient_name,s.payment_instructions,s.test_only FROM topup_requests t JOIN platform_settings s ON s.version=t.qr_version WHERE t.id=?',(receipt_match[2],)).fetchone()
         if receipt_match[1]=='wallet': require_sitter(con,uid)
         if not row or (receipt_match[1]=='wallet' and row['user_id']!=uid):
             raise WalletError(404,'Chek topilmadi')
+        if receipt_match[1]=='admin':
+            audit_read(con,uid,'topup-receipt-view',receipt_match[2],revision=row['revision'])
+            con.commit()
         handler.reply(200,{'receipt':row['receipt'],'revision':row['revision'],'paymentSnapshot':{'version':row['version'],
             'qrImage':row['qr_image'],'recipientName':row['recipient_name'],
             'paymentInstructions':row['payment_instructions'],'testOnly':bool(row['test_only'])}});return True

@@ -135,11 +135,19 @@ def moderate(con,actor,identity,data,now):
     return {'ok':True}
 
 
+def audit_view(con,actor,action,now,**metadata):
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                (actor,action,engine.encode(metadata),now.isoformat()))
+
+
 def admin_route(handler,con,actor,path,now):
     if path=='/api/admin/reviews' and handler.command=='GET':
         before=query_cursor(handler);args=[];clause=''
         if before is not None:clause=' WHERE id<?';args.append(int(before))
+        con.execute('BEGIN')
         rows=con.execute('SELECT * FROM booking_reviews'+clause+' ORDER BY id DESC LIMIT 21',args).fetchall()
+        audit_view(con,actor,'review-list-view',now,before=int(before) if before else None)
+        con.commit()
         handler.reply(200,{'items':[dict(public(r),bookingId=r['booking_id'],hidden=bool(r['hidden']),withdrawn=bool(r['withdrawn'])) for r in rows[:20]],'nextCursor':str(rows[19]['id']) if len(rows)>20 else None})
         return True
     match=re.fullmatch(r'/api/admin/reviews/([1-9][0-9]{0,17})(?:/(history|moderate))?',path)
@@ -151,8 +159,11 @@ def admin_route(handler,con,actor,path,now):
     if match[2]=='history' and handler.command=='GET':
         before=query_cursor(handler);args=[identity];clause=''
         if before is not None:clause=' AND revision<?';args.append(int(before))
+        con.execute('BEGIN')
         if not con.execute('SELECT 1 FROM booking_reviews WHERE id=?',(identity,)).fetchone():raise engine.BookingError(404,'Sharh topilmadi')
         rows=con.execute('SELECT * FROM review_history WHERE review_id=?'+clause+' ORDER BY revision DESC LIMIT 21',args).fetchall()
+        audit_view(con,actor,'review-history-view',now,reviewId=identity,before=int(before) if before else None)
+        con.commit()
         handler.reply(200,{'items':[dict(revision=r['revision'],actor=r['actor'],action=r['action'],payload=json.loads(r['payload']),created=r['created']) for r in rows[:20]],'nextCursor':str(rows[19]['revision']) if len(rows)>20 else None})
         return True
     raise engine.BookingError(404,'Topilmadi')

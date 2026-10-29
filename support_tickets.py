@@ -45,6 +45,13 @@ def view(con,identity,user,admin=False,before=None):
             'nextCursor':str(rows[19]['id']) if len(rows)>20 else None}
 
 
+def audit_detail(con,identity,user,before):
+    # Only the requested record/page identity is retained, never ticket contents.
+    target=engine.encode({'ticketId':identity,'before':int(before) if before else None})
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                (user,'support-view',target,datetime.now(timezone.utc).isoformat()))
+
+
 def write(con,user,identity,data,validate_photo,admin=False):
     creating=identity is None
     required={'requestId','text','image','revision','action'}|({'subject','topic','bookingId'} if creating else set())
@@ -108,7 +115,12 @@ def route(handler,con,user,path,validate_photo):
                 con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'support-image-view',identity+':'+image_id,datetime.now(timezone.utc).isoformat()));con.commit()
             handler.reply(200,{'image':row['image']})
             return True
-        if identity:handler.reply(200,view(con,identity,user,admin,before));return True
+        if identity:
+            result=view(con,identity,user,admin,before)
+            if admin:
+                audit_detail(con,identity,user,before)
+                con.commit()
+            handler.reply(200,result);return True
         clauses=[] if admin else ['owner_id=?'];args=[] if admin else [user]
         if before:clauses.append('seq<?');args.append(int(before))
         if status:clauses.append('status=?');args.append(status)

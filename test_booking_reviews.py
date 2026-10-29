@@ -5,6 +5,8 @@ import sqlite3
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import booking_reviews as reviews
 import catalog
@@ -34,6 +36,38 @@ class BookingReviewTests(unittest.TestCase):
 
     def write(self,b,data,user='customer',now=None):
         with server.db() as con:return reviews.write(con,b['id'],user,data,now or self.start+timedelta(hours=2))
+
+    def test_operator_hidden_review_and_history_reads_require_atomic_private_audit(self):
+        b=self.complete();created=self.write(b,self.data())
+        identity=int(created['review']['id'])
+        with server.db() as con:
+            reviews.moderate(con,'test-operator',identity,{'hidden':True,'revision':1,'requestId':secrets.token_hex(16),'reason':'TEST private moderation reason'},self.start)
+        routes=[('/api/admin/reviews','review-list-view',{'before':None}),
+                (f'/api/admin/reviews/{identity}/history','review-history-view',{'reviewId':identity,'before':None})]
+        original=reviews.audit_view
+        def fail(*args,**kwargs):
+            original(*args,**kwargs)
+            raise RuntimeError('TEST audit failure')
+        for path,action,target in routes:
+            replies=[]
+            handler=SimpleNamespace(path=path,command='GET',reply=lambda status,data:replies.append((status,data)))
+            with server.db() as con:
+                self.assertTrue(reviews.admin_route(handler,con,'test-operator',path,self.start))
+            self.assertEqual(replies[0][0],200)
+            with server.db() as con:
+                row=con.execute('SELECT actor,target FROM audit WHERE action=? ORDER BY id DESC LIMIT 1',(action,)).fetchone()
+                self.assertEqual(row['actor'],'test-operator')
+                self.assertEqual(json.loads(row['target']),target)
+                self.assertNotIn('TEST private',row['target'])
+                count=con.execute('SELECT count(*) FROM audit').fetchone()[0]
+            replies.clear()
+            with patch.object(reviews,'audit_view',side_effect=fail),self.assertRaises(RuntimeError):
+                with server.db() as con:reviews.admin_route(handler,con,'test-operator',path,self.start)
+            self.assertEqual(replies,[])
+            with server.db() as con:
+                self.assertEqual(con.execute('SELECT count(*) FROM audit').fetchone()[0],count)
+                row=con.execute('SELECT hidden,revision,text FROM booking_reviews WHERE id=?',(identity,)).fetchone()
+                self.assertEqual(tuple(row),(1,2,'TEST review'))
 
     def test_only_customer_of_completed_booking_can_review(self):
         pending=self.request()
