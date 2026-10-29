@@ -462,6 +462,22 @@ The credential/cache publication, role cache writes, account cache writes and lo
 
 Each queued operation rechecks its session at storage boundaries; a role change cannot finish into a new account. Idle queues release completed futures. The OTP success timer also rechecks the verified session/API before navigation. Cancellation does not revoke a server token already issued; an unpersisted token is not used and follows server expiry. Native storage failure/lifecycle acceptance remains open under M124. Tests use isolated fake HTTP/platform implementations, not the live TEST booking or an external SMS provider.
 
+## Legacy mutation field allowlists
+
+The following existing mutations reject unexpected JSON keys or any URL query with400, before media decoding or business writes. Existing required-field validation, ownership, revision conflicts and retry semantics remain authoritative; missing revision still uses the endpoint's existing status (e.g.428). Clients must not echo full GET responses into these mutations.
+
+| Mutation | Accepted keys |
+| --- | --- |
+| `PUT /admin/platform-settings` | version, commissionBps, qrImage, testOnly, reason, recipientName, paymentInstructions, qrActive |
+| `POST /wallet/topups` | amountMinor, receipt, requestId, payerReference, paidAt, qrVersion, termsVersion, acceptNonRefundable |
+| `POST /wallet/topups/{id}/amend` | The create keys plus revision |
+| `POST /admin/topups/{id}/review` | decision, reason, revision, transferReference, receivedAmountMinor, fundsVerified |
+| `POST /me/listings/{service}/archive` | _revision |
+| `POST /admin/listings/{owner}/{service}/review` | decision, reason, testOnly, _revision |
+| `POST /admin/chat-reports/{id}/review` | revision, reason, decision |
+
+Paths above are relative to `/api`. Optional existing fields stay optional; the allowlist is not permission to bypass incoming-funds verification, change a receipt owner, grant verification, select an audit actor, override a balance, or apply an unsupported outcome. The current app/admin send these accepted envelopes. Unknown fields were formerly ignored on these legacy routes; they now fail explicitly. Valid original retries still deduplicate, and a rejected envelope writes no financial/evidence/moderation/audit state.
+
 ## Additional private operator read audit
 
 Account/listing indexes, booking indexes, chat-report indexes, dispute lists/details and incident lists/history commit an audit record before returning data. Source reads and audit share the transaction; an audit failure returns no private response and rolls back the read event. Records identify the authenticated operator, endpoint scope, validated status/bucket/role/service and stable ID/numeric cursor where applicable. Account/booking search is recorded only as `searchPresent`; raw search terms (which may contain a phone or name), subjects, report/evidence text, images and credentials are not copied into audit.

@@ -528,7 +528,7 @@ class ApiTests(unittest.TestCase):
         a=self.req('/api/auth/login','POST',{'phone':'998909000031','code':'111111','role':'sitter'})
         b=self.req('/api/auth/login','POST',{'phone':'998909000032','code':'111111','role':'sitter'})
         config=self.req('/api/admin/platform-settings',admin=True)
-        config=self.req('/api/admin/platform-settings','PUT',dict(config,qrImage=fixture_image('orange'),qrActive=True,recipientName='TEST ONLY',reason='TEST duplicate receipt'),admin=True)
+        config=self.req('/api/admin/platform-settings','PUT',dict(version=config['version'],qrImage=fixture_image('orange'),qrActive=True,recipientName='TEST ONLY',reason='TEST duplicate receipt'),admin=True)
         png=fixture_image('#123456');jpeg=fixture_image('#123456',format='JPEG')
         self.assertNotEqual(png,jpeg)
         payload={'requestId':'same-payment','amountMinor':100,'qrVersion':config['version'],
@@ -565,7 +565,7 @@ class ApiTests(unittest.TestCase):
         a=self.req('/api/auth/login','POST',{'phone':'998909000021','code':'111111','role':'sitter'})
         other=self.req('/api/auth/login','POST',{'phone':'998909000022','code':'111111','role':'sitter'})
         config=self.req('/api/admin/platform-settings',admin=True)
-        config=self.req('/api/admin/platform-settings','PUT',dict(config,qrImage=fixture_image('cyan'),qrActive=True,recipientName='TEST ONLY',reason='TEST clarification QR'),admin=True)
+        config=self.req('/api/admin/platform-settings','PUT',dict(version=config['version'],qrImage=fixture_image('cyan'),qrActive=True,recipientName='TEST ONLY',reason='TEST clarification QR'),admin=True)
         original={'requestId':'clarification-original','amountMinor':100,'receipt':fixture_image('cyan'),'qrVersion':config['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True,'payerReference':'TEST-CLARIFY-001'}
         topup=self.req('/api/wallet/topups','POST',original,token=a['token'],expected=201)['topup'];tid=topup['id']
         review='/api/admin/topups/'+tid+'/review'

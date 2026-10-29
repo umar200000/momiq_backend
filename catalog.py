@@ -184,6 +184,7 @@ def completeness(account,item):
 
 
 def review(con,uid,kind,data,actor,environment):
+    if set(data)-{'decision','reason','testOnly','_revision'}:raise ValueError('Unexpected moderation fields')
     decision=data.get('decision');reason=data.get('reason')
     if decision not in ('approve','reject','suspend'): raise ValueError('Invalid review decision')
     if not isinstance(reason,str) or not reason.strip() or len(reason)>1000: raise ValueError('Review reason required')

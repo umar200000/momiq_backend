@@ -604,10 +604,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             match = re.fullmatch(r'/api/me/listings/(boarding|homeVisit|personal)/archive',path)
             if match and self.command == 'POST':
-                self.reply(200,catalog.archive(con,user,match[1],self.body().get('_revision')))
+                body=self.body()
+                if set(body)-{'_revision'} or urlparse(self.path).query:raise ValueError('Unexpected archive fields')
+                self.reply(200,catalog.archive(con,user,match[1],body.get('_revision')))
                 return
             match = re.fullmatch(r'/api/admin/listings/([a-f0-9]+)/(boarding|homeVisit|personal)/review',path)
             if match and self.command == 'POST':
+                if urlparse(self.path).query:raise ValueError('Unexpected moderation query')
                 self.reply(200,catalog.review(con,*match.groups(),self.body(),user,ENVIRONMENT))
                 return
             if path == "/api/messages" and self.command == "GET":

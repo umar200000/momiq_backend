@@ -27,6 +27,16 @@ def audit_read(con,actor,action,identity,**metadata):
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(actor,action,target,now()))
 
 
+def mutation(handler,allowed):
+    if urlparse(handler.path).query:raise ValueError('Unexpected mutation query')
+    data=handler.body()
+    if set(data)-allowed:raise ValueError('Unexpected mutation fields')
+    return data
+
+
+TOPUP_FIELDS={'amountMinor','receipt','requestId','payerReference','paidAt','qrVersion','termsVersion','acceptNonRefundable'}
+
+
 def text(value, limit, required=True):
     if not isinstance(value,str) or len(value)>limit or (required and not value.strip()):
         raise ValueError('Matn noto‘g‘ri')
@@ -206,7 +216,7 @@ def route(handler, con, uid, path, photo, environment):
             audit_read(con,uid,'platform-settings-view',None,version=result['version'])
             con.commit();handler.reply(200,result);return True
         if method=='PUT':
-            data=handler.body()
+            data=mutation(handler,{'version','commissionBps','qrImage','testOnly','reason','recipientName','paymentInstructions','qrActive'})
             con.execute('BEGIN IMMEDIATE')
             current=settings(con)
             if data.get('version')!=current['version'] or type(data.get('version')) is not int:
@@ -244,7 +254,7 @@ def route(handler, con, uid, path, photo, environment):
         if method=='GET':
             handler.reply(200,topup_page(handler,con,uid))
             return True
-        data=handler.body()
+        data=mutation(handler,TOPUP_FIELDS)
         value=amount(data.get('amountMinor'))
         receipt=photo(data.get('receipt'))
         if not receipt: raise ValueError('Chek rasmi majburiy')
@@ -289,7 +299,7 @@ def route(handler, con, uid, path, photo, environment):
     amend=re.fullmatch(r'/api/wallet/topups/([a-f0-9]{32})/amend',path)
     if amend and method=='POST':
         require_sitter(con,uid)
-        data=handler.body();value=amount(data.get('amountMinor'))
+        data=mutation(handler,TOPUP_FIELDS|{'revision'});value=amount(data.get('amountMinor'))
         receipt=photo(data.get('receipt'))
         if not receipt: raise ValueError('Chek rasmi majburiy')
         digest=hashlib.sha256(base64.b64decode(receipt,validate=True)).hexdigest()
@@ -324,7 +334,7 @@ def route(handler, con, uid, path, photo, environment):
         handler.reply(200,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(row['id'],)).fetchone())});return True
     match=re.fullmatch(r'/api/admin/topups/([a-f0-9]{32})/review',path)
     if match and method=='POST':
-        data=handler.body();reason=text(data.get('reason'),1000)
+        data=mutation(handler,{'decision','reason','revision','transferReference','receivedAmountMinor','fundsVerified'});reason=text(data.get('reason'),1000)
         decision=data.get('decision')
         if decision not in ('approve','reject','request_info'): raise ValueError('Qaror noto‘g‘ri')
         reference=text(data.get('transferReference'),200) if decision=='approve' else None

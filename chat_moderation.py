@@ -101,6 +101,8 @@ def route(handler, con, user, path):
     if not match: return False
     identity, action = int(match[1]), match[2]
     data = handler.body() if handler.command == 'POST' else None
+    if handler.command=='POST' and (set(data)-{'revision','reason','decision'} or urlparse(handler.path).query):
+        raise ValueError('Unexpected moderation fields')
     con.execute('BEGIN IMMEDIATE')
     report = con.execute('SELECT * FROM chat_reports WHERE id=?', (identity,)).fetchone()
     if not report: raise ChatError(404, 'Murojaat topilmadi')
