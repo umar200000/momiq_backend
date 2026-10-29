@@ -21,6 +21,20 @@ class ConversationTests(unittest.TestCase):
     save = test_catalog.CatalogTests.save
     review = test_catalog.CatalogTests.review
 
+    def test_parallel_contact_creation_is_once_and_reopening_does_not_take_write_lock(self):
+        barrier=threading.Barrier(2)
+        def create():
+            barrier.wait()
+            with server.db() as con:return conversations.create(con,'customer',{'listingId':'abc:boarding'},'local')
+        with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(lambda _:create(),range(2)))
+        self.assertEqual(results[0]['id'],results[1]['id'])
+        with server.db() as writer,server.db() as reader:
+            self.assertEqual(reader.execute('SELECT COUNT(*) FROM conversations').fetchone()[0],1)
+            self.assertEqual(reader.execute("SELECT count FROM attempts WHERE key='conversation:create:customer'").fetchone()[0],1)
+            writer.execute('BEGIN IMMEDIATE');reader.execute('PRAGMA busy_timeout=1')
+            result=conversations.create(reader,'customer',{'listingId':'abc:boarding'},'local')
+            self.assertEqual(result['id'],results[0]['id'])
+
     def test_message_notice_is_private_atomic_and_deduplicated(self):
         identity=self.create_chat()['id']; request=secrets.token_hex(16)
         original=notifications.publish

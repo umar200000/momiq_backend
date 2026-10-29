@@ -93,7 +93,7 @@ def page(con, environment, params, *, user=None):
         row=con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()
         favorites=set(json.loads(row[0]).get('favorites',[])) if row else set()
     def matches():
-        for item in catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else ''):
+        for item in catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',service=selected['service']):
             if favorites is not None and item['id'] not in favorites:continue
             service=catalog.SERVICES[item['service']]
             if selected['service'] is not None and service!=selected['service']:continue

@@ -86,7 +86,14 @@ def create(con, user, data, environment):
     sitter, service = listing_id.rsplit(':', 1)
     if service not in catalog.SERVICES or sitter == user:
         raise ValueError('Invalid conversation')
+    # Reopening an existing contact is a read, including a lost-response retry.
+    con.execute('BEGIN')
+    row = con.execute('SELECT * FROM conversations WHERE customer_id=? AND sitter_id=? AND service=?', (user, sitter, service)).fetchone()
+    if row:
+        return summary(con, row, user)
+    con.rollback()
     con.execute('BEGIN IMMEDIATE')
+    # Another caller may have created this pair after the read snapshot ended.
     row = con.execute('SELECT * FROM conversations WHERE customer_id=? AND sitter_id=? AND service=?', (user, sitter, service)).fetchone()
     if row:
         return summary(con, row, user)
