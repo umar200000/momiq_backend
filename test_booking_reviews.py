@@ -7,6 +7,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 
 import booking_reviews as reviews
+import catalog
 import server
 import test_booking_care
 import test_booking_engine
@@ -84,6 +85,8 @@ class BookingReviewTests(unittest.TestCase):
             con.execute('INSERT INTO booking_reviews(booking_id,customer_id,sitter_id,service,author_name,stars,text,test_only,revision,created,updated) VALUES(?,?,?,?,?,?,?,?,1,?,?)',
                         (b['id'],'customer','abc','boarding','TEST author',4,'TEST genuine-projection fixture',0,server.now(),server.now()))
             self.assertEqual(reviews.summary(con,'abc','boarding'),{'count':1,'rating':4})
+            item=catalog.profile(con,'local','abc:boarding')
+            self.assertEqual((item['reviews'],item['rating']),(1,4))
         for i in range(21):
             with server.db() as con:con.execute('DELETE FROM attempts')
             pending=self.request()
@@ -93,12 +96,23 @@ class BookingReviewTests(unittest.TestCase):
             page=reviews.page(con,'abc','boarding','local')
             self.assertEqual(len(page['items']),20)
             self.assertEqual(page['count'],1);self.assertEqual(page['rating'],4)
+            item=catalog.profile(con,'local','abc:boarding')
+            self.assertEqual((item['reviews'],item['rating']),(1,4))
             older=reviews.page(con,'abc','boarding','local',page['nextCursor'])
             self.assertEqual(len(older['items']),2);self.assertIsNone(older['nextCursor'])
             self.assertTrue(all('customerId' not in r and 'bookingId' not in r for r in page['items']))
             self.assertEqual(len(reviews.page(con,'abc','boarding','production')['items']),1)
             reviews.moderate(con,'admin',1,{'hidden':True,'revision':1,'requestId':secrets.token_hex(16),'reason':'TEST hide'},self.start)
-        with server.db() as con:self.assertEqual(reviews.summary(con,'abc','boarding')['count'],0)
+        with server.db() as con:
+            self.assertEqual(reviews.summary(con,'abc','boarding')['count'],0)
+            item=catalog.profile(con,'local','abc:boarding')
+            self.assertEqual((item['reviews'],item['rating']),(0,0))
+            con.execute('UPDATE booking_reviews SET hidden=0,withdrawn=1 WHERE id=1')
+        with server.db() as con:
+            self.assertEqual(catalog.profile(con,'local','abc:boarding')['reviews'],0)
+            con.execute('UPDATE booking_reviews SET withdrawn=0 WHERE id=1')
+        with server.db() as con:
+            self.assertEqual(catalog.profile(con,'local','abc:boarding')['rating'],4)
 
     def test_moderation_reason_revision_and_retry(self):
         b=self.complete();r=self.write(b,self.data())['review'];key=secrets.token_hex(16)

@@ -224,10 +224,22 @@ def profile(con,environment,identity,*,interval=None):
 
 def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=None):
     after_key=tuple(after.split(':',1)) if after else ('','')
-    owner_clause=' AND u.id=?' if owner is not None else ''
+    owner_clause=' AND m.user_id=?' if owner is not None else ''
     service_clause=' AND m.service=?' if service is not None else ''
-    args=[after.split(':')[0],MINIMUM_BALANCE_MINOR]+([owner] if owner is not None else [])+([service] if service is not None else [])
-    rows=con.execute("SELECT u.id,u.account,l.data,m.service moderated_service,m.approved_hash,m.public_media,m.test_only FROM users u JOIN listings l ON l.user_id=u.id JOIN wallet_accounts w ON w.user_id=u.id JOIN listing_moderation m ON m.user_id=u.id AND m.status='approved' WHERE u.blocked=0 AND u.id>=? AND w.balance_minor>=? AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role='sitter')"+owner_clause+service_clause+' ORDER BY u.id,m.service',args)
+    args=[*after_key,MINIMUM_BALANCE_MINOR]+([owner] if owner is not None else [])+([service] if service is not None else [])
+    # Read in the moderation primary-key order. Reputation stays in the same
+    # read snapshot without one additional Python/SQLite call per listing.
+    rows=con.execute("""SELECT u.id,u.account,l.data,m.service moderated_service,
+        m.approved_hash,m.public_media,m.test_only,
+        (SELECT json_array(COUNT(*),COALESCE(SUM(stars),0)) FROM booking_reviews r
+         WHERE r.sitter_id=m.user_id AND r.service=m.service
+         AND r.hidden=0 AND r.withdrawn=0 AND r.test_only=0) review_totals
+        FROM listing_moderation m JOIN users u ON u.id=m.user_id
+        JOIN listings l ON l.user_id=m.user_id JOIN wallet_accounts w ON w.user_id=m.user_id
+        WHERE (m.user_id,m.service)>(?,?) AND m.status='approved' AND u.blocked=0
+        AND w.balance_minor>=?
+        AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=m.user_id AND r.role='sitter')"""
+        +owner_clause+service_clause+' ORDER BY m.user_id,m.service',args)
     for row in rows:
         account=json.loads(row['account']);data=json.loads(row['data'])
         if interval and sitter_availability.reason(account,*interval): continue
@@ -241,8 +253,8 @@ def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=No
             location=item.get('location')
             # Only an approximate discovery point; never expose the private street.
             public_location=({'lat':round(location['lat'],2),'lon':round(location['lon'],2),'address':'Toshkent'} if location else None)
-            import booking_reviews
-            reputation=booking_reviews.summary(con,row['id'],item['type'])
+            review_count,review_total=json.loads(row['review_totals'])
+            reputation={'count':review_count,'rating':round(review_total/review_count,1) if review_count else 0}
             yield {'id':row['id']+':'+item['type'],'userId':row['id'],
                 'name':(profile.get('first','')+' '+profile.get('last','')[:1]+'.').strip(),
                 'service':SERVICES.index(item['type']),'price':item['price'],'priceUnit':'animal_day',

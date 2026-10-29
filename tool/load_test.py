@@ -18,7 +18,7 @@ import tempfile
 import threading
 import time
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+from urllib.request import Request, ProxyHandler, build_opener
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -59,6 +59,10 @@ def percentile(values,quantile):
     return round(sorted(values)[max(0,math.ceil(len(values)*quantile)-1)],2) if values else None
 
 
+def timings(values):
+    return {'count':len(values),'p50Ms':percentile(values,.5),'p95Ms':percentile(values,.95),'p99Ms':percentile(values,.99)}
+
+
 def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
     with tempfile.TemporaryDirectory(prefix='momiq-isolated-load-') as directory:
         os.environ.update(MOMIQ_DATA_DIR=directory,MOMIQ_ENV='local',MOMIQ_ALLOW_TEST_LOGIN='1')
@@ -67,18 +71,33 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
         # The command is a standalone process, with no target URL/DB argument.
         if server.DATA.resolve()!=Path(directory).resolve():raise RuntimeError('Refusing a non-temporary database')
         server.setup();clients,sitters=seed(server,catalog,accounts,active)
-        http=server.LocalHTTPServer(('127.0.0.1',0),server.Handler)
+        measurements=[];handler_measurements=[];lock=threading.Lock();local=threading.local()
+        categories={'catalog','profile','bookings','inbox','notifications','open_chat','send_chat'}
+        class MeasuredHandler(server.Handler):
+            def handle_request(self):
+                start=time.perf_counter()
+                try:return super().handle_request()
+                finally:
+                    category=self.headers.get('X-Momiq-Load-Category');phase=self.headers.get('X-Momiq-Load-Phase')
+                    if category in categories and phase in ('initial','repeat'):
+                        with lock:handler_measurements.append((category,(time.perf_counter()-start)*1000,phase))
+        # These clients only connect to this temporary loopback instance. Prepare
+        # independent direct openers before timing; urllib's shared lazy opener
+        # can make Windows proxy discovery dominate the first concurrent batch.
+        openers=[build_opener(ProxyHandler({})) for _ in clients]
+        http=server.LocalHTTPServer(('127.0.0.1',0),MeasuredHandler)
+        http.daemon_threads=False  # Drain handlers before measuring/removing data.
         serving=threading.Thread(target=http.serve_forever,daemon=True);serving.start()
         base=f'http://127.0.0.1:{http.server_port}'
-        barrier=threading.Barrier(active);measurements=[];lock=threading.Lock()
+        barrier=threading.Barrier(active)
         def request(token,category,path,data=None):
             if duration_seconds and time.perf_counter()>=deadline:return None
             started=time.perf_counter();status=0;error=None;result=None
-            headers={'Authorization':'Bearer '+token}
+            headers={'Authorization':'Bearer '+token,'X-Momiq-Load-Category':category,'X-Momiq-Load-Phase':local.phase}
             body=None
             if data is not None:headers['Content-Type']='application/json';body=json.dumps(data).encode()
             try:
-                with urlopen(Request(base+path,data=body,headers=headers),timeout=25) as response:
+                with local.opener.open(Request(base+path,data=body,headers=headers),timeout=25) as response:
                     status=response.status;result=json.load(response)
                     if not isinstance(result,dict):raise ValueError('Invalid response shape')
                     if category=='catalog' and not result.get('sitters'):raise ValueError('Empty synthetic catalog')
@@ -86,13 +105,15 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
             except Exception as failure:
                 cause=getattr(failure,'reason',failure)
                 error=type(cause).__name__+(':'+str(cause.errno) if getattr(cause,'errno',None) is not None else '')
-            with lock:measurements.append((category,(time.perf_counter()-started)*1000,status,error))
+            with lock:measurements.append((category,(time.perf_counter()-started)*1000,status,error,local.phase))
             if duration_seconds:time.sleep(max(0,min(think_ms/1000,deadline-time.perf_counter())))
             return result if status==200 and not error else None
         def customer(index,token):
+            local.opener=openers[index]
             barrier.wait(timeout=30)
             cycle=0
             while (time.perf_counter()<deadline if duration_seconds else cycle<cycles):
+                local.phase='initial' if cycle==0 else 'repeat'
                 request(token,'catalog','/api/sitters?service=boarding&pet=cat')
                 request(token,'profile','/api/me')
                 request(token,'bookings','/api/bookings')
@@ -111,6 +132,7 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
         for row in measurements:groups[row[0]].append(row)
         result={'createdAt':datetime.now(timezone.utc).isoformat(),'accounts':accounts,'activeCustomers':active,'sitters':sitters,'listings':sitters*3,'cycles':None if duration_seconds else cycles,'mode':'paced_duration' if duration_seconds else 'burst_cycles',
                 'durationSeconds':duration_seconds,'thinkMs':think_ms,
+                'measurementVersion':2,'clientTransport':'per-customer direct loopback opener prepared before timing; no HTTP warmup',
                 'transport':'Windows/local stdlib ThreadingHTTPServer' if os.name=='nt' else 'local stdlib ThreadingHTTPServer',
                 'python':platform.python_version(),'logicalCpus':os.cpu_count(),'elapsedSeconds':round(elapsed,2),'requests':len(measurements),
                 'listenBacklog':http.request_queue_size,
@@ -118,14 +140,19 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
         for category,rows in groups.items():
             durations=[r[1] for r in rows]
             result['endpoints'][category]={'count':len(rows),'p50Ms':percentile(durations,.5),'p95Ms':percentile(durations,.95),'p99Ms':percentile(durations,.99),
-                 'statuses':dict(Counter(str(r[2]) for r in rows)),'transportOrShapeErrors':dict(Counter(r[3] for r in rows if r[3]))}
+                 'statuses':dict(Counter(str(r[2]) for r in rows)),'transportOrShapeErrors':dict(Counter(r[3] for r in rows if r[3])),
+                 'clientPhases':{phase:timings([r[1] for r in rows if r[4]==phase]) for phase in ('initial','repeat')},
+                 'handlerDuration':timings([r[1] for r in handler_measurements if r[0]==category]),
+                 'handlerPhases':{phase:timings([r[1] for r in handler_measurements if r[0]==category and r[2]==phase]) for phase in ('initial','repeat')}}
         with server.db() as con:
             result['database']={'integrity':con.execute('PRAGMA integrity_check').fetchone()[0],'foreignKeyErrors':len(con.execute('PRAGMA foreign_key_check').fetchall()),
                 'accounts':con.execute('SELECT COUNT(*) FROM users').fetchone()[0],'chats':con.execute('SELECT COUNT(*) FROM conversations').fetchone()[0],
                 'messages':con.execute('SELECT COUNT(*) FROM conversation_messages').fetchone()[0],'bookings':con.execute('SELECT COUNT(*) FROM bookings').fetchone()[0]}
-        result['successfulRequests']=sum(status==200 and error is None for _,_,status,error in measurements)
+        result['successfulRequests']=sum(status==200 and error is None for _,_,status,error,_ in measurements)
         result['limitations']=[('Synthetic local paced duration, time budget checked before each request; in-flight requests may finish after the window.' if duration_seconds else 'Synthetic local saturation burst; no think time.'),
             'Synchronized customer start; no real mobile network. Throughput elapsed includes HTTP shutdown/drain.',
+            'Client timings include transport/accept-queue delay; handler timings exclude them. Initial/repeat refer to each customer cycle.',
+            'Version 2 prepares direct clients outside timing; old lazy ambient-proxy measurements are not like-for-like speedup evidence.',
             'Pre-issued synthetic sessions: does not benchmark SMS, login or TLS.',
             'No booking acceptance, payment, video, reverse proxy, Gunicorn or production host traffic.',
             'This is not proof of production capacity or a service-level guarantee; temporary data is removed.']

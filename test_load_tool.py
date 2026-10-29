@@ -17,10 +17,17 @@ class LoadToolTests(unittest.TestCase):
             for mode,args in [('burst_cycles',['--cycles','1']),('paced_duration',['--duration-seconds','2','--think-ms','100'])]:
                 report=root/(mode+'.json')
                 result=subprocess.run([sys.executable,'tool/load_test.py','--accounts','20','--active','2','--output',str(report),*args],cwd=ROOT,
-                                      env={**os.environ,'MOMIQ_DATA_DIR':str(existing),'MOMIQ_ENV':'production','MOMIQ_ALLOW_TEST_LOGIN':'0'},capture_output=True,text=True,timeout=40)
+                                      env={**os.environ,'MOMIQ_DATA_DIR':str(existing),'MOMIQ_ENV':'production','MOMIQ_ALLOW_TEST_LOGIN':'0',
+                                           'HTTP_PROXY':'http://127.0.0.1:1','http_proxy':'http://127.0.0.1:1','NO_PROXY':'','no_proxy':''},capture_output=True,text=True,timeout=40)
                 self.assertEqual(result.returncode,0,result.stderr[-1500:])
                 data=json.loads(report.read_text(encoding='utf-8'));self.assertEqual(data['mode'],mode)
                 self.assertEqual(data['requests'],data['successfulRequests']);self.assertGreater(data['requests'],0)
+                self.assertEqual(data['measurementVersion'],2)
+                self.assertEqual(sum(e['handlerDuration']['count'] for e in data['endpoints'].values()),data['requests'])
+                for endpoint in data['endpoints'].values():
+                    self.assertEqual(sum(p['count'] for p in endpoint['clientPhases'].values()),endpoint['count'])
+                    self.assertEqual(sum(p['count'] for p in endpoint['handlerPhases'].values()),endpoint['count'])
+                    self.assertGreaterEqual(endpoint['handlerDuration']['p95Ms'],0)
                 self.assertEqual(data['database']['integrity'],'ok');self.assertEqual(data['database']['bookings'],0)
                 self.assertEqual(data['database']['accounts'],20);self.assertEqual(data['database']['foreignKeyErrors'],0)
                 if mode=='burst_cycles':self.assertEqual(data['expectedRequests'],14)
