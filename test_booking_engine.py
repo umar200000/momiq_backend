@@ -21,6 +21,29 @@ class BookingEngineTests(unittest.TestCase):
     save = test_catalog.CatalogTests.save
     review = test_catalog.CatalogTests.review
 
+    def test_empty_expiry_reads_do_not_wait_for_an_unrelated_writer(self):
+        pending=self.request()
+        with server.db() as writer,server.db() as reader:
+            writer.execute('BEGIN IMMEDIATE')
+            reader.execute('PRAGMA busy_timeout=1')
+            self.assertEqual(engine.expire_due(reader,environment='local',now=self.now),0)
+            self.assertFalse(reader.in_transaction)
+            due=self.now+timedelta(hours=2)
+            self.assertEqual(engine.expire_due(reader,environment='local',now=due,owner='stranger'),0)
+            self.assertEqual(engine.expire_due(reader,environment='local',now=due,identity='f'*32),0)
+            self.assertEqual(engine.view(reader,pending['id'],'customer')['status'],'pending')
+
+    def test_parallel_expiry_rechecks_after_lock_and_writes_one_transition(self):
+        pending=self.request();barrier=threading.Barrier(2)
+        def expire():
+            barrier.wait()
+            with server.db() as con:return engine.expire_due(con,environment='local',now=self.now+timedelta(hours=2),identity=pending['id'])
+        with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(lambda _:expire(),range(2)))
+        self.assertEqual(sorted(results),[0,1])
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM booking_events WHERE booking_id=? AND action='expire'",(pending['id'],)).fetchone()[0],1)
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0],0)
+
     def setUp(self):
         test_catalog.CatalogTests.setUp(self)
         self.save(); self.review()

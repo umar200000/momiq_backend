@@ -97,7 +97,7 @@ def create(con, user, data, environment):
     profile = json.loads(con.execute('SELECT account FROM users WHERE id=?', (user,)).fetchone()[0]).get('profile', {})
     if not profile.get('first', '').strip() or not profile.get('last', '').strip():
         raise ChatError(409, 'Avval mijoz profilini to‘ldiring')
-    listing = next((x for x in catalog.profiles(con, environment) if x['id'] == listing_id), None)
+    listing = catalog.profile(con,environment,listing_id)
     if not listing:
         raise ChatError(409, 'Bu enaga hozir yangi mijoz qabul qilmayapti. Katalogni yangilang.')
     quota(con, user, 'create', 10)

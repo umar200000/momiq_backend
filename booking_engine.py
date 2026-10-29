@@ -70,7 +70,7 @@ def account(con, user, role=None):
 
 
 def listing(con, customer, listing_id, environment):
-    item = next((item for item in catalog.iter_profiles(con, environment) if item['id'] == listing_id), None)
+    item = catalog.profile(con,environment,listing_id)
     if not item or item['userId'] == customer or conversations.blocked_pair(con, customer, item['userId']):
         raise BookingError(409, 'Enaga yangi buyurtma qabul qilmayapti')
     return item
@@ -297,15 +297,23 @@ def change(con, row, status, actor, action, reason, current):
 
 def expire_due(con, *, environment, now, limit=200, owner=None, identity=None):
     rules.integer(limit, 1, 1000)
-    begin(con)
+    if con.in_transaction:
+        raise RuntimeError('Booking operation requires a fresh transaction')
     test_gate(con, environment)
     clause = ''; args = [stamp(now)]
     if owner is not None:
         clause += ' AND (customer_id=? OR sitter_id=?)'; args.extend([owner, owner])
     if identity is not None:
         clause += ' AND id=?'; args.append(identity)
+    where="status='pending' AND reply_deadline<=?"+clause
+    # Empty read-time catch-up must not queue behind unrelated wallet/chat writes.
+    # This autocommit probe is only an optimization; reselect after the write lock.
+    if not con.execute('SELECT 1 FROM bookings WHERE '+where+' LIMIT 1',args).fetchone():
+        return 0
+    begin(con)
+    test_gate(con, environment)
     args.append(limit)
-    rows = con.execute("SELECT * FROM bookings WHERE status='pending' AND reply_deadline<=?"+clause+" ORDER BY reply_deadline LIMIT ?", args).fetchall()
+    rows = con.execute('SELECT * FROM bookings WHERE '+where+' ORDER BY reply_deadline LIMIT ?', args).fetchall()
     for row in rows:
         change(con, row, 'expired', 'system', 'expire', 'Javob muddati tugadi', now)
     return len(rows)

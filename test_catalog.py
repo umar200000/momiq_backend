@@ -11,6 +11,25 @@ from test_media import fixture_image
 
 
 class CatalogTests(unittest.TestCase):
+    def test_targeted_discovery_keeps_eligibility_and_ignores_unrelated_corrupt_profile(self):
+        self.save();self.review()
+        with server.db() as con:
+            expected=catalog.profile(con,'local','abc:boarding')
+            self.assertIsNotNone(expected)
+            self.assertNotIn('PRIVATE STREET',json.dumps(expected))
+            con.execute("INSERT INTO users VALUES('eee','998000009999','invalid legacy JSON',0,?)",(server.now(),))
+            con.execute("INSERT INTO user_roles VALUES('eee','sitter')")
+            con.execute("INSERT INTO wallet_accounts VALUES('eee',1500000)")
+            con.execute("INSERT INTO listings VALUES('eee','invalid legacy JSON',?)",(server.now(),))
+            self.assertEqual(catalog.profile(con,'local','abc:boarding'),expected)
+            for identity in ('abc:other','missing:boarding',"abc' OR 1=1:boarding",None):self.assertIsNone(catalog.profile(con,'local',identity))
+            self.assertIsNone(catalog.profile(con,'production','abc:boarding'))
+            con.execute("UPDATE users SET blocked=1 WHERE id='abc'")
+            self.assertIsNone(catalog.profile(con,'local','abc:boarding'))
+            con.execute("UPDATE users SET blocked=0 WHERE id='abc'")
+            con.execute("UPDATE wallet_accounts SET balance_minor=1499999 WHERE user_id='abc'")
+            self.assertIsNone(catalog.profile(con,'local','abc:boarding'))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

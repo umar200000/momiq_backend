@@ -102,7 +102,7 @@ def public_route(handler,con,path,environment):
     before=query_cursor(handler)
     identity=unquote(match[1])
     con.execute('BEGIN')
-    item=next((p for p in engine.catalog.profiles(con,environment) if p['id']==identity),None)
+    item=engine.catalog.profile(con,environment,identity)
     if not item:raise engine.BookingError(404,'Enaga topilmadi')
     sitter,service=identity.rsplit(':',1)
     handler.reply(200,page(con,sitter,service,environment,before))

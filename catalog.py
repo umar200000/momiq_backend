@@ -215,14 +215,24 @@ def profiles(con,environment,*,interval=None):
     return list(iter_profiles(con,environment,interval=interval))
 
 
-def iter_profiles(con,environment,*,interval=None,after=''):
+def profile(con,environment,identity,*,interval=None):
+    if not isinstance(identity,str):return None
+    owner,separator,service=identity.rpartition(':')
+    if not separator or not owner or service not in SERVICES:return None
+    return next(iter_profiles(con,environment,interval=interval,owner=owner,service=service),None)
+
+
+def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=None):
     after_key=tuple(after.split(':',1)) if after else ('','')
-    rows=con.execute("SELECT u.id,u.account,l.data FROM users u JOIN listings l ON l.user_id=u.id JOIN wallet_accounts w ON w.user_id=u.id WHERE u.blocked=0 AND u.id>=? AND w.balance_minor>=? AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role='sitter') ORDER BY u.id",(after.split(':')[0],MINIMUM_BALANCE_MINOR))
+    owner_clause=' AND u.id=?' if owner is not None else ''
+    args=[after.split(':')[0],MINIMUM_BALANCE_MINOR]+([owner] if owner is not None else [])
+    rows=con.execute("SELECT u.id,u.account,l.data FROM users u JOIN listings l ON l.user_id=u.id JOIN wallet_accounts w ON w.user_id=u.id WHERE u.blocked=0 AND u.id>=? AND w.balance_minor>=? AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role='sitter')"+owner_clause+' ORDER BY u.id',args)
     for row in rows:
         account=json.loads(row['account']);data=json.loads(row['data'])
         if interval and sitter_availability.reason(account,*interval): continue
         profile=account.get('profile') or {};sitter=account.get('sitterProfile') or {}
         for item in sorted(data['listings'],key=lambda value:value['type']):
+            if service is not None and item['type']!=service:continue
             if (row['id'],item['type'])<=after_key:continue
             moderation=con.execute("SELECT * FROM listing_moderation WHERE user_id=? AND service=? AND status='approved'",(row['id'],item['type'])).fetchone()
             if not item['active'] or not moderation or moderation['approved_hash']!=fingerprint(account,data['housing'],item): continue

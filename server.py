@@ -626,11 +626,17 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(500,{'error':'Server xatosi'})
     do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = dispatch
 
+class LocalHTTPServer(ThreadingHTTPServer):
+    # Buffer a modest connection burst while the accept loop starts handlers.
+    # Hosted deployment uses Gunicorn/Nginx, not this local preview transport.
+    request_queue_size = 128
+
+
 if __name__ == '__main__':
     setup()
     print(f'Momiq API: http://{HOST}:{PORT}/api/health')
     print(f'Admin: http://{HOST}:{PORT}/admin/ | credentials: {DATA / "admin-login.txt"}')
-    http = ThreadingHTTPServer((HOST,PORT),Handler)
+    http = LocalHTTPServer((HOST,PORT),Handler)
     worker = None
     if ENVIRONMENT in ('local', 'test'):
         from booking_worker import ExpiryWorker
