@@ -22,6 +22,7 @@ import catalog
 import sitter_availability
 import catalog_search
 import admin_accounts
+import operator_access
 import pet_safety
 import sitter_dashboard
 import notifications
@@ -96,7 +97,8 @@ def setup():
             account = json.loads(row['account'])
             role = 'sitter' if account.get('sitterProfile') is not None else 'customer'
             con.execute('INSERT INTO user_roles VALUES(?,?)', (row['id'],role))
-        if not con.execute("SELECT 1 FROM admins").fetchone():
+        if (not con.execute("SELECT 1 FROM admins").fetchone()
+                and not con.execute("SELECT 1 FROM sqlite_master WHERE name='schema_migrations'").fetchone()):
             password = os.environ.get("MOMIQ_ADMIN_PASSWORD") or secrets.token_urlsafe(16)
             salt = secrets.token_hex(16)
             con.execute("INSERT INTO admins VALUES(?,?,?)", ("admin", salt, password_hash(password, salt)))
@@ -304,8 +306,9 @@ class Handler(BaseHTTPRequestHandler):
         session = con.execute("SELECT * FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
         if not session:
             raise ApiError(401, "Qayta kiring")
-        if role == "admin" and not con.execute("SELECT 1 FROM admins WHERE username=?", (session["user_id"],)).fetchone():
-            raise ApiError(401, "Qayta kiring")
+        if role == "admin":
+            self.operator_role=operator_access.role_for(con,session['user_id'])
+            if not self.operator_role:raise ApiError(401, "Qayta kiring")
         if role == "client":
             user = con.execute("SELECT * FROM users WHERE id=?", (session["user_id"],)).fetchone()
             if not user or user["blocked"]:
@@ -398,12 +401,20 @@ class Handler(BaseHTTPRequestHandler):
                 row = con.execute("SELECT * FROM admins WHERE username=?", (string(data.get("username","")),)).fetchone()
                 if not row or not hmac.compare_digest(row["hash"],password_hash(string(data.get("password",""),200),row["salt"])):
                     raise ApiError(401,"Login yoki parol noto‘g‘ri")
+                if not operator_access.role_for(con,row['username']):
+                    raise ApiError(401,"Login yoki parol noto‘g‘ri")
                 token = self.session(con,row["username"],"admin")
                 con.commit()
                 self.reply(200, {"ok":True}, "momiq_admin="+token+"; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=604800")
                 return
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
+            if admin:
+                if not operator_access.permits(self.operator_role,self.command,path):
+                    raise ApiError(403,'Bu amal uchun operator huquqi yo‘q')
+                if path=='/api/admin/me' and self.command=='GET':
+                    self.reply(200,operator_access.identity(user,self.operator_role))
+                    return
             if path == '/api/me/role':
                 if self.command != 'POST':raise ApiError(405,'POST yuboring')
                 data = self.body()

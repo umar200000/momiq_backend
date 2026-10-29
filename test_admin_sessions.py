@@ -64,6 +64,7 @@ class AdminSessionTests(unittest.TestCase):
         self.admin('/api/admin/users')
         with server.db() as con:con.execute("INSERT OR REPLACE INTO admins VALUES('TEST operator',?,?)",(salt,server.password_hash('replacement TEST password',salt)))
         self.admin('/api/admin/users',status=401)
+        with server.db() as con:con.execute("INSERT OR IGNORE INTO admin_permissions VALUES('TEST operator','administrator',1)")
         self.login('replacement TEST password');self.admin('/api/admin/users')
 
     def test_session_roles_and_expiry_are_not_interchangeable(self):

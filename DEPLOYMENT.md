@@ -77,4 +77,27 @@ All three repositories additionally fetch full Git history and run checksum-pinn
 
 Schema 23 removes orphaned administrator sessions during upgrade. Subsequent deletion, renaming, password/salt changes or replacement of an administrator record revoke that operator's sessions atomically. Recreating the same username never revives its old cookies; ordinary client sessions are unaffected. Every authenticated admin request also requires a current administrator record. Credential verification and session issuance share a write transaction so a concurrent password reset cannot leave a newly issued old-password session behind.
 
-This protects subsequent authentication, not cancellation of a request already authorized and in flight. Operator provisioning, scoped roles, MFA, credential-change audit/UI and an operational incident procedure remain M092/M097/M102 work; do not present the existing shared full-admin account as the final production access model. These changes require schema 23; migrate with a verified backup and never roll back only the code against a newer schema.
+This protects subsequent authentication, not cancellation of a request already authorized and in flight. These changes require schema 23 or later; migrate with a verified backup and never roll back only the code against a newer schema.
+
+## Individual operators and least privilege (schema 24)
+
+| Role | Allowed work | Restricted work |
+| --- | --- | --- |
+| `support` | Private support ticket list, replies, resolution and attached evidence | Accounts, wallet, bookings, disputes and settings |
+| `moderation` | Listings and their moderation; reported chat evidence and review moderation | Full private account profiles, wallet, support, bookings and settings |
+| `finance` | Top-up queue, private receipts/history, verified credit decisions and source-linked corrections | Profiles, chat, care, disputes and commission/QR configuration |
+| `administrator` | Existing full administration, commission/QR and dispute decisions | Cannot edit/delete immutable audit or financial history through the API |
+
+The server enforces exact method/path allowlists before calling the endpoint; new routes are denied to limited roles until deliberately assigned. `GET /api/admin/me` returns the authenticated username, role and available panels. The panel loads that identity before private indexes and clears old views on session expiry; hiding a menu is not the permission enforcement. There are no wildcard limited-role privileges or implicit grants from request JSON. Permission changes/disable/delete invalidate all existing operator sessions. Freshly inserted administrator rows without an explicit permission grant cannot log in.
+
+Migration 24 preserves existing administrator privileges once. Fresh database bootstrap creates one administrator with generated/local configured credentials; an existing database with all operators deleted does **not** silently recreate a shared administrator. Provision named operators from the trusted server console, using the existing data-directory environment and runtime:
+
+```sh
+# MOMIQ_DATA_DIR must already point to the intended, backed-up and migrated DB.
+python manage_operators.py support.one --actor admin --role support --reset-password --reason "Named support operator approved for ticket handling"
+python manage_operators.py support.one --actor admin --role support --disable --reason "Operator access withdrawn after departure"
+```
+
+The command prompts privately for the current administrator password and, when requested, the new operator password twice. Never pass passwords as shell arguments, environment variables or audit reasons. Choose a unique 14–200 character password per operator and deliver it privately. Only an enabled administrator with a valid password can provision; the last enabled administrator cannot be disabled/demoted through this tool. Role changes and password resets append a before/after/reason audit without passwords, salts or hashes, in the same transaction. An audit-write failure rolls back provisioning. A no-op does not invalidate sessions or invent an audit event.
+
+MFA, password-change self-service, emergency recovery, individual-operator native acceptance and production rollout remain release gates. Do not enable public operational access based solely on password plus role separation. Existing in-flight authorization and all end-to-end access boundaries still require the M102 review.

@@ -26,6 +26,7 @@ class ChatModerationTests(unittest.TestCase):
         token = hashlib.sha256(actor.encode()).hexdigest()
         with server.db() as con:
             con.execute("INSERT OR IGNORE INTO admins VALUES(?,'TEST salt','disabled')", (actor,))
+            con.execute("INSERT OR IGNORE INTO admin_permissions VALUES(?,'administrator',1)", (actor,))
             con.execute('INSERT OR IGNORE INTO sessions VALUES(?,?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), actor, 'admin', time.time()+3600))
         request = Request(self.base+'/api/admin'+path, data=json.dumps(data).encode() if data is not None else None,
                           headers={'Content-Type':'application/json', 'Cookie':'momiq_admin='+token})
@@ -88,6 +89,7 @@ class ChatModerationTests(unittest.TestCase):
             token = hashlib.sha256(actor.encode()).hexdigest()
             with server.db() as con:
                 con.execute("INSERT OR IGNORE INTO admins VALUES(?,'TEST salt','disabled')", (actor,))
+                con.execute("INSERT OR IGNORE INTO admin_permissions VALUES(?,'administrator',1)", (actor,))
                 con.execute('INSERT OR IGNORE INTO sessions VALUES(?,?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), actor, 'admin', time.time()+3600))
             barrier.wait()
             request = Request(self.base+'/api/admin'+review, data=json.dumps(data).encode(), headers={'Content-Type':'application/json','Cookie':'momiq_admin='+token})

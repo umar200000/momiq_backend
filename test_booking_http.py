@@ -105,6 +105,7 @@ class BookingHttpTests(unittest.TestCase):
         token=secrets.token_hex(32)
         with server.db() as con:
             con.execute("INSERT OR IGNORE INTO admins VALUES('test-admin','TEST salt','disabled')")
+            con.execute("INSERT OR IGNORE INTO admin_permissions VALUES('test-admin','administrator',1)")
             con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
         request=Request(self.base+'/api/admin/users/abc',method='PUT',
                         data=json.dumps({'account':changed,'_revision':account['_revision']}).encode(),
@@ -141,6 +142,7 @@ class BookingHttpTests(unittest.TestCase):
         token=secrets.token_hex(32)
         with server.db() as con:
             con.execute("INSERT OR IGNORE INTO admins VALUES('test-admin','TEST salt','disabled')")
+            con.execute("INSERT OR IGNORE INTO admin_permissions VALUES('test-admin','administrator',1)")
             con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),'test-admin','admin',time.time()+3600))
         def admin(target,body=None):
             req=Request(self.base+target,data=json.dumps(body).encode() if body else None,

@@ -198,6 +198,13 @@ MIGRATIONS = (
         "CREATE TRIGGER admins_revoke_insert AFTER INSERT ON admins BEGIN DELETE FROM sessions WHERE role='admin' AND user_id=NEW.username; END",
         "CREATE TRIGGER admins_revoke_update AFTER UPDATE OF username,salt,hash ON admins WHEN NEW.username IS NOT OLD.username OR NEW.salt IS NOT OLD.salt OR NEW.hash IS NOT OLD.hash BEGIN DELETE FROM sessions WHERE role='admin' AND user_id IN (OLD.username,NEW.username); END",
     )),
+    (24, 'individual operator permissions', (
+        "CREATE TABLE admin_permissions(username TEXT PRIMARY KEY REFERENCES admins(username) ON DELETE CASCADE ON UPDATE CASCADE,role TEXT NOT NULL CHECK(role IN ('support','moderation','finance','administrator')),enabled INTEGER NOT NULL CHECK(enabled IN (0,1)))",
+        "INSERT INTO admin_permissions SELECT username,'administrator',1 FROM admins",
+        "CREATE TRIGGER admin_permissions_revoke_update AFTER UPDATE ON admin_permissions WHEN NEW.username IS NOT OLD.username OR NEW.role IS NOT OLD.role OR NEW.enabled IS NOT OLD.enabled BEGIN DELETE FROM sessions WHERE role='admin' AND user_id IN (OLD.username,NEW.username); END",
+        "CREATE TRIGGER admin_permissions_revoke_delete AFTER DELETE ON admin_permissions BEGIN DELETE FROM sessions WHERE role='admin' AND user_id=OLD.username; END",
+        "CREATE TRIGGER admin_permissions_revoke_insert AFTER INSERT ON admin_permissions BEGIN DELETE FROM sessions WHERE role='admin' AND user_id=NEW.username; END",
+    )),
 )
 
 
