@@ -109,11 +109,22 @@ def index(con, kind, params, roles_for):
     return response
 
 
+def audit_index(con,actor,kind,selected,after):
+    metadata={'status':selected['status'],'role':selected['role'],'service':selected['service'],
+              'searchPresent':bool(selected['q']),'after':after or None}
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                (actor,'admin-'+kind+'-index',json.dumps(metadata),datetime.now(timezone.utc).isoformat()))
+
+
 def route(handler, con, actor, path, account_snapshot, roles_for):
     if handler.command!='GET':return False
     match=re.fullmatch(r'/api/admin/(users|listings)',path)
     if match:
-        handler.reply(200,index(con,match[1],parse_qs(urlparse(handler.path).query,keep_blank_values=True),roles_for))
+        params=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+        selected,_,after=filters(params,match[1])
+        result=index(con,match[1],params,roles_for)
+        audit_index(con,actor,match[1],selected,after)
+        con.commit();handler.reply(200,result)
         return True
     match=re.fullmatch(r'/api/admin/(users|listings)/([a-f0-9]{1,64})(?:/(boarding|homeVisit|personal))?',path)
     if not match:return False

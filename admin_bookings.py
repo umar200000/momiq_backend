@@ -80,7 +80,10 @@ def route(handler, con, actor, path):
     query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
     identity,section=match.groups()
     con.execute('BEGIN IMMEDIATE' if identity else 'BEGIN')
-    if not identity:result=page(con,query)
+    if not identity:
+        result=page(con,query)
+        before,status,bucket,text=booking_index.options(query)
+        audit(con,actor,'admin-booking-index',engine.encode({'before':before,'status':status,'bucket':bucket,'searchPresent':bool(text)}))
     else:
         owned(con,identity)
         if section:result=history(con,identity,query,care=section=='care')

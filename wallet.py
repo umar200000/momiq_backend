@@ -23,7 +23,7 @@ def now():
 
 
 def audit_read(con,actor,action,identity,**metadata):
-    target=json.dumps({'topupId':identity,**metadata},separators=(',',':'),sort_keys=True)
+    target=json.dumps({**({'topupId':identity} if identity is not None else {}),**metadata},separators=(',',':'),sort_keys=True)
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(actor,action,target,now()))
 
 
@@ -99,7 +99,8 @@ def topup_view(row, *, admin=False):
 
 def topup_page(handler, con, uid, admin=False):
     if not con.in_transaction:con.execute('BEGIN')
-    query=parse_qs(urlparse(handler.path).query)
+    query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+    if set(query)-{'status','cursor'} or any(len(v)!=1 for v in query.values()):raise ValueError('Invalid top-up query')
     predicates=[];args=[]
     if not admin:
         predicates.append('user_id=?');args.append(uid)
@@ -107,7 +108,7 @@ def topup_page(handler, con, uid, admin=False):
     if status not in ('all','pending','approved','rejected','needs_info'): raise ValueError('Invalid status')
     if status!='all': predicates.append('status=?');args.append(status)
     cursor=query.get('cursor',[None])[0]
-    if cursor:
+    if cursor is not None:
         if not re.fullmatch('[a-f0-9]{32}',cursor): raise ValueError('Invalid cursor')
         row=con.execute('SELECT user_id,created,id FROM topup_requests WHERE id=?',(cursor,)).fetchone()
         if not row or (not admin and row['user_id']!=uid): raise WalletError(400,'Invalid cursor')
@@ -121,6 +122,8 @@ def topup_page(handler, con, uid, admin=False):
             if owner:
                 profile=json.loads(owner['account']).get('profile') or {}
                 item['owner']={'name':' '.join([profile.get('first',''),profile.get('last','')]).strip(),'phone':owner['phone']}
+        audit_read(con,uid,'topup-list-view',None,status=status,cursor=cursor)
+        con.commit()
     return {'topups':items,
             'nextCursor':rows[19]['id'] if len(rows)>20 else None}
 
@@ -186,15 +189,22 @@ def route(handler, con, uid, path, photo, environment):
         before=query.get('before',[None])[0]
         if before is not None and not re.fullmatch(r'[1-9][0-9]{0,17}',before):
             raise ValueError('Tarix cursori noto‘g‘ri')
+        con.execute('BEGIN')
         rows=con.execute('SELECT version,commission_bps,actor,reason,created,test_only,qr_active FROM platform_settings'+
                          (' WHERE version<?' if before else '')+' ORDER BY version DESC LIMIT 21',
                          (int(before),) if before else ()).fetchall()
         items=[{'version':r['version'],'commissionBps':r['commission_bps'],'actor':r['actor'],
                 'reason':r['reason'],'effectiveAt':datetime.fromisoformat(r['created']).replace(tzinfo=timezone.utc).isoformat(),
                 'testOnly':bool(r['test_only']),'qrActive':bool(r['qr_active'])} for r in rows[:20]]
-        handler.reply(200,{'items':items,'nextCursor':str(rows[19]['version']) if len(rows)>20 else None})
+        audit_read(con,uid,'platform-settings-history-view',None,before=int(before) if before else None)
+        con.commit();handler.reply(200,{'items':items,'nextCursor':str(rows[19]['version']) if len(rows)>20 else None})
         return True
     if path == '/api/admin/platform-settings' and method in ('GET','PUT'):
+        if method=='GET':
+            if urlparse(handler.path).query:raise ValueError('Unexpected settings query')
+            con.execute('BEGIN');result=settings(con)
+            audit_read(con,uid,'platform-settings-view',None,version=result['version'])
+            con.commit();handler.reply(200,result);return True
         if method=='PUT':
             data=handler.body()
             con.execute('BEGIN IMMEDIATE')

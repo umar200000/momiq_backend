@@ -86,7 +86,11 @@ def route(handler, con, actor, path):
     items=[view(item) for item in rows[:20]]
     if not admin:
         for item in items: item.pop('actor')
-    handler.reply(200,{'items':items,'nextCursor':rows[19]['id'] if len(rows)>20 else None,
+    result={'items':items,'nextCursor':rows[19]['id'] if len(rows)>20 else None,
                        'correctedMinor':total(con,row['id']), 'originalAmountMinor':row['amount_minor'],
-                       'balanceMinor':wallet.balance(con,row['user_id']), 'transferReference':row['transfer_reference'] if admin else None})
+                       'balanceMinor':wallet.balance(con,row['user_id']), 'transferReference':row['transfer_reference'] if admin else None}
+    if admin:
+        wallet.audit_read(con,actor,'topup-corrections-view',row['id'],before=before)
+        con.commit()
+    handler.reply(200,result)
     return True

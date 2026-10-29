@@ -1,5 +1,6 @@
 """Participant blocking and message reports; moderator evidence access is audited."""
 import re
+import json
 from urllib.parse import parse_qs, urlparse
 
 from conversations import ChatError, number, participant, quota, summary, timestamp
@@ -81,7 +82,8 @@ def route(handler, con, user, path):
         handler.reply(200, result)
         return True
     if path == '/api/admin/chat-reports' and handler.command == 'GET':
-        query = parse_qs(urlparse(handler.path).query)
+        query = parse_qs(urlparse(handler.path).query,keep_blank_values=True)
+        if set(query)-{'status','before'} or any(len(v)!=1 for v in query.values()):raise ValueError('Invalid report query')
         status = query.get('status', ['open'])[0]
         if status not in ('open','dismissed','removed','all'): raise ValueError('Invalid status')
         args = []; clauses = []
@@ -89,8 +91,11 @@ def route(handler, con, user, path):
         before = query.get('before', [None])[0]
         if before is not None: clauses.append('id<?'); args.append(number(before))
         where = ' WHERE '+' AND '.join(clauses) if clauses else ''
+        con.execute('BEGIN')
         rows = con.execute('SELECT * FROM chat_reports'+where+' ORDER BY id DESC LIMIT 21', args).fetchall()
-        handler.reply(200, {'items':[report_json(r) for r in rows[:20]], 'nextCursor':str(rows[19]['id']) if len(rows)>20 else None})
+        result={'items':[report_json(r) for r in rows[:20]], 'nextCursor':str(rows[19]['id']) if len(rows)>20 else None}
+        audit(con,user,'chat-report-list',json.dumps({'status':status,'before':int(before) if before is not None else None}))
+        con.commit();handler.reply(200,result)
         return True
     match = re.fullmatch(r'/api/admin/chat-reports/([1-9][0-9]{0,17})/(evidence|image|review)', path)
     if not match: return False

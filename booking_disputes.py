@@ -200,6 +200,11 @@ def query(handler,allowed):
     return before,values.get('status',[None])[0]
 
 
+def audit_view(con,user,action,target,current):
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                (user,action,engine.encode(target),engine.stamp(current)))
+
+
 def route(handler,con,user,path,photo,environment):
     owner=re.fullmatch(r'/api/bookings/([a-f0-9]{32})/dispute(?:/evidence/([1-9][0-9]{0,17})/image)?',path)
     admin=re.fullmatch(r'/api/admin/disputes(?:/([a-f0-9]{32})(?:/(resolve|evidence/([1-9][0-9]{0,17})/image))?)?',path)
@@ -220,7 +225,9 @@ def route(handler,con,user,path,photo,environment):
         else:
             rows=con.execute('SELECT * FROM booking_incidents'+(' WHERE seq<?' if before else '')+' ORDER BY seq DESC LIMIT 21',([int(before)] if before else [])).fetchall()
             result={'items':[{**dict(r),'name':display_name(con,r['user_id']),'count30Days':review_count(con,r['user_id'],current),'reviewRequired':review_count(con,r['user_id'],current)>=3} for r in rows[:20]],'nextCursor':str(rows[19]['seq']) if len(rows)>20 else None}
-        handler.reply(200,result);return True
+        audit_view(con,user,'incident-history-view' if incidents[3]=='history' else 'incident-list-view',
+                   {'bookingId':incidents[1],'userId':incidents[2],'before':int(before) if before else None},current)
+        con.commit();handler.reply(200,result);return True
     identity=owner[1] if owner else admin[1];is_admin=bool(admin)
     image=owner[2] if owner else admin[3]
     if handler.command=='GET':
@@ -242,6 +249,10 @@ def route(handler,con,user,path,photo,environment):
             if status:clauses.append('status=?');args.append(status)
             rows=con.execute('SELECT * FROM booking_disputes'+(' WHERE '+' AND '.join(clauses) if clauses else '')+' ORDER BY seq DESC LIMIT 21',args).fetchall()
             result={'items':[public(r,current) for r in rows[:20]],'nextCursor':str(rows[19]['seq']) if len(rows)>20 else None}
+        if is_admin and not image:
+            audit_view(con,user,'dispute-detail-view' if identity else 'dispute-list-view',
+                       {'bookingId':identity,'before':int(before) if before else None,'status':status},current)
+            con.commit()
         handler.reply(200,result);return True
     if handler.command=='POST' and identity and not image:
         if owner:result=write(con,identity,user,handler.body(),photo,current,environment)

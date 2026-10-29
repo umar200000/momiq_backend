@@ -49,11 +49,11 @@ def view(con,identity,user,admin=False,before=None):
             'target':target,'canResolve':bool(admin and (not target or target['purpose']!='appeal' or operator_access.role_for(con,user)=='administrator'))}
 
 
-def audit_detail(con,identity,user,before):
+def audit_detail(con,identity,user,before,status=None):
     # Only the requested record/page identity is retained, never ticket contents.
-    target=engine.encode({'ticketId':identity,'before':int(before) if before else None})
+    target=engine.encode({'ticketId':identity,'before':int(before) if before else None,**({'status':status} if identity is None else {})})
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
-                (user,'support-view',target,datetime.now(timezone.utc).isoformat()))
+                (user,'support-view' if identity else 'support-list-view',target,datetime.now(timezone.utc).isoformat()))
 
 
 def write(con,user,identity,data,validate_photo,admin=False,environment='production'):
@@ -142,6 +142,9 @@ def route(handler,con,user,path,validate_photo,environment='production'):
         # Historical account messages are shown as an archive, not imported as
         # trusted operator replies or assigned a fabricated delivery status.
         if not admin and not before:result['legacyItems']=engine.account(con,user).get('support',[])
+        if admin:
+            audit_detail(con,None,user,before,status)
+            con.commit()
         handler.reply(200,result);return True
     if handler.command=='POST' and not image_id:
         result=write(con,user,identity,handler.body(),validate_photo,admin,environment);con.commit();handler.reply(200,result);return True
