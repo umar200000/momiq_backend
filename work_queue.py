@@ -116,22 +116,35 @@ def write(con,actor,role,kind,target,data,current):
     return {'event':event(con.execute('SELECT * FROM work_assignment_events WHERE id=?',(cursor.lastrowid,)).fetchone()),'assignment':assignment(con,kind,target,current)}
 
 
+def audit_view(con,actor,action,target,current):
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                (actor,action,engine.encode(target),current.isoformat()))
+
+
 def route(handler,con,actor,path):
     if not path.startswith('/api/admin/work-queue'):return False
     role=handler.operator_role;current=datetime.now(timezone.utc)
     if path=='/api/admin/work-queue' and handler.command=='GET':
         params=query(handler,('kind','filter','after'));con.execute('BEGIN')
-        handler.reply(200,page(con,actor,role,params,current));return True
+        result=page(con,actor,role,params,current)
+        audit_view(con,actor,'work-queue-view',{'kind':result['kind'],'filter':result['filter'],'after':params.get('after') or None},current)
+        con.commit();handler.reply(200,result);return True
     if path=='/api/admin/work-queue/operators' and handler.command=='GET':
         params=query(handler,('kind',));kind=params.get('kind');allowed(role,kind)
         if role!='administrator':raise engine.BookingError(403,'Operator tanlash administrator uchun')
+        con.execute('BEGIN')
         rows=con.execute('SELECT p.username,p.role FROM admin_permissions p JOIN admins a ON a.username=p.username WHERE p.enabled=1 AND p.role IN (?,?) ORDER BY p.username',(KINDS[kind],'administrator')).fetchall()
-        handler.reply(200,{'items':[dict(r) for r in rows]});return True
+        result={'items':[dict(r) for r in rows]}
+        audit_view(con,actor,'work-operators-view',{'kind':kind},current)
+        con.commit();handler.reply(200,result);return True
     match=re.fullmatch(r'/api/admin/work-queue/(support|listing|chat_report)/([^/]{1,100})',path)
     if not match:raise engine.BookingError(404,'Topilmadi')
     kind,target=match[1],unquote(match[2]);allowed(role,kind)
     if handler.command=='GET':
-        params=query(handler,('before',));con.execute('BEGIN');handler.reply(200,view(con,kind,target,current,params.get('before')));return True
+        params=query(handler,('before',));con.execute('BEGIN')
+        result=view(con,kind,target,current,params.get('before'))
+        audit_view(con,actor,'work-history-view',{'kind':kind,'target':target,'before':int(params['before']) if params.get('before') else None},current)
+        con.commit();handler.reply(200,result);return True
     if handler.command=='POST':
         if urlparse(handler.path).query:raise ValueError('Unexpected assignment query')
         result=write(con,actor,role,kind,target,handler.body(),current);con.commit();handler.reply(200,result);return True

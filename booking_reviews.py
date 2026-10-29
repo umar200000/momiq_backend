@@ -12,15 +12,27 @@ def public(row):
             'testOnly': bool(row['test_only']), 'revision': row['revision']}
 
 
+def moderation_reason(con,row):
+    if not row['hidden']:return None
+    event=con.execute("SELECT revision,payload,created FROM review_history WHERE review_id=? AND action='moderate' ORDER BY revision DESC LIMIT 1",(row['id'],)).fetchone()
+    if not event:return None
+    payload=json.loads(event['payload'])
+    if not payload.get('hidden'):return None
+    return {'reason':payload.get('reason',''),'revision':event['revision'],'decidedAt':event['created']}
+
+
 def owner_view(con, identity, user, now):
     engine.account(con,user)
     booking=engine.owned(con,identity,user)
     row=con.execute('SELECT * FROM booking_reviews WHERE booking_id=?',(identity,)).fetchone()
     mine=booking['customer_id']==user
+    decision=moderation_reason(con,row) if row and mine else None
     return {'review':dict(public(row),hidden=bool(row['hidden']),withdrawn=bool(row['withdrawn'])) if row else None,
             'canCreate':mine and not row and booking['status']=='completed',
             'canEdit':False,'canWithdraw':bool(row and mine and not row['withdrawn']),
-            'canRestore':bool(row and mine and row['withdrawn']), 'reviewEditable':False}
+            'canRestore':bool(row and mine and row['withdrawn']), 'reviewEditable':False,
+            'moderation':decision,
+            'appealTarget':{'kind':'review','id':str(row['id']),'purpose':'appeal','revision':str(row['revision'])} if decision else None}
 
 
 def summary(con,sitter,service):

@@ -62,6 +62,9 @@ def document(con,uid):
         if status=='approved' and row['approved_hash']!=fingerprint(account,data['housing'],item): status='pending'
         states[item['type']]={'status':status,'reason':row['reason'] if row else '',
                               'testOnly':bool(row['test_only']) if row else False}
+        if row and status in ('rejected','suspended') and row['reason'] and row['reviewed_by']:
+            states[item['type']]['appealTarget']={'kind':'listing','id':uid+':'+item['type'],
+                                                  'purpose':'appeal','revision':str(revision(con,uid))}
     return dict(data,_revision=revision(con,uid),moderation=states)
 
 

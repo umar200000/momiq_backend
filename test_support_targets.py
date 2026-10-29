@@ -7,6 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import server
+import catalog
+import booking_reviews
 import support_targets
 import support_tickets
 import test_support_tickets
@@ -25,6 +27,56 @@ class SupportTargetTests(unittest.TestCase):
 
     def report(self,**changes):
         return self.data(topic='safety',target={'kind':'listing','id':'abc:boarding'},**changes)
+
+    def reject_listing(self,reason='TEST original decision'):
+        with server.db() as con:
+            result=catalog.review(con,'abc','boarding',{'decision':'reject','reason':reason,
+                '_revision':catalog.revision(con,'abc'),'testOnly':True},'test-admin','test')
+            return result['moderation']['boarding']['appealTarget']
+
+    def test_appeal_requires_owner_current_decision_reason_and_exact_target(self):
+        target=self.reject_listing()
+        self.req('/api/support','POST',self.data(target=target),status=404)
+        self.req('/api/support','POST',self.data(target=target,text=''),user='abc',status=400)
+        for bad in ({**target,'revision':1},{**target,'revision':'0'},{**target,'purpose':'report'},
+                    {k:v for k,v in target.items() if k!='revision'}):
+            self.req('/api/support','POST',self.data(target=bad),user='abc',status=400)
+        result=self.req('/api/support','POST',self.data(target=target),user='abc')
+        self.assertEqual(result['target']['purpose'],'appeal')
+        self.assertEqual(result['target']['snapshot']['reason'],'TEST original decision')
+        with server.db() as con:
+            self.assertEqual(catalog.document(con,'abc')['moderation']['boarding']['status'],'rejected')
+            with self.assertRaisesRegex(Exception,'topilmadi'):support_targets.capture(con,target,'production','abc')
+            con.execute("UPDATE listing_moderation SET reason='',reviewed_by=NULL WHERE user_id='abc'")
+            self.assertNotIn('appealTarget',catalog.document(con,'abc')['moderation']['boarding'])
+        self.req('/api/support','POST',self.data(target=target),user='abc',status=404)
+
+    def test_appeal_retry_keeps_original_decision_after_new_moderation(self):
+        target=self.reject_listing();data=self.data(target=target)
+        original=self.req('/api/support','POST',data,user='abc')
+        newer=self.reject_listing('TEST later decision')
+        self.assertNotEqual(target['revision'],newer['revision'])
+        self.assertEqual(self.req('/api/support','POST',data,user='abc'),original)
+        self.req('/api/support','POST',self.data(target=target),user='abc',status=409)
+        self.req('/api/support','POST',{**data,'target':newer},user='abc',status=409)
+        updated=self.req('/api/support','POST',self.data(target=newer),user='abc')
+        self.assertEqual(updated['target']['snapshot']['reason'],'TEST later decision')
+        self.assertEqual(self.req('/api/support/'+original['ticket']['id'],user='abc')['target'],original['target'])
+
+    def test_only_administrator_can_resolve_appeal_without_restoring_source(self):
+        created=self.req('/api/support','POST',self.data(target=self.reject_listing()),user='abc')
+        path='/api/admin/support/'+created['ticket']['id']
+        self.assertTrue(self.admin(path)['canResolve'])
+        with server.db() as con:con.execute("UPDATE admin_permissions SET role='support' WHERE username='test-admin'")
+        del self.admin_token
+        self.assertFalse(self.admin(path)['canResolve'])
+        self.admin(path,self.reply(action='resolve'),status=403)
+        self.admin(path,self.reply())
+        with server.db() as con:con.execute("UPDATE admin_permissions SET role='administrator' WHERE username='test-admin'")
+        del self.admin_token
+        closed=self.admin(path,self.reply(revision=2,action='resolve',text='TEST reviewed decision'))
+        self.assertEqual(closed['ticket']['status'],'resolved')
+        with server.db() as con:self.assertEqual(catalog.document(con,'abc')['moderation']['boarding']['status'],'rejected')
 
     def test_public_snapshot_is_server_owned_private_and_survives_source_changes(self):
         created=self.req('/api/support','POST',self.report())
@@ -106,6 +158,27 @@ class ReviewTargetTests(unittest.TestCase):
     complete=test_booking_reviews.BookingReviewTests.complete
     write=test_booking_reviews.BookingReviewTests.write
     data=test_booking_reviews.BookingReviewTests.data
+
+    def test_hidden_review_appeal_discloses_reason_only_to_author_and_checks_revision(self):
+        b=self.complete();review=self.write(b,self.data())['review'];identity=int(review['id'])
+        with server.db() as con:
+            booking_reviews.moderate(con,'test-admin',identity,{'hidden':True,'revision':1,
+                'requestId':secrets.token_hex(16),'reason':'TEST hidden reason'},self.start)
+            owner=booking_reviews.owner_view(con,b['id'],'customer',self.start)
+            target=owner['appealTarget']
+            self.assertEqual(owner['moderation']['reason'],'TEST hidden reason')
+            sitter=booking_reviews.owner_view(con,b['id'],'abc',self.start)
+            self.assertIsNone(sitter['moderation']);self.assertIsNone(sitter['appealTarget'])
+            snapshot=support_targets.capture(con,target,'test','customer')
+            self.assertEqual(snapshot['decision']['revision'],2)
+            self.assertNotIn('actor',snapshot['decision'])
+            with self.assertRaisesRegex(Exception,'topilmadi'):support_targets.capture(con,target,'test','abc')
+            with self.assertRaisesRegex(Exception,'o‘zgargan'):support_targets.capture(con,{**target,'revision':'1'},'test','customer')
+            con.commit()
+            booking_reviews.moderate(con,'test-admin',identity,{'hidden':False,'revision':2,
+                'requestId':secrets.token_hex(16),'reason':'TEST restored'},self.start)
+            self.assertIsNone(booking_reviews.owner_view(con,b['id'],'customer',self.start)['appealTarget'])
+            with self.assertRaisesRegex(Exception,'topilmadi'):support_targets.capture(con,target,'test','customer')
 
     def test_review_snapshot_rejects_private_hidden_withdrawn_and_test_content(self):
         b=self.complete();review=self.write(b,self.data())['review']

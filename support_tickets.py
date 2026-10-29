@@ -9,6 +9,7 @@ import booking_engine as engine
 import conversations
 import notifications
 import support_targets
+import operator_access
 
 
 def text(value,limit,required=False):
@@ -42,9 +43,10 @@ def view(con,identity,user,admin=False,before=None):
     row=ticket(con,identity,user,admin);args=[identity];clause=''
     if before is not None:clause=' AND id<?';args.append(int(before))
     rows=con.execute('SELECT * FROM support_messages WHERE ticket_id=?'+clause+' ORDER BY id DESC LIMIT 21',args).fetchall()
+    target=support_targets.detail(con,identity)
     return {'ticket':public(row),'items':[{'id':str(m['id']),'revision':m['revision'],'authorRole':m['author_role'],'action':m['action'],'text':m['text'],'hasImage':bool(m['image']),'created':m['created']} for m in reversed(rows[:20])],
             'nextCursor':str(rows[19]['id']) if len(rows)>20 else None,
-            'target':support_targets.detail(con,identity)}
+            'target':target,'canResolve':bool(admin and (not target or target['purpose']!='appeal' or operator_access.role_for(con,user)=='administrator'))}
 
 
 def audit_detail(con,identity,user,before):
@@ -80,6 +82,10 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     engine.begin(con)
     if not admin:engine.account(con,user)
     if not creating:row=ticket(con,identity,user,admin)
+    if admin and action=='resolve':
+        existing_target=support_targets.detail(con,identity)
+        if existing_target and existing_target['purpose']=='appeal' and operator_access.role_for(con,user)!='administrator':
+            raise engine.BookingError(403,'Apellyatsiyani administrator ko‘rib chiqadi')
     previous=con.execute('SELECT * FROM support_requests WHERE actor=? AND request_id=?',(key,data['requestId'])).fetchone()
     if previous:
         if previous['fingerprint']!=fingerprint:raise engine.BookingError(409,'So‘rov boshqa murojaat uchun ishlatilgan')
@@ -89,7 +95,7 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if creating:
         if revision!=0:raise engine.BookingError(409,'Yangi murojaat versiyasi 0 bo‘lsin')
         if booking:engine.owned(con,booking,user)
-        snapshot=support_targets.capture(con,target,environment) if target else None
+        snapshot=support_targets.capture(con,target,environment,user) if target else None
         identity=secrets.token_hex(16)
         con.execute('INSERT INTO support_tickets(id,owner_id,booking_id,subject,topic,status,revision,created,updated) VALUES(?,?,?,?,?,?,0,?,?)',(identity,user,booking,subject,topic,'open',current,current))
         if target:support_targets.attach(con,identity,target,snapshot,current)

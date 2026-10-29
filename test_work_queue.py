@@ -8,10 +8,13 @@ import sqlite3
 import threading
 import time
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.request import Request,urlopen
 
 import server
+import work_queue
 import test_support_tickets as fixtures
 
 
@@ -48,6 +51,48 @@ class WorkQueueTests(unittest.TestCase):
 
     def assignment(self,**changes):
         return {'revision':0,'sourceRevision':1,'assignee':'helper-one','dueAt':None,'reason':'TEST assignment reason','requestId':secrets.token_hex(16),**changes}
+
+    def test_private_queue_reads_commit_audit_before_reply_and_rollback_on_failure(self):
+        ticket=self.ticket();target='work-queue/support/'+ticket['id']
+        self.call('manager',target,self.assignment())
+        cases=[('work-queue?kind=support&filter=mine','work-queue-view',{'kind':'support','filter':'mine','after':None}),
+               (target+'?before=999','work-history-view',{'kind':'support','target':ticket['id'],'before':999}),
+               ('work-queue/operators?kind=support','work-operators-view',{'kind':'support'})]
+        original=work_queue.audit_view
+        for route,action,metadata in cases:
+            replies=[]
+            def reply(status,payload):
+                with server.db() as other:
+                    event=other.execute('SELECT actor,target FROM audit WHERE action=? ORDER BY id DESC LIMIT 1',(action,)).fetchone()
+                    self.assertEqual(event['actor'],'manager');self.assertEqual(json.loads(event['target']),metadata)
+                    self.assertNotIn('TEST',event['target'])
+                replies.append((status,payload))
+            handler=SimpleNamespace(path='/api/admin/'+route,command='GET',operator_role='administrator',reply=reply)
+            with server.db() as con:work_queue.route(handler,con,'manager',handler.path.split('?')[0])
+            self.assertEqual(replies[0][0],200)
+            with server.db() as con:count=con.execute('SELECT count(*) FROM audit').fetchone()[0]
+            replies.clear()
+            def fail(*args):
+                original(*args)
+                raise RuntimeError('TEST audit failure')
+            with patch.object(work_queue,'audit_view',side_effect=fail),self.assertRaises(RuntimeError):
+                with server.db() as con:work_queue.route(handler,con,'manager',handler.path.split('?')[0])
+            self.assertEqual(replies,[])
+            with server.db() as con:
+                self.assertEqual(con.execute('SELECT count(*) FROM audit').fetchone()[0],count)
+                self.assertEqual(con.execute('SELECT count(*) FROM work_assignment_events').fetchone()[0],1)
+                self.assertEqual(con.execute('SELECT status,revision FROM support_tickets WHERE id=?',(ticket['id'],)).fetchone()[:],('open',1))
+
+    def test_invalid_or_forbidden_queue_reads_do_not_audit_or_disclose(self):
+        ticket=self.ticket()
+        with server.db() as con:count=con.execute('SELECT count(*) FROM audit').fetchone()[0]
+        for actor,path,status in [('cashier','work-queue?kind=support',403),
+                                  ('helper-one','work-queue/operators?kind=support',403),
+                                  ('manager','work-queue?kind=support&filter=unknown',400),
+                                  ('manager','work-queue/support/'+ticket['id']+'?before=0',400),
+                                  ('manager','work-queue/support/'+'f'*32,404)]:
+            self.call(actor,path,status=status)
+        with server.db() as con:self.assertEqual(con.execute('SELECT count(*) FROM audit').fetchone()[0],count)
 
     def test_claim_reassign_retry_closed_history_and_client_privacy(self):
         ticket=self.ticket();target='work-queue/support/'+ticket['id']

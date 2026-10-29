@@ -424,6 +424,8 @@ Support/moderation work metadata is separate from source replies and decisions. 
 
 The panel freezes an uncertain submission and retries the identical request. A definite 400/403/409 prompts a source refresh rather than overwriting another operator. Source links open the existing support answer/listing review/chat evidence flow. Assigning work never sends a customer reply, changes a booking, credits/debits a wallet or decides moderation. Shared support deadlines, staffing, MFA and hosted/native operator acceptance remain separate release gates.
 
+Queue, assignment-history and eligible-operator GETs now commit a minimal audit record before returning data: `work-queue-view` (kind/filter/after), `work-history-view` (kind/target/before) and `work-operators-view` (kind). The actual authenticated operator is recorded, but ticket subjects, assignment reasons and response bodies are not copied into audit. Source reads and audit are one transaction; audit failure discloses no response. Invalid or forbidden reads do not create a successful-view event. This protects private support subjects and assignment explanations in the queue as well as ticket details.
+
 
 ### Reasoned legacy administrator changes
 
@@ -441,6 +443,16 @@ After successful authentication, the request connection retains the authenticate
 This prevents a revoked/expired client from completing a slow profile save, a disabled/downgraded/recredentialed operator from completing a queued redaction, and a revoked finance operator from crediting a pending receipt. Profile revision, message evidence, balances, journal/audit/notifications remain unchanged on rejection. Existing valid requests and idempotent financial retries still use their established transactions. Authorization is checked at transaction acquisition, not continuously: a transaction that acquired its snapshot/writer lock before revocation can finish in that order. This does not cancel committed operations, rewind already sent responses, replace object ownership checks or claim every native/hosted boundary has completed acceptance.
 
 Existing login counters remain 15 attempts per IP key per 60-second window, but now their read/increment is serialized under BEGIN IMMEDIATE. Parallel callers cannot overwrite one another's counts; expired windows reset at the exact boundary and independent keys remain independent. SMS provider/OTP delivery is still deferred. Reverse-proxy IP trust, distributed limits and full hosted abuse testing remain release work.
+
+## Owner appeals of listing/review moderation
+
+Support creation also accepts `target` with exactly `{kind,id,purpose,revision}`, where kind remains `listing` or `review`, purpose is `appeal`, and revision is a positive decimal **string**. The two-field `{kind,id}` public-report contract remains unchanged. No client snapshot, actor or moderation outcome is accepted. A nonblank reason in support `text` is mandatory.
+
+The listing owner receives an `appealTarget` inside `/me/listings` moderation state only for a rejected/suspended decision with a recorded moderator and reason. A self-paused or edited listing is not such a decision. The review author receives `moderation` (reason, decision revision, decidedAt) and `appealTarget` in the owned booking-review response when the review is hidden by moderation; the other booking participant receives null for these fields. Actor identity is not disclosed. The target revision is the current listing/review object revision, which can differ from the review's original moderation-event revision.
+
+Server capture verifies ownership, current decision and environment within the support transaction: unknown/non-owned/no-longer-appealable or TEST-in-production sources return404; stale source revision409; malformed target400. The schema26 immutable snapshot stores the decision and sourceRevision, with review text/rating for a review appeal. It remains private to the ticket owner and authorized support/administrator. Exact request retries return the original result even after a newer moderation decision; changed retry payload conflicts. The source-linked encrypted mobile draft is additionally scoped by appeal purpose and revision.
+
+Support detail includes target `purpose` (`report` or `appeal`) and `canResolve`. Support staff may read, reply and use existing assignment workflows for appeals. Only an administrator can resolve an appeal (403 for a support operator even with a forged action); a reason is required. The panel omits resolution when canResolve=false. Submission, reply, assignment, resolution or reopening never restores/hides source content, changes rating, booking or money. A content-visibility change is performed separately through its existing audited, revision-checked moderation endpoint. Formal outcome linkage, cross-role referral, private-media evidence custody and operational acceptance remain M090 work; this is not an automatic overturn or a new appeal deadline/penalty policy.
 
 ## Mobile login publication and serialized local session writes
 
