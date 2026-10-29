@@ -442,6 +442,14 @@ This prevents a revoked/expired client from completing a slow profile save, a di
 
 Existing login counters remain 15 attempts per IP key per 60-second window, but now their read/increment is serialized under BEGIN IMMEDIATE. Parallel callers cannot overwrite one another's counts; expired windows reset at the exact boundary and independent keys remain independent. SMS provider/OTP delivery is still deferred. Reverse-proxy IP trust, distributed limits and full hosted abuse testing remain release work.
 
+## Mobile login publication and serialized local session writes
+
+Only one login attempt runs per process at a time; another attempt fails instead of sharing a different phone/account's result. Health/login responses are bound to the original session version and API instance. An obsolete response or disposed OTP form cannot publish credentials. Response token/user/account shape is checked before changing local session state. SMS/provider behavior is unchanged and remains deferred.
+
+The credential/cache publication, role cache writes, account cache writes and logout cleanup share a local serial queue. Logout invalidates active readers immediately, then removes storage after any already-started platform write settles. Login claims a new session version before persistence, clears obsolete in-memory pet/listing/image state, writes the scoped account/role/credential records, and exposes `active` only after all required writes acknowledge success. Restore waits for the entire login publication/cleanup rather than reading a partially saved session. Failed publication clears that attempt's partial local session only while it still owns the session version; it never clears a replacement account. This is fail-closed cleanup, not an atomic transaction across SharedPreferences and native secure storage or restoration of an overwritten old login.
+
+Each queued operation rechecks its session at storage boundaries; a role change cannot finish into a new account. Idle queues release completed futures. The OTP success timer also rechecks the verified session/API before navigation. Cancellation does not revoke a server token already issued; an unpersisted token is not used and follows server expiry. Native storage failure/lifecycle acceptance remains open under M124. Tests use isolated fake HTTP/platform implementations, not the live TEST booking or an external SMS provider.
+
 ## Transient database contention and request diagnostics
 
 SQLite BUSY/LOCKED primary or extended result codes now produce HTTP503 with a generic user-facing message. Other operational/storage failures remain HTTP500 with no raw SQL/path details. A 503 is not proof that no earlier transaction in a multi-stage request committed; retry a financial/booking/message mutation only using its original idempotency identity and payload. No automatic financial replay was added.
