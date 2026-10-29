@@ -75,6 +75,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Deploy tested commit
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -87,5 +88,7 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           trap 'rm -f ~/.ssh/momiq' EXIT
           ssh -i ~/.ssh/momiq -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 momiq-deploy@95.182.119.218 "$COMMIT_SHA"
-      - name: Verify HTTPS
-        run: curl --fail --retry 5 --retry-delay 3 https://api.momiq.net/api/health
+      - name: Verify HTTPS release, read paths and authentication boundaries
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: python3 deploy_smoke.py --api-url https://api.momiq.net --admin-url https://admin.momiq.net --backend-sha "$COMMIT_SHA" --mode production

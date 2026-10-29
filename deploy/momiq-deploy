@@ -19,6 +19,9 @@ latest=$(git --git-dir="$mirror" rev-parse refs/heads/main)
 release="$base/releases/$kind/$sha-$(date +%s)"
 mkdir "$release"
 git --git-dir="$mirror" archive "$sha" | tar -x -C "$release"
+# Written by the trusted deployer, read once by the worker, never inferred from
+# a moving symlink or supplied by a request/environment header.
+printf '%s\n' "$sha" > "$release/.release-sha"
 if [[ "$kind" == backend ]]; then
   python3 "$release/release_pair.py" --backend "$release" --admin "$base/current/admin"
   command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || { echo 'Install the ffmpeg OS package before deploying this release'; exit 69; }
@@ -31,6 +34,8 @@ if [[ "$kind" == backend ]]; then
   (set -a; source /etc/momiq/backend.env; set +a; cd "$release"; runuser -u momiq -- "$release/.venv/bin/python" -c 'import server; server.setup()')
 else
   test -f "$base/current/backend/release_pair.py" || { echo 'Install a contract-aware backend/admin pair during the initial controlled rollout'; exit 69; }
+  test -f "$base/current/backend/deploy_smoke.py" && test -f "$base/current/backend/.release-sha" || { echo 'Install the smoke-aware release pair during controlled rollout'; exit 69; }
+  (cd "$base/current/backend"; .venv/bin/python -c 'from deployment_health import release_sha; assert release_sha(".")')
   python3 "$base/current/backend/release_pair.py" --backend "$base/current/backend" --admin "$release"
   test -s "$release/index.html" && test -s "$release/app.js" && test -s "$release/style.css"
 fi
@@ -38,16 +43,30 @@ old=$(readlink -f "$base/current/$kind" || true)
 ln -s "$release" "$base/current/.$kind-new"
 mv -Tf "$base/current/.$kind-new" "$base/current/$kind"
 if [[ "$kind" == backend ]]; then
-  systemctl restart momiq
-  healthy=0
-  for attempt in {1..20}; do
-    if curl -fsS --max-time 3 http://127.0.0.1:8080/api/health >/dev/null; then healthy=1; break; fi
-    sleep 1
-  done
-  if [[ "$healthy" != 1 ]]; then
-    if [[ -n "$old" ]]; then ln -s "$old" "$base/current/.rollback"; mv -Tf "$base/current/.rollback" "$base/current/backend"; systemctl restart momiq; fi
-    echo 'Health check failed; previous release restored when available'; exit 1
+  # A failed restart must reach the same recovery path as failed HTTP checks.
+  systemctl restart momiq || true
+fi
+backend="$base/current/backend"
+backend_sha=$(cat "$backend/.release-sha")
+healthy=0
+for attempt in {1..3}; do
+  if "$backend/.venv/bin/python" "$backend/deploy_smoke.py" --api-url http://127.0.0.1:8080 --admin-url http://127.0.0.1:8080 --backend-sha "$backend_sha" --mode production --admin-dir "$base/current/admin"; then healthy=1; break; fi
+  sleep 1
+done
+if [[ "$healthy" != 1 ]]; then
+  if [[ "$kind" == admin && -n "$old" ]]; then
+    ln -s "$old" "$base/current/.rollback"; mv -Tf "$base/current/.rollback" "$base/current/admin"
+    echo 'Admin smoke failed; prior assets restored; database untouched'
+  elif [[ "$kind" == backend && -n "$old" && -f "$old/deployment_health.py" ]] &&
+    (set -a; source /etc/momiq/backend.env; set +a; runuser -u momiq -- "$old/.venv/bin/python" "$old/deployment_health.py" --data "$MOMIQ_DATA_DIR" --mode "$MOMIQ_ENV"); then
+    ln -s "$old" "$base/current/.rollback"; mv -Tf "$base/current/.rollback" "$base/current/backend"; systemctl restart momiq
+    echo 'Backend smoke failed; schema-compatible previous code restored; database untouched'
+  else
+    echo 'Smoke failed; automatic code rollback is unsafe or unavailable. Operator recovery required; database untouched'
   fi
+  exit 1
+fi
+if [[ "$kind" == backend ]]; then
   systemctl start momiq-backup.timer momiq-media-retention.timer momiq-backup-retention.timer
 fi
 printf '%s\n' "$sha" > "$base/current/$kind.sha"

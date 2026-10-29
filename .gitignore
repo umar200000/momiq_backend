@@ -16,3 +16,4 @@ admin-login.txt
 .codex/
 .local/
 .venv/
+.release-sha

@@ -18,6 +18,7 @@ from config import Settings
 from migrations import migrate
 import wallet
 import request_json
+import deployment_health
 import catalog
 import sitter_availability
 import catalog_search
@@ -41,6 +42,7 @@ from video_media import VideoUnavailable
 from media_validation import validate_photo, MediaBusy
 
 ROOT = Path(__file__).resolve().parent
+RELEASE_SHA = deployment_health.release_sha(ROOT)
 SETTINGS = Settings.load(os.environ, ROOT)
 ENVIRONMENT = SETTINGS.environment
 DATA, ADMIN = SETTINGS.data, SETTINGS.admin
@@ -346,6 +348,19 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
             raise ApiError(403, "Origin ruxsat etilmagan")
+        if path == '/api/health' and self.command == 'GET':
+            self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False,
+                             "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN, 'releaseSha': RELEASE_SHA})
+            return
+        if path == '/api/ready' and self.command == 'GET':
+            try:
+                version = deployment_health.check_database(DATA, ENVIRONMENT)
+            except (OSError, ValueError, sqlite3.Error):
+                self.reply(503, {'ok': False})
+            else:
+                self.reply(200, {'ok': True, 'mode': ENVIRONMENT,
+                                 'releaseSha': RELEASE_SHA, 'schemaVersion': version})
+            return
         if self.command == "GET" and not path.startswith("/api/"):
             name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/reviews.js": "reviews.js", "/admin/support.js": "support.js", "/admin/disputes.js": "disputes.js", "/admin/bookings.js": "bookings.js", "/admin/metrics.js": "metrics.js", "/admin/work_queue.js": "work_queue.js", "/admin/style.css": "style.css"}.get(path)
             if not name or not (ADMIN / name).is_file():
@@ -366,9 +381,6 @@ class Handler(BaseHTTPRequestHandler):
                 params = parse_qs(urlparse(self.path).query, keep_blank_values=True)
                 owner = self.auth(con) if params.get('favorites') == ['1'] else None
                 self.reply(200, catalog_search.page(con, ENVIRONMENT, params, user=owner))
-                return
-            if path == "/api/health" and self.command == "GET":
-                self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})
                 return
             if path == "/api/auth/login" and self.command == "POST":
                 if not DEV_LOGIN:

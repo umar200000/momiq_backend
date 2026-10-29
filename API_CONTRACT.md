@@ -1,5 +1,11 @@
 # Current API contract
 
+## Liveness, readiness and release identity
+
+`GET /api/health` is public process liveness and does not open or create a database. It retains `ok`, `mode`, `instanceId`, `sms`, `clientLoginEnabled` and `testLogin`, and adds `releaseSha`. A development checkout returns null for the SHA; an archived deployment reads its trusted `.release-sha` once when the worker imports the application. A subsequent symlink change does not make an old worker claim the new release. Missing SMS integration remains explicit.
+
+`GET /api/ready` opens the existing SQLite database in read-only/query-only mode with a two-second lock timeout and a consistent read transaction. It checks the environment, the exact set of migration checksums and essential table/column reads. Success is `{ok:true, mode, releaseSha, schemaVersion}`; unavailable, missing, incompatible or unreadable data returns HTTP 503 with only `{ok:false}`. It never creates a missing database, migrates, logs in or writes business records. Neither endpoint proves disk writeability, complete database integrity, media/provider health, backup freshness or production eligibility. Both use `no-store` and `nosniff`.
+
 ## Audited booking oversight
 
 `GET /api/admin/bookings` is admin-cookie-only and accepts the same strict `status`, `bucket`, `q` and `before` filters as participant booking indexes. It returns at most 20 rows in descending immutable sequence order. Search matches booking ID and frozen party names; it does not index private addresses, care notes, contact data or media. Customer/sitter tokens cannot use this surface.
@@ -23,7 +29,9 @@ This document describes implemented behavior, not future checklist items. JSON A
 
 `GET /api/me`, login and admin user detail return `account._revision` (integer, initially zero). Admin index rows are noneditable summaries. Every full-account `PUT /api/me` must echo the revision from the snapshot being edited. Successful writes increment it and return the authoritative account.
 
-Admin `PUT /api/admin/users/{id}` accepts `account` and/or `blocked`, plus top-level `_revision` from that user's account. Omitting `blocked` preserves its existing value. Both profile and block changes increment the same revision. A block-only edit never replaces a newer profile snapshot.
+Admin `PUT /api/admin/users/{id}` accepts `account` and/or `blocked`, plus top-level `_revision` from that user's account and a required nonblank `reason` of at most 1000 characters. Unknown fields and non-boolean `blocked` are rejected. Omitting `blocked` preserves its existing value. Both profile and block changes increment the same revision. A block-only edit never replaces a newer profile snapshot. The authenticated actor, reason, changed fields, before/after revision/block state and account hashes are audited atomically; audit failure rolls back profile, listing and session changes. Profile name changes additionally record old/new names and photo hashes, never raw photos or the entire account.
+
+Legacy `DELETE /api/admin/messages/{id}` takes exactly `{reason}` with the same reason bounds. It redacts text/image and audits actor, reason and before/after hashes in the same transaction. Retrying an already redacted message succeeds without another audit entry. This legacy redaction is irreversible; no recoverable evidence/appeal archive is implied. These reason-required mutations need the contract-1 admin panel; older forms receive HTTP 400 and must reload the matching panel.
 
 - `409`: stale revision; no mutation is committed. Reload and let the user reapply their edits. Never retry automatically with a fresh revision.
 - `428`: missing revision; update the client and reload.

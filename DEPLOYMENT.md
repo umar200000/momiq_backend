@@ -7,7 +7,7 @@
 
 ## Automatic delivery
 
-Push to `main` in `umar200000/momiq_backend` or `umar200000/momiq_admin`: GitHub Actions tests the commit, connects using a separate restricted key, and deploys the exact SHA. PRs only run tests. Server accepts only the current main SHA, serializes deployments with flock, and restores the previous backend release if its health check fails. Admin updates are picked up without restarting the backend. Runtime data is outside release directories.
+The delivery workflow targets pushes to `main` in `umar200000/momiq_backend` or `umar200000/momiq_admin`: GitHub Actions tests the commit and requests deployment of the exact SHA using a separate restricted key. PRs only run tests. The deploy source accepts only the current main SHA and serializes deployments with flock. Its new smoke and rollback guards described below require installation by a privileged operator; a draft-branch push does not install this script or update production. Admin assets are picked up without restarting the backend. Runtime data is outside release directories.
 
 Secrets per repository: `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`. Keys cannot open an interactive shell or forward ports. Server allows each key to deploy only its own component. Workflow Actions are pinned to commit hashes. Changes to bootstrap/systemd/nginx scripts require a deliberate server configuration update; normal deployment does not install them automatically.
 
@@ -22,7 +22,7 @@ Secrets per repository: `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`. Keys cannot open
 
 ## Temporary authentication
 
-By explicit owner request, `MOMIQ_ALLOW_TEST_LOGIN=1` enables the shared code `111111` even with HTTPS. ANY person knowing a phone number can sign in as that account. Use only test accounts/data. This is not a production-ready customer launch. Set the flag to `0` and restart `momiq` to close client sign-in until an SMS provider is implemented. Local development keeps its existing test login. No local users, chats or credentials are migrated to the server.
+The older hosted test setup used `MOMIQ_ALLOW_TEST_LOGIN=1` with HTTPS. This is a known transition blocker, not the configuration accepted by the new production code: `MOMIQ_ENV=production` plus that flag fails at startup. The shared `111111` code allows signing in using only a phone number and must remain confined to isolated TEST data. A privileged operator must reconcile the hosted environment and set test login to `0` before promotion; client login remains unavailable until SMS integration. The release smoke also rejects test login in staging when assessing a candidate for promotion, even though isolated staging configuration can explicitly enable it. Local development retains its test login. No local users, chats or credentials are migrated to the server.
 
 ## Operations
 
@@ -42,7 +42,7 @@ Daily SQLite backups use the backup API (WAL-safe), run integrity_check, and ret
 
 ## Rollback
 
-Select an existing release directory under `/opt/momiq/releases/backend`, replace the active backend symlink atomically and restart `momiq`, then verify `/api/health`. Never restore a database snapshot blindly over newer data. Schema migrations need separate compatibility/backup planning.
+Before selecting old code, run that release's `deployment_health.py --data <runtime-data-directory> --mode <runtime-mode>` with its own Python runtime. It must confirm the current database environment and exact migration checksums without writing. A missing checker, older/newer schema or failed read blocks automatic code rollback. A passing schema check is necessary but does not prove every business/data compatibility property; operator recovery and migration/backup planning remain required. Never restore a database snapshot blindly over newer data. After any approved switch/restart, repeat the full release smoke, not only `/api/health`.
 
 ## Mobile app
 
@@ -143,3 +143,16 @@ Deploy the paired admin panel with the reason-required profile/block/legacy-reda
 `python release_pair.py --backend <backend-release> --admin <admin-release> --actual-admin-revision <sha>` validates both the declared contract/assets and the exact CI pin. Without the optional revision argument it validates runtime compatibility, allowing a separately tested newer panel that preserves the same contract. This distinction is intentional: a declared contract is not proof of every newer panel's behavior. The admin's own tests and release acceptance remain required. Missing manifests, unsupported versions, duplicate/unknown keys, invalid pins, missing/empty assets and assets escaping their release directory fail closed.
 
 The updated `momiq-deploy` validates a candidate backend against the current admin before database setup, and a candidate admin against the current backend before changing its symlink. Existing latest-main SHA and deploy-lock checks still apply. **The initial contract-aware pair cannot be bootstrapped by independently pushing one incompatible half.** A trusted operator must stage the compatible pair during the existing controlled initial rollout, with verified backups and maintenance; no mismatch bypass is provided. Atomic pair promotion, database migration/rollback rehearsal and installation of the new root-owned deploy script remain M109–M113 work. The restricted CI SSH key cannot install that script. Adding this source guard or a green CI run does not mean the existing host now enforces it.
+
+
+## Read-only release smoke and guarded recovery (source implementation)
+
+The trusted deployer writes `.release-sha` into each archived release. Worker liveness/readiness return the backend SHA captured at process startup; ordinary checkouts return null. `deployment_health.py` opens only an existing database read-only, requires its environment and exact migration checksums, and exercises essential table/column reads. It never performs setup/migrations or a full integrity scan.
+
+`python deploy_smoke.py --api-url https://api.momiq.net --admin-url https://admin.momiq.net --backend-sha <full-sha> --mode production` performs 24 GET checks: process/readiness and release identity, all three catalog services, anonymous/invalid-token boundaries, both proxy origin boundaries, and every required panel asset. Local deployment uses the same numeric loopback origin for both surfaces and `--admin-dir <current-panel-directory>`: 22 checks, including exact served asset hashes. Empty catalogs are valid while publication remains gated. The external check verifies public routing/TLS and the expected backend SHA; it does not claim exact panel bytes unless the admin directory is supplied.
+
+The client does not send credentials, accept cookies, follow redirects, use ambient proxies, log in or create fixtures. HTTP is accepted only for numeric loopback; other origins require HTTPS. Responses are bounded to 8 MiB, each request has a three-second socket timeout, and reports contain fixed check names/status/duration plus release/environment/schema metadata, not URLs, private bodies or secrets. Transport failures, stale workers, test login during promotion, cacheable JSON, missing assets and unexpected protected-route success fail the check. This socket timeout is not a strict whole-run deadline against a continuously trickling server; CI/deploy job timeouts remain the outer bound.
+
+The deploy source now tests both backend and admin switches before publishing the success SHA. A failed admin smoke restores prior assets. A failed backend restart/smoke restores prior code only when that prior release's read-only checker accepts the CURRENT database; a missing checker or schema mismatch requires operator recovery. No database is automatically restored or downgraded. This compatibility check is not a complete transactional migration rollback. The initial pair, pre-migration backup/promotion procedure, installation of the root-owned script, actual restart/rollback rehearsal, HTTPS checks against the updated host and offsite recovery remain open M109–M115 work. These guards have not been installed on the hosted server by this branch.
+
+Admin CI now discovers all `test_*.cjs` files and syntax-checks every top-level JavaScript module. Previously its explicit test list omitted the metrics, operator-access and assignment-queue suites even though all 48 tests had passed locally. A historical green run therefore must not be presented as coverage of those omitted suites.
