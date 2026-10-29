@@ -66,9 +66,11 @@ def read(handler):
     if len(types)!=1 or types[0].split(';',1)[0].strip().lower()!='application/json':
         raise BodyError(415,'JSON yuboring')
     if not _readers.acquire(timeout=1):raise BodyError(503,'So‘rovlar band. Qayta urining.')
-    connection=getattr(handler,'connection',None)
-    timeout=connection.gettimeout() if connection else None
+    connection=None;restore_timeout=False
     try:
+        connection=getattr(handler,'connection',None)
+        timeout=connection.gettimeout() if connection else None
+        restore_timeout=connection is not None
         deadline=time.monotonic()+READ_SECONDS
         raw=bytearray()
         while len(raw)<size:
@@ -83,5 +85,14 @@ def read(handler):
     except TimeoutError:
         raise BodyError(408,'So‘rovni yuborish vaqti tugadi') from None
     finally:
-        if connection:connection.settimeout(timeout)
-        _readers.release()
+        try:
+            if restore_timeout:
+                try:connection.settimeout(timeout)
+                except OSError:
+                    # A peer/transport may close while the body is being read.
+                    # Preserve its original result/error, but never reuse it.
+                    handler.close_connection=True
+        finally:
+            # Socket inspection/restoration can fail too. Neither may leak a
+            # bounded reader slot and turn subsequent requests into 503s.
+            _readers.release()

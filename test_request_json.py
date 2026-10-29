@@ -1,5 +1,6 @@
 import io
 import json
+import threading
 import unittest
 from email.message import Message
 from types import SimpleNamespace
@@ -72,6 +73,37 @@ class JsonBodyTests(unittest.TestCase):
         with patch.object(body._readers,'acquire',return_value=False):
             with self.assertRaises(body.BodyError) as caught:Handler.body(self.handler())
         self.assertEqual(caught.exception.status,503)
+
+    def test_socket_timeout_read_failure_does_not_consume_reader_capacity(self):
+        class ClosedSocket:
+            def gettimeout(self):raise OSError('TEST closed descriptor')
+        h=self.handler();h.connection=ClosedSocket()
+        with patch.object(body,'_readers',threading.BoundedSemaphore(1)):
+            with self.assertRaises(OSError):body.read(h)
+            self.assertEqual(body.read(self.handler()),{})
+
+    def test_closed_socket_on_timeout_restore_preserves_body_error_and_capacity(self):
+        class ClosingSocket:
+            def gettimeout(self):return None
+            def settimeout(self,value):
+                if value is None:raise OSError('TEST closed descriptor')
+        h=self.handler(b'{',**{'Content-Length':'2'});h.connection=ClosingSocket()
+        with patch.object(body,'_readers',threading.BoundedSemaphore(1)):
+            with self.assertRaises(body.BodyError) as caught:Handler.body(h)
+            self.assertEqual(caught.exception.status,400)
+            self.assertTrue(h.close_connection)
+            self.assertEqual(body.read(self.handler()),{})
+
+    def test_successful_body_with_closed_restore_closes_connection_without_capacity_loss(self):
+        class ClosingSocket:
+            def gettimeout(self):return None
+            def settimeout(self,value):
+                if value is None:raise OSError('TEST closed descriptor')
+        h=self.handler();h.connection=ClosingSocket()
+        with patch.object(body,'_readers',threading.BoundedSemaphore(1)):
+            self.assertEqual(Handler.body(h),{})
+            self.assertTrue(h.close_connection)
+            self.assertEqual(body.read(self.handler()),{})
 
 
 if __name__=='__main__':unittest.main()
