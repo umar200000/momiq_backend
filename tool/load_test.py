@@ -59,7 +59,7 @@ def percentile(values,quantile):
     return round(sorted(values)[max(0,math.ceil(len(values)*quantile)-1)],2) if values else None
 
 
-def run(accounts,active,cycles):
+def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
     with tempfile.TemporaryDirectory(prefix='momiq-isolated-load-') as directory:
         os.environ.update(MOMIQ_DATA_DIR=directory,MOMIQ_ENV='local',MOMIQ_ALLOW_TEST_LOGIN='1')
         import server
@@ -72,6 +72,7 @@ def run(accounts,active,cycles):
         base=f'http://127.0.0.1:{http.server_port}'
         barrier=threading.Barrier(active);measurements=[];lock=threading.Lock()
         def request(token,category,path,data=None):
+            if duration_seconds and time.perf_counter()>=deadline:return None
             started=time.perf_counter();status=0;error=None;result=None
             headers={'Authorization':'Bearer '+token}
             body=None
@@ -86,10 +87,12 @@ def run(accounts,active,cycles):
                 cause=getattr(failure,'reason',failure)
                 error=type(cause).__name__+(':'+str(cause.errno) if getattr(cause,'errno',None) is not None else '')
             with lock:measurements.append((category,(time.perf_counter()-started)*1000,status,error))
+            if duration_seconds:time.sleep(max(0,min(think_ms/1000,deadline-time.perf_counter())))
             return result if status==200 and not error else None
         def customer(index,token):
             barrier.wait(timeout=30)
-            for cycle in range(cycles):
+            cycle=0
+            while (time.perf_counter()<deadline if duration_seconds else cycle<cycles):
                 request(token,'catalog','/api/sitters?service=boarding&pet=cat')
                 request(token,'profile','/api/me')
                 request(token,'bookings','/api/bookings')
@@ -98,18 +101,20 @@ def run(accounts,active,cycles):
                 chat=request(token,'open_chat','/api/conversations',{'listingId':f'{index%sitters:024x}:boarding'})
                 if chat and chat.get('id'):
                     request(token,'send_chat','/api/conversations/'+chat['id']+'/messages',{'text':'SYNTHETIC LOAD MESSAGE','requestId':f'synthetic-load-message-{index}-{cycle}'})
-        started=time.perf_counter()
+                cycle+=1
+        started=time.perf_counter();deadline=started+duration_seconds
         try:
             with open(os.devnull,'w') as quiet,redirect_stdout(quiet):
                 with ThreadPoolExecutor(max_workers=active) as pool:list(pool.map(lambda pair:customer(*pair),enumerate(clients)))
         finally:http.shutdown();http.server_close();serving.join()
         elapsed=time.perf_counter()-started;groups=defaultdict(list)
         for row in measurements:groups[row[0]].append(row)
-        result={'createdAt':datetime.now(timezone.utc).isoformat(),'accounts':accounts,'activeCustomers':active,'sitters':sitters,'listings':sitters*3,'cycles':cycles,
+        result={'createdAt':datetime.now(timezone.utc).isoformat(),'accounts':accounts,'activeCustomers':active,'sitters':sitters,'listings':sitters*3,'cycles':None if duration_seconds else cycles,'mode':'paced_duration' if duration_seconds else 'burst_cycles',
+                'durationSeconds':duration_seconds,'thinkMs':think_ms,
                 'transport':'Windows/local stdlib ThreadingHTTPServer' if os.name=='nt' else 'local stdlib ThreadingHTTPServer',
                 'python':platform.python_version(),'logicalCpus':os.cpu_count(),'elapsedSeconds':round(elapsed,2),'requests':len(measurements),
                 'listenBacklog':http.request_queue_size,
-                'expectedRequests':active*cycles*7,'requestsPerSecond':round(len(measurements)/elapsed,2),'endpoints':{}}
+                'expectedRequests':None if duration_seconds else active*cycles*7,'requestsPerSecond':round(len(measurements)/elapsed,2),'endpoints':{}}
         for category,rows in groups.items():
             durations=[r[1] for r in rows]
             result['endpoints'][category]={'count':len(rows),'p50Ms':percentile(durations,.5),'p95Ms':percentile(durations,.95),'p99Ms':percentile(durations,.99),
@@ -119,7 +124,8 @@ def run(accounts,active,cycles):
                 'accounts':con.execute('SELECT COUNT(*) FROM users').fetchone()[0],'chats':con.execute('SELECT COUNT(*) FROM conversations').fetchone()[0],
                 'messages':con.execute('SELECT COUNT(*) FROM conversation_messages').fetchone()[0],'bookings':con.execute('SELECT COUNT(*) FROM bookings').fetchone()[0]}
         result['successfulRequests']=sum(status==200 and error is None for _,_,status,error in measurements)
-        result['limitations']=['Synthetic local saturation burst; no think time or real mobile network.',
+        result['limitations']=[('Synthetic local paced duration, time budget checked before each request; in-flight requests may finish after the window.' if duration_seconds else 'Synthetic local saturation burst; no think time.'),
+            'Synchronized customer start; no real mobile network. Throughput elapsed includes HTTP shutdown/drain.',
             'Pre-issued synthetic sessions: does not benchmark SMS, login or TLS.',
             'No booking acceptance, payment, video, reverse proxy, Gunicorn or production host traffic.',
             'This is not proof of production capacity or a service-level guarantee; temporary data is removed.']
@@ -132,14 +138,20 @@ def main():
     parser.add_argument('--active',type=int,default=100)
     parser.add_argument('--cycles',type=int,default=5)
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--duration-seconds',type=int,default=0,help='1–300 seconds of paced work, instead of fixed cycles')
+    parser.add_argument('--think-ms',type=int,default=0,help='100–10000 ms after each request in duration mode')
     args=parser.parse_args()
     if not 20<=args.accounts<=10000 or not 1<=args.active<=100 or not 1<=args.cycles<=10:parser.error('Use 20–10000 accounts, 1–100 active customers and 1–10 cycles')
+    if args.duration_seconds:
+        if not 1<=args.duration_seconds<=300 or not 100<=args.think_ms<=10000:parser.error('Duration mode requires 1–300 seconds and 100–10000 ms think time')
+    elif args.think_ms:parser.error('Think time requires --duration-seconds')
     if args.output.exists():parser.error('Choose a new report file; existing evidence is never overwritten')
-    result=run(args.accounts,args.active,args.cycles)
+    result=run(args.accounts,args.active,args.cycles,args.duration_seconds,args.think_ms)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     with args.output.open('x',encoding='utf-8') as output:json.dump(result,output,indent=2)
     print(json.dumps({key:result[key] for key in ('accounts','activeCustomers','requests','successfulRequests','elapsedSeconds','requestsPerSecond','database')},indent=2))
-    return 0 if result['successfulRequests']==result['expectedRequests'] and result['database']['integrity']=='ok' and not result['database']['foreignKeyErrors'] else 1
+    expected=result['expectedRequests'] if result['expectedRequests'] is not None else result['requests']
+    return 0 if expected>0 and result['successfulRequests']==expected and result['database']['integrity']=='ok' and not result['database']['foreignKeyErrors'] else 1
 
 
 if __name__=='__main__':sys.exit(main())

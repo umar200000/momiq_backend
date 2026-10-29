@@ -11,6 +11,23 @@ from test_media import fixture_image
 
 
 class CatalogTests(unittest.TestCase):
+    def test_service_moderation_is_independent_and_pages_do_not_repeat_sibling_services(self):
+        data=copy.deepcopy(self.listing)
+        data['listings']=[{**data['listings'][0],'type':kind,'capacity':1 if kind=='personal' else 2} for kind in catalog.SERVICES]
+        self.save(data)
+        for kind in ('boarding','personal'):
+            with server.db() as con:
+                revision=catalog.document(con,'abc')['_revision'];con.commit()
+                catalog.review(con,'abc',kind,{'decision':'approve','reason':'TEST per-service approval','testOnly':True,'_revision':revision},'admin','local')
+        with server.db() as con:
+            items=list(catalog.iter_profiles(con,'local'))
+            self.assertEqual([item['id'] for item in items],['abc:boarding','abc:personal'])
+            self.assertEqual([item['id'] for item in catalog.iter_profiles(con,'local',after='abc:boarding')],['abc:personal'])
+            self.assertEqual(list(catalog.iter_profiles(con,'local',service='homeVisit')),[])
+            self.assertIsNone(catalog.profile(con,'local','abc:homeVisit'))
+            self.assertEqual(catalog.profile(con,'local','abc:personal')['capacity'],1)
+            self.assertNotIn('PRIVATE STREET',json.dumps(items))
+
     def test_targeted_discovery_keeps_eligibility_and_ignores_unrelated_corrupt_profile(self):
         self.save();self.review()
         with server.db() as con:
