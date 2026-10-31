@@ -1,6 +1,26 @@
 #!/bin/bash
 set -euo pipefail
 src=/home/ubuntu/momiq-bootstrap
+site=/etc/nginx/sites-available/momiq
+enabled=/etc/nginx/sites-enabled/momiq
+preserve_site=false
+if [[ $# -gt 1 || ( $# == 1 && "$1" != --preserve-reviewed-nginx ) ]]; then
+  echo 'Usage: bootstrap.sh [--preserve-reviewed-nginx]' >&2
+  exit 64
+fi
+if [[ -L "$site" || ( -e "$site" && ! -f "$site" ) ||
+      ( -e "$enabled" && ! -L "$enabled" ) ||
+      ( -L "$enabled" && "$(readlink -f "$enabled")" != "$site" ) ]]; then
+  echo 'Unexpected Nginx site path. Review the active configuration before bootstrap.' >&2
+  exit 69
+fi
+if [[ -f "$site" ]] && ! cmp -s "$src/nginx.conf" "$site"; then
+  if [[ $# != 1 ]]; then
+    echo 'Existing Nginx site differs. Merge required proxy rules while retaining TLS, then rerun with --preserve-reviewed-nginx.' >&2
+    exit 69
+  fi
+  preserve_site=true
+fi
 apt-get update
 apt-get install -y --no-install-recommends ffmpeg
 id momiq >/dev/null 2>&1 || useradd --system --home /var/lib/momiq --shell /usr/sbin/nologin momiq
@@ -33,12 +53,14 @@ install -m 644 "$src/momiq-media-retention.service" /etc/systemd/system/momiq-me
 install -m 644 "$src/momiq-media-retention.timer" /etc/systemd/system/momiq-media-retention.timer
 install -m 644 "$src/momiq-backup-retention.service" /etc/systemd/system/momiq-backup-retention.service
 install -m 644 "$src/momiq-backup-retention.timer" /etc/systemd/system/momiq-backup-retention.timer
-install -m 644 "$src/nginx.conf" /etc/nginx/sites-available/momiq
+if [[ "$preserve_site" == false ]]; then
+  install -m 644 "$src/nginx.conf" "$site"
+fi
 (umask 027; touch /var/log/nginx/momiq-access.log)
 chown root:adm /var/log/nginx/momiq-access.log
 chmod 640 /var/log/nginx/momiq-access.log
 install -m 644 "$src/momiq-proxy.conf" /etc/nginx/snippets/momiq-proxy.conf
-ln -sfn /etc/nginx/sites-available/momiq /etc/nginx/sites-enabled/momiq
+ln -sfn "$site" "$enabled"
 nginx -t
 systemctl daemon-reload
 systemctl enable momiq momiq-backup.timer momiq-media-retention.timer momiq-backup-retention.timer
