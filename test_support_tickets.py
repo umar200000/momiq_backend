@@ -179,12 +179,19 @@ class SupportTests(unittest.TestCase):
                 with server.db() as con:support.write(con,'operator',identity,reply,server.photo,True)
         self.assertEqual(self.req('/api/support/'+identity)['ticket']['revision'],1)
         result=self.admin(path,reply)
+        receipt=result['acknowledgement']
+        self.assertEqual(receipt,{'ticketId':identity,'requestId':reply['requestId'],'messageId':result['items'][-1]['id'],
+                                  'revision':2,'action':'reply'})
         self.assertEqual(result['ticket']['status'],'waiting_user');self.assertEqual(result['items'][-1]['authorRole'],'support')
         self.admin(path,reply)
         self.admin(path,self.reply(text='Stale'),status=409)
         self.admin(path,self.reply(2,action='resolve',text='TEST solved'))
         result=self.req('/api/support/'+identity,'POST',self.reply(3,text='TEST still need help'))
         self.assertEqual(result['ticket']['status'],'open')
+        replay=self.admin(path,reply)
+        self.assertEqual(replay['ticket']['revision'],4)
+        self.assertEqual(replay['acknowledgement'],receipt)
+        self.assertNotIn('acknowledgement',self.req('/api/support/'+identity))
         with server.db() as con:self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE source_key LIKE 'support:%'").fetchone()[0],2)
 
     def test_filters_paging_invalid_shape_booking_ownership_and_block(self):

@@ -57,7 +57,33 @@ def seal(bundle, destination, recipient):
         size = encrypted.stat().st_size
         # Atomic publication without replacing an existing export on concurrent runs.
         os.link(encrypted,destination)
-    return {'sha256':checksum,'bytes':size,'expiresAt':expires.isoformat()}
+    return {'sha256':checksum,'bytes':size,'createdAt':manifest['created'],'expiresAt':expires.isoformat()}
+
+
+def inspect_copy(encrypted, receipt, *, max_age_hours, min_bytes, max_bytes, now=None):
+    """Check a locally accessible offsite copy without a private decryption key."""
+    if not 0 < max_age_hours <= 24*365 or not 0 < min_bytes <= max_bytes:
+        raise ValueError('Invalid verification limits')
+    if (not isinstance(receipt,dict) or type(receipt.get('bytes')) is not int or
+            not re.fullmatch('[0-9a-f]{64}',receipt.get('sha256',''))):
+        raise ValueError('Invalid backup receipt')
+    created, expires = (datetime.fromisoformat(receipt[k]) for k in ('createdAt','expiresAt'))
+    if created.tzinfo is None or expires.tzinfo is None or expires <= created:
+        raise ValueError('Invalid backup interval')
+    now = now or datetime.now(timezone.utc)
+    age = (now-created).total_seconds()
+    if age < 0 or age > max_age_hours*3600 or now >= expires:
+        raise ValueError('Backup is stale, expired or future-dated')
+    path = Path(encrypted)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError('Expected a ciphertext file')
+    with path.open('rb') as stream:
+        size = os.fstat(stream.fileno()).st_size
+        if size != receipt['bytes'] or not min_bytes <= size <= max_bytes:
+            raise ValueError('Unexpected backup size')
+        if hashlib.file_digest(stream,'sha256').hexdigest() != receipt['sha256']:
+            raise ValueError('Ciphertext digest mismatch')
+    return {'ok':True,'ageSeconds':round(age,2),'bytes':size,'expiresAt':expires.isoformat()}
 
 
 def drill(encrypted, identity, checksum, mode, max_bytes=8*1024**3):
@@ -119,10 +145,21 @@ if __name__ == '__main__':
     for option in ('encrypted','identity','sha256','mode'):
         restore.add_argument('--'+option,required=True)
     restore.add_argument('--max-bytes',type=int,default=8*1024**3)
+    inspect = commands.add_parser('inspect')
+    for option in ('encrypted','receipt'):
+        inspect.add_argument('--'+option,required=True)
+    for option in ('max-age-hours','min-bytes','max-bytes'):
+        inspect.add_argument('--'+option,required=True,type=int)
     args = parser.parse_args()
     try:
-        result = (seal(args.bundle,args.destination,args.recipient) if args.action=='seal'
-                  else drill(args.encrypted,args.identity,args.sha256,args.mode,args.max_bytes))
+        if args.action=='seal':
+            result = seal(args.bundle,args.destination,args.recipient)
+        elif args.action=='inspect':
+            receipt = json.loads(Path(args.receipt).read_text(encoding='utf-8-sig'))
+            result = inspect_copy(args.encrypted,receipt,max_age_hours=args.max_age_hours,
+                                  min_bytes=args.min_bytes,max_bytes=args.max_bytes)
+        else:
+            result = drill(args.encrypted,args.identity,args.sha256,args.mode,args.max_bytes)
         print(json.dumps(result))
     except Exception:
         parser.exit(1, 'Encrypted backup operation failed\n')

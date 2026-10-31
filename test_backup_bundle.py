@@ -1,6 +1,8 @@
 from pathlib import Path
 from contextlib import closing
 import sqlite3
+import shutil
+import subprocess
 import tempfile
 import unittest
 from datetime import datetime,timedelta,timezone
@@ -63,6 +65,15 @@ class BackupBundleTests(unittest.TestCase):
             result=restore_drill.rehearse(target,server.ENVIRONMENT)
             self.assertEqual(result['mediaFiles'],2)
             self.assertTrue(result['reconciled'])
+            if shutil.which('age') and shutil.which('age-keygen'):
+                import encrypted_backup
+                key = Path(folder)/'recovery-identity'
+                subprocess.run(['age-keygen','-o',str(key)],capture_output=True,check=True)
+                recipient = subprocess.check_output(['age-keygen','-y',str(key)],text=True).strip()
+                encrypted = Path(folder)/'recovery.age'
+                proof = encrypted_backup.seal(target,encrypted,recipient)
+                restored = encrypted_backup.drill(encrypted,key,proof['sha256'],server.ENVIRONMENT)
+                self.assertEqual((restored['mediaFiles'],restored['reconciled']),(2,True))
             with closing(sqlite3.connect(target/'momiq.sqlite3')) as con:
                 self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_videos').fetchone()[0],1)
                 self.assertEqual(con.execute('PRAGMA foreign_key_check').fetchall(),[])

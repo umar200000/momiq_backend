@@ -60,6 +60,18 @@ def audit_detail(con,identity,user,before,status=None):
                 (user,'support-view' if identity else 'support-list-view',target,datetime.now(timezone.utc).isoformat()))
 
 
+def write_result(con,identity,user,admin,key,data):
+    revision = data['revision']+1
+    row = con.execute('SELECT id FROM support_messages WHERE ticket_id=? AND revision=? AND actor=? AND action=?',
+                      (identity,revision,key,data['action'])).fetchone()
+    if not row:
+        raise RuntimeError('Support request has no matching immutable message')
+    result = view(con,identity,user,admin)
+    result['acknowledgement'] = {'ticketId':identity,'requestId':data['requestId'],
+                                 'messageId':str(row['id']),'revision':revision,'action':data['action']}
+    return result
+
+
 def write(con,user,identity,data,validate_photo,admin=False,environment='production'):
     creating=identity is None
     required={'requestId','text','image','revision','action'}|({'subject','topic','bookingId'} if creating else set())
@@ -102,7 +114,7 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     previous=con.execute('SELECT * FROM support_requests WHERE actor=? AND request_id=?',(key,data['requestId'])).fetchone()
     if previous:
         if previous['fingerprint']!=fingerprint:raise engine.BookingError(409,'So‘rov boshqa murojaat uchun ishlatilgan')
-        return view(con,previous['ticket_id'],user,admin)
+        return write_result(con,previous['ticket_id'],user,admin,key,data)
     decision=None
     if existing_target and existing_target['purpose']=='appeal':
         decision=support_resolutions.checked_context(con,existing_target,data.get('decisionVersion'))
@@ -125,7 +137,7 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     con.execute('INSERT INTO support_requests VALUES(?,?,?,?)',(key,data['requestId'],fingerprint,identity))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'support-'+action,engine.encode({'ticketId':identity,'revision':revision+1,**({'resolutionMessageId':message,'decisionVersion':decision['version'],'sourceEvent':decision['sourceEvent']} if decision else {})}),current))
     if admin:notifications.publish(con,row['owner_id'],f'support:{identity}:{revision+1}','support',identity,state,'')
-    return view(con,identity,user,admin)
+    return write_result(con,identity,user,admin,key,data)
 
 
 def route(handler,con,user,path,validate_photo,environment='production'):

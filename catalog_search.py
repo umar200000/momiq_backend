@@ -93,6 +93,10 @@ def page(con, environment, params, *, user=None):
         row=con.execute("SELECT json_extract(account,'$.favorites') FROM users WHERE id=?",(user,)).fetchone()
         favorites=json.loads(row[0]) if row and row[0] else []
     def matches():
+        # iter_profiles orders by owner/service. One snapshot covers consecutive
+        # services for the same sitter, only for this transaction and interval.
+        last_owner = None
+        usage = None
         for item in catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',service=selected['service'],favorites=favorites):
             service=catalog.SERVICES[item['service']]
             if selected['service'] is not None and service!=selected['service']:continue
@@ -102,17 +106,20 @@ def page(con, environment, params, *, user=None):
             if item['rating']<selected['minRating'] or selected['q'] not in item['name'].casefold():continue
             capacity=30 if service=='homeVisit' else item['capacity']
             if capacity<selected['animals']:continue
-            if interval:
-                free=booking_capacity.remaining(con,item['userId'],service,*interval,capacity,now)
-                if free<selected['animals']:continue
-                item.update(availabilityKnown=True,freeCapacity=free,
-                            availabilityInterval={'startsAt':booking_capacity.stamp(interval[0]),'endsAt':booking_capacity.stamp(interval[1])})
             item['distance']=distance_km(selected['origin'],item['location'])
             item['distanceApproximate']=item['distance'] is not None
             # Unknown origins remain discoverable; this is a customer preference,
             # never a sitter service-radius or booking eligibility rule.
             if selected['maxDistance'] is not None and item['distance'] is not None and item['distance']>selected['maxDistance']:continue
             if selected['origin'] and after and proximity_key(item)<=(after['distance'],*after['last'].split(':',1)):continue
+            if interval:
+                if last_owner != item['userId']:
+                    last_owner = item['userId']
+                    usage = booking_capacity.occupancy(con,last_owner,*interval,now)
+                free = booking_capacity.free_places(usage,service,capacity)
+                if free<selected['animals']:continue
+                item.update(availabilityKnown=True,freeCapacity=free,
+                            availabilityInterval={'startsAt':booking_capacity.stamp(interval[0]),'endsAt':booking_capacity.stamp(interval[1])})
             yield item
     if selected['origin']:
         result=heapq.nsmallest(PAGE_SIZE+1,matches(),key=proximity_key)

@@ -40,7 +40,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | --- | --- | --- |
 | M001 | Uch xizmat va har hayvonga kunlik narx bron javobida tekshiriladi. | Geofence mantiqi sintetik ko‘pburchak bilan tekshirildi. Haqiqiy Toshkent fayli va ikki platformada qabul ochiq. |
 | M007 | Saqlangan enaga filtrining 200 ta juft lokal o‘lchovi bor. Yuklama vositasi mavjud instansga ulanmaydi. | Tezlik, mavjudlik, RPO/RTO va infratuzilma budjetini kelishish. |
-| M008 | Muhit belgilari, bazaning muhiti hamda admin va runtime kataloglarining ajratilishi tekshirildi. | Haqiqiy staging domeni, baza, storage va muhit kalitlari. |
+| M008 | Muhit belgilari, bazaning muhiti hamda admin va runtime kataloglarining ajratilishi tekshirildi. | Egasi staging domeni, baza, storage va kirish usulini yakunda kelishishga qoldirdi. |
 | M009 | Hosted build loopback taxalluslari va .invalid namuna domenini rad etadi. Production API porti 443. | Staging konfiguratsiyasi bilan haqiqiy build va hosted qabul. |
 | M012 | Yopildi. Test bazasida uch holatdagi bron, sanalar, chat va parvarish hisoboti yaratildi. | Ikkinchi ishga tushirish yozuvlarni aynan saqladi. Mavjud bazaga o‘rnatish rad etildi. |
 | M014 | Takror ishlatiladigan Paynet TEST bazasi, to‘lovsiz o‘qiladigan QR va offline push retry mavjud. | Tashqi push/provider sinov muhiti va qurilmadagi to‘liq sinov. |
@@ -61,7 +61,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M097 | To‘lov qarorining takrori asl operator bilan bog‘landi. O‘qish va yozish auditi tekshirildi. | Audit saqlash muddati, arxiv kirishi va hosted nazorati. |
 | M099 | SQLite DELETE/WAL moliya uzilishlari, qoldiq yarashtirishi va tanlangan enagalarni o‘qish tekshirildi. | Hosted parallel yuklamadan so‘ng DB tanlovini asoslash. |
 | M100 | Tiklangan mustaqil bazaning muhiti va schema migratsiya checksumlari tekshirildi. | Eski hosted ma’lumotlar bilan migratsiya dry-run va qabul. |
-| M101 | Quote, buyurtma, asosiy qarorlar, ro‘yxat, top-up va public-photo murojaati shartnomasi kengaydi. | Qolgan endpointlar va eski mobil versiyalar bilan moslik auditi. |
+| M101 | Quote, buyurtma, asosiy qarorlar, ro‘yxat, top-up va public-photo murojaati shartnomasi kengaydi. | Support receipt va hosted mobil capability tekshirildi. Qolgan endpointlar va tarixiy versiyalarning keng moslik auditi ochiq. |
 | M102 | Eski hamyon sessiyasining kech javobi, begonaga tegishli tasdiq va source almashishi rad etiladi. | Barcha obyekt/rol kombinatsiyasi va yangi hosted build bo‘yicha qabul. |
 | M103 | Noto‘g‘ri bron query, summa/dalil tasdig‘i, maxfiy media linklari va buzilgan javoblar tekshirildi. | Qolgan endpoint/upload qamrovi va haqiqiy proxy limitlari. |
 | M104 | Lokal private media va bundle fayllari yo‘llari himoyalandi. | Object storage provayderi, bucket, kalitlar, migratsiya va yetim obyektlarni tozalash. |

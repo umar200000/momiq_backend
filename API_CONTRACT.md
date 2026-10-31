@@ -618,3 +618,9 @@ Home-visit quotes return the calling customer's selected `snapshot.addressId`. S
 With an operator-approved service polygon, creating or relocating a saved customer address, publishing an active residential/personal listing, quoting, requesting and accepting a new booking all check the exact service point before commit. Coordinates outside return 400. Missing hosted geometry returns 503 on operations requiring a new location check. An account may still remove an old address, save unrelated fields or read an existing obligation. Home visits use the customer's address. The sitter has no travel-radius cutoff. Current independent booking-environment gates still apply.
 
 Successful operator sign-in/sign-out commit `operator-login`/`operator-logout` audit events with actor, time and fixed target `admin-session`. No password, cookie or session digest is copied into audit.
+
+### Support write receipts and mobile compatibility
+
+Each successful participant or operator support POST returns `acknowledgement` containing ticketId, requestId, original messageId, action and resulting message revision. An exact retry returns this same receipt and the current ticket view, even after later replies or closure. Read endpoints never disclose request IDs. The app and admin require a matching receipt before clearing an uncertain submission.
+
+Health advertises discrete `mobileFeatures` for booking receipts, home-visit address identity, wallet receipts and support receipts. The hosted app checks process health, environment and supported features anonymously before its first authenticated JSON operation, and repeats the check after five minutes. Concurrent first calls share the probe. Failed checks can be retried and keep credentials on-device. Production also requires SMS enabled and test login disabled. Older clients ignore additive fields. Deploy the compatible API and pinned admin pair before distributing the newer mobile app.

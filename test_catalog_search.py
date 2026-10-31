@@ -172,5 +172,9 @@ class SearchCapacityTests(unittest.TestCase):
             account=json.loads(con.execute("SELECT account FROM users WHERE id='abc'").fetchone()[0])
             con.execute("UPDATE listings SET data=? WHERE user_id='abc'",(json.dumps(raw),))
             con.execute("INSERT INTO listing_moderation(user_id,service,status,approved_hash,test_only,public_media) SELECT user_id,'personal',status,?,test_only,public_media FROM listing_moderation WHERE user_id='abc' AND service='boarding'",(catalog.fingerprint(account,raw['housing'],personal),))
-        self.assertEqual([s['service'] for s in self.search()],[0])
+        from unittest.mock import patch
+        import booking_capacity
+        with patch.object(booking_capacity,'occupancy',wraps=booking_capacity.occupancy) as read_usage:
+            self.assertEqual([s['service'] for s in self.search()],[0])
+            self.assertEqual(read_usage.call_count,1)
         self.assertEqual(first['status'],'accepted')

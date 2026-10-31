@@ -92,6 +92,13 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-10-31. Qolgan 48 banddan davom etilgan ishlar
 
+- [x] **M007/M099/M131.** Sana va masofa bilan qidiruvda uch xizmat uchun bir enaganing bandligi bitta tranzaksiyada bir marta olinadi. Masofa bo‘yicha tushmaydigan e’lonlar uchun bu hisob bajarilmaydi. 1 000 test hisob va 300 e’londa 20 juft o‘lchovda bandlik so‘rovlari 600 dan 200 ga, median 119,339 dan 95,256 ms ga, p95 146,642 dan 114,588 ms ga tushdi. Barcha natijalar va cursor teng bo‘ldi. Bu bo‘sh bron tarixli lokal DB benchmarkidir. [O‘lchov](performance/interval-catalog-2026-10-31.json)
+- [x] **M009/M019/M101/M102.** Hosted build birinchi autentifikatsiyalangan JSON so‘rovidan oldin server muhitini, health holatini va kerakli API imkoniyatlarini anonim tekshiradi. Bir vaqtdagi so‘rovlar tekshiruvni bo‘lishadi. Noto‘g‘ri muhit/eskirgan shartnoma yoki tekshiruv vaqtida sessiya almashishi token yuborishni to‘xtatadi. Production konfiguratsiyasi bilan, tarmoqni almashtirgan testda tekshirildi. Staging host yakuniy navbatda.
+
+- [x] **M101/M102/M105/M124.** Murojaat yaratilishi, javob va yopishda asl xabar ID, so‘rov ID, revision, amal va ticket tasdiqlanadi. Ustidan boshqa javob kelgach ham retry asl receiptni qaytaradi. Mobil va admin noto‘g‘ri tasdiq kelsa yozuvni saqlaydi. Sinovda boshqa javob bilan almashtirish va keyin asl so‘rovni qaytarish tekshirildi.
+- [x] **M107/M125.** Yordam sahifasidan paketga kiritilgan litsenziyalar ochiladi. CI paketdagi siqilgan notices matnini ochib tekshiradi va haqiqiy native kutubxonalarning SHA-256 ro‘yxatini tuzadi. Yuridik qabul va aktivlarning kelib chiqishi hali ochiq.
+- [x] **M114/M115/M116.** Shifrlangan nusxadan transkodlangan video va poster ham asl xeshlari bilan tiklandi. Recovery kalitisiz nusxaning yoshi, muddati, hajmi va SHA-256 bo‘yicha signal berish vositasi sinovdan o‘tdi.
+
 - [x] **M029/M101/M102/M105/M124.** Tashrif taklifi mijoz tanlagan manzil ID sini qaytaradi. Ilova begona manzil tasdig‘ini rad etadi. Ko‘cha yoki koordinata o‘zgarsa eski taklifdan yangi bron ochilmaydi. Oldingi buyurtmaning manzili saqlanadi. Mobil JSON API redirectni rad etadi. Ikki loopback serverli sinovda na GET, na POST boshqa serverga o‘tdi. Sessiya-race testining HTTP dubliga yangi transport xususiyati qo‘shildi.
 - [x] **M001/M008/M029.** Tasdiqlanadigan GeoJSON hududi va SHA-256 konfiguratsiyasi ulandi. Sun’iy poligonda tashqi nuqta, chegara, ichki teshik, alohida orol, buzilgan digest, mijoz manzili hamda yangi quote/request/accept sinaldi. Rad etish revision va eski kelishuvni saqladi. Toshkentning haqiqiy geometriyasi hali tanlanmagan.
 - [x] **M014/M082/M085/M139.** Yangi test bazasida 5 ta Paynet so‘rovi, haqiqiy skaner bilan o‘qilgan to‘lovsiz TEST QR, rad, tasdiq va tuzatilgan chek tekshirildi. Mock push uzilishida cursor siljimadi. Tasdiq javobi yo‘qolgach aynan bitta nusxa yetkazildi. Push simulyatori app DB jadvallarini o‘zgartirmadi. Haqiqiy provayder/qurilma hali ochiq.
@@ -874,6 +881,8 @@ Bu bo‘lim foydalanuvchining 2026-10-29 ko‘rsatmasi bilan ro‘yxat oxiriga k
   **Kutish sababi / davom etish sharti:** Haqiqiy provider, hosted backup/monitoring, signed qurilmalar va biznes egasining yakuniy pilot qabuli kerak.
 
 **Davom etayotgan bandlarning tashqi qabul bosqichlari**
+
+- **2026-10-31, egasining qarori.** Alohida staging serveri/domeni va unga kirish yo‘li hozir noma’lum. M008/M009/M110 hamda shu muhitni talab qiladigan deploy, yuklama va qabul sinovlari yakunda birga hal qilinadi. Hozir alohida server olinmaydi. Bu ochiq bandlar ichidagi tashqi bog‘liqlik bo‘lib, oldingi 12 ta yakuniy band alohida hisoblanadi.
 
 Bu yerda yangi asosiy band yaratilmaydi; yuqoridagi 48 bandning faqat hozir ochib bo‘lmaydigan qismi sanaladi.
 
