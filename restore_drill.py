@@ -67,7 +67,7 @@ def rehearse(bundle, mode):
             if con.execute("""
                 SELECT 1 FROM topup_requests t LEFT JOIN wallet_entries e ON e.source_key='topup:'||t.id
                 WHERE (t.status='approved' AND (e.id IS NULL OR e.kind<>'topup' OR
-                       e.user_id<>t.user_id OR e.amount_minor<>t.amount_minor))
+                       e.user_id<>t.user_id OR e.amount_minor<>t.amount_minor OR e.actor IS NOT t.reviewed_by))
                    OR (t.status<>'approved' AND e.id IS NOT NULL)
                 UNION ALL SELECT 1 FROM wallet_entries e
                 WHERE e.source_key GLOB 'topup:*'
@@ -81,11 +81,30 @@ def rehearse(bundle, mode):
                 WHERE credit.source_key<>'topup:'||t.id OR debit.source_key<>'topup-correction:'||c.id
                    OR debit.kind<>'topup_correction' OR debit.amount_minor<>-c.amount_minor
                    OR c.user_id<>t.user_id OR debit.user_id<>t.user_id OR debit.actor<>c.actor
+                   OR debit.reason<>c.reason
                 UNION ALL SELECT 1 FROM wallet_entries e
                 WHERE (e.kind='topup_correction' OR e.source_key GLOB 'topup-correction:*')
                   AND NOT EXISTS(SELECT 1 FROM wallet_corrections c WHERE c.entry_id=e.id)
                 LIMIT 1""").fetchone():
                 raise ValueError('Restored top-up correction and debit disagree')
+            if con.execute("""
+                SELECT 1 FROM (
+                    SELECT c.expected_minor,c.amount_minor,t.amount_minor original,
+                           SUM(c.amount_minor) OVER (PARTITION BY c.topup_id ORDER BY debit.rowid
+                               ROWS UNBOUNDED PRECEDING) total
+                    FROM wallet_corrections c JOIN wallet_entries debit ON debit.id=c.entry_id
+                    JOIN topup_requests t ON t.id=c.topup_id
+                ) WHERE expected_minor<>total-amount_minor OR total>original LIMIT 1""").fetchone():
+                raise ValueError('Restored correction exceeds or skips the original credit')
+            if con.execute("""
+                SELECT 1 FROM booking_disputes d JOIN bookings b ON b.id=d.booking_id
+                JOIN booking_quotes q ON q.id=b.quote_id
+                WHERE d.status='resolved' AND (
+                    d.refund_minor>json_extract(q.snapshot,'$.price.commission_minor')
+                    OR (d.outcome='continue' AND d.refund_minor<>0)
+                    OR (d.outcome='not_started' AND d.refund_minor<>json_extract(q.snapshot,'$.price.commission_minor'))
+                ) LIMIT 1""").fetchone():
+                raise ValueError('Restored dispute refund contradicts its decision')
             if con.execute("""
                 WITH agreements AS (
                     SELECT b.id,b.sitter_id,json_extract(q.snapshot,'$.price.commission_minor') fee

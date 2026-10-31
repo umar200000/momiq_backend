@@ -8,6 +8,9 @@ import sqlite3
 
 from migrations import MIGRATIONS
 
+MOBILE_FEATURES = ('booking-receipts-v1','home-visit-address-v1','wallet-receipts-v1',
+                   'support-receipts-v1','private-video-report-v1','notice-read-receipts-v1')
+
 
 def release_sha(root):
     path = Path(root) / '.release-sha'

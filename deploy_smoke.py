@@ -11,6 +11,8 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from release_pair import ASSETS
+from deployment_health import MOBILE_FEATURES
+from migrations import MIGRATIONS
 
 MAX_RESPONSE = 8 * 1024 * 1024
 
@@ -39,7 +41,7 @@ def base_url(value):
     return value.rstrip('/')
 
 
-def check(api_url, admin_url, revision, mode, admin_dir=None):
+def check(api_url, admin_url, revision, mode, admin_dir=None, *, mobile_release=False):
     api_url, admin_url = base_url(api_url), base_url(admin_url)
     if not re.fullmatch(r'[a-f0-9]{40}', revision):
         raise SmokeFailure('Expected full lowercase release SHA')
@@ -90,18 +92,24 @@ def check(api_url, admin_url, revision, mode, admin_dir=None):
     for name, data in (('health', health), ('readiness', ready)):
         if data.get('ok') is not True or data.get('mode') != mode or data.get('releaseSha') != revision:
             raise SmokeFailure(name + ': wrong release or environment')
-    if type(ready.get('schemaVersion')) is not int or ready['schemaVersion'] < 1:
-        raise SmokeFailure('readiness: missing schema version')
+    if type(ready.get('schemaVersion')) is not int or ready['schemaVersion']!=MIGRATIONS[-1][0]:
+        raise SmokeFailure('readiness: unexpected schema version for this release')
     if mode in ('production', 'staging') and (
             health.get('testLogin') is not False or health.get('clientLoginEnabled') is not False):
         raise SmokeFailure('Hosted test login must be disabled')
+    features=health.get('mobileFeatures')
+    if not isinstance(features,list) or not all(feature in features for feature in MOBILE_FEATURES):
+        raise SmokeFailure('Missing mobile API capabilities')
+    if mobile_release and (mode!='production' or health.get('sms') is not True):
+        raise SmokeFailure('Production mobile login is unavailable')
     for service in ('boarding', 'homeVisit', 'personal'):
         data, _ = fetch('catalog-' + service, api_url, '/api/sitters?service=' + service + '&pet=cat')
         if (not isinstance(data.get('sitters'), list) or 'nextCursor' not in data
                 or not isinstance(data.get('asOf'), str)):
             raise SmokeFailure('Invalid catalog page')
     for name, path in (('profile', '/api/me'), ('bookings', '/api/bookings'),
-                       ('notifications', '/api/notifications')):
+                       ('notifications', '/api/notifications'), ('profile-export','/api/me/profile-export'),
+                       ('wallet','/api/wallet'),('conversations','/api/conversations'),('support','/api/support')):
         fetch('anonymous-' + name, api_url, path, status=401)
     fetch('invalid-bearer', api_url, '/api/me', status=401,
           headers={'Authorization': 'Bearer deployment-smoke-invalid'})
@@ -124,7 +132,7 @@ def check(api_url, admin_url, revision, mode, admin_dir=None):
             if hashlib.sha256(raw).digest() != hashlib.sha256(expected.read_bytes()).digest():
                 raise SmokeFailure('Served admin asset mismatch: ' + asset)
     return {'ok': True, 'releaseSha': revision, 'mode': mode, 'schemaVersion': ready['schemaVersion'],
-            'adminBytesVerified': admin_dir is not None, 'checks': checks}
+            'mobileReleaseChecked':mobile_release, 'adminBytesVerified': admin_dir is not None, 'checks': checks}
 
 
 def main():
@@ -134,9 +142,10 @@ def main():
     parser.add_argument('--backend-sha', required=True)
     parser.add_argument('--mode', required=True, choices=('local', 'test', 'staging', 'production'))
     parser.add_argument('--admin-dir', type=Path)
+    parser.add_argument('--mobile-release',action='store_true',help='Also require production mobile login readiness')
     args = parser.parse_args()
     try:
-        result = check(args.api_url, args.admin_url, args.backend_sha, args.mode, args.admin_dir)
+        result = check(args.api_url, args.admin_url, args.backend_sha, args.mode, args.admin_dir,mobile_release=args.mobile_release)
     except (ValueError, OSError):
         # Fixed diagnostic: HTTP response bodies and configuration never enter CI logs.
         parser.exit(1, 'Release smoke failed; inspect restricted server diagnostics\n')

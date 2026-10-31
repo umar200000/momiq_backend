@@ -10,6 +10,36 @@ import wallet
 
 
 class RestoreDrillTests(unittest.TestCase):
+    def test_linked_but_excessive_corrections_and_dispute_awards_are_detected(self):
+        import sqlite3
+        import seed_scenarios
+        from contextlib import closing
+        with TemporaryDirectory() as tmp:
+            root=Path(tmp);source=root/'data'
+            seed_scenarios.build(source,payments=True)
+            with closing(sqlite3.connect(source/'momiq.sqlite3')) as con, con:
+                con.row_factory=sqlite3.Row
+                con.execute('BEGIN IMMEDIATE')
+                approved=con.execute("SELECT * FROM topup_requests WHERE status='approved'").fetchone()
+                value=approved['amount_minor']+1
+                wallet.post_entry(con,approved['user_id'],value,'topup','TEST-independent-opening','op','TEST')
+                debit=wallet.post_entry(con,approved['user_id'],-value,'topup_correction','topup-correction:TEST','op','TEST')
+                original=con.execute('SELECT id FROM wallet_entries WHERE source_key=?',('topup:'+approved['id'],)).fetchone()[0]
+                con.execute('INSERT INTO wallet_corrections VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                            ('TEST',approved['id'],original,debit,value,0,'TEST-key','op','TEST','TEST',approved['user_id']))
+            backup_bundle.create(source,root/'overcorrected')
+            with self.assertRaisesRegex(ValueError,'exceeds or skips'):restore_drill.rehearse(root/'overcorrected','test')
+            clean=root/'fresh'
+            seed_scenarios.build(clean)
+            with closing(sqlite3.connect(clean/'momiq.sqlite3')) as con,con:
+                con.execute("""INSERT INTO booking_disputes(booking_id,kind,reporter,prior_status,status,revision,
+                    created,deadline,resolved_at,outcome,reason,refund_minor)
+                    SELECT id,'service',customer_id,'active','resolved',1,created,ends_at,updated,'continue','TEST',1
+                    FROM bookings WHERE status='active'""")
+                self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_disputes').fetchone()[0],1)
+            backup_bundle.create(clean,root/'bad-award')
+            with self.assertRaisesRegex(ValueError,'contradicts'):restore_drill.rehearse(root/'bad-award','test')
+
     def test_recovery_thresholds_use_observed_values_without_rounding_or_assumed_slos(self):
         metrics={'drillSeconds':1.0001,'snapshotAgeSeconds':60}
         self.assertEqual(restore_drill.recovery_status(metrics,None,None),{'breached':[],'limits':{}})

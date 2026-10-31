@@ -60,7 +60,7 @@ class DeploySmokeTests(unittest.TestCase):
                                       'NO_PROXY': '', 'no_proxy': ''}):
             result = self.check(admin_dir=server.ADMIN)
         self.assertTrue(result['ok']); self.assertTrue(result['adminBytesVerified'])
-        self.assertEqual(len(result['checks']), 22)
+        self.assertEqual(len(result['checks']), 26)
         self.assertEqual(set(method for method, _ in self.requests), {'GET'})
         with server.db() as con: self.assertEqual('\n'.join(con.iterdump()), before)
         text = json.dumps(result)
@@ -78,6 +78,20 @@ class DeploySmokeTests(unittest.TestCase):
         with patch.object(server, 'ENVIRONMENT', 'staging'), patch.object(server, 'DEV_LOGIN', True):
             with self.assertRaisesRegex(deploy_smoke.SmokeFailure, 'test login'):
                 deploy_smoke.check(self.url, self.url, 'a' * 40, 'staging')
+
+    def test_release_smoke_refuses_old_schema_or_missing_mobile_features(self):
+        headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}
+        identity={'ok':True,'mode':'test','releaseSha':'a'*40}
+        self.responses['/api/ready']=(200,json.dumps({**identity,'schemaVersion':1}).encode(),headers)
+        with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'schema version'):self.check()
+        self.responses.clear()
+        self.responses['/api/health']=(200,json.dumps({**identity,'mobileFeatures':[]}).encode(),headers)
+        with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'capabilities'):self.check()
+        self.responses.clear()
+        with server.db() as con:con.execute("UPDATE runtime_metadata SET value='production' WHERE key='environment'")
+        with patch.object(server,'ENVIRONMENT','production'),patch.object(server,'DEV_LOGIN',False):
+            with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'mobile login'):
+                deploy_smoke.check(self.url,self.url,'a'*40,'production',mobile_release=True)
 
     def test_redirect_never_follows_and_protected_success_is_failure(self):
         self.responses['/api/health'] = (302, b'', {'Location': self.url + '/redirect-target'})
@@ -121,7 +135,7 @@ class DeploySmokeTests(unittest.TestCase):
             self.boundaries[admin.server_port] = {'/api/me'}
             admin_url = 'http://127.0.0.1:' + str(admin.server_port)
             result = deploy_smoke.check(self.url, admin_url, 'a' * 40, 'test', server.ADMIN)
-            self.assertEqual(len(result['checks']), 24)
+            self.assertEqual(len(result['checks']), 28)
             self.boundaries[admin.server_port].clear()
             with self.assertRaisesRegex(deploy_smoke.SmokeFailure, 'admin-client-boundary'):
                 deploy_smoke.check(self.url, admin_url, 'a' * 40, 'test')

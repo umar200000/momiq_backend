@@ -427,7 +427,7 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if path == '/api/health' and self.command == 'GET':
             self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False,
-                             "mobileFeatures": ["booking-receipts-v1","home-visit-address-v1","wallet-receipts-v1","support-receipts-v1","private-video-report-v1","notice-read-receipts-v1"],
+                             "mobileFeatures": deployment_health.MOBILE_FEATURES,
                              "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN, 'releaseSha': RELEASE_SHA})
             return
         if path == '/api/ready' and self.command == 'GET':

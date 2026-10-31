@@ -1,8 +1,11 @@
 """Ordered, transactional SQLite upgrades, also usable on an offline copy."""
 import argparse
 import hashlib
+import math
+import os
 import sqlite3
 import tempfile
+import time
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
@@ -282,8 +285,12 @@ def migrate(con):
         raise
 
 
-def backup_database(source, destination):
+def backup_database(source, destination, *, timeout_seconds=None):
     """SQLite online backup includes committed WAL pages; never overwrite a backup."""
+    if timeout_seconds is None:
+        timeout_seconds=float(os.environ.get('MOMIQ_SQLITE_BACKUP_SECONDS','300'))
+    if not math.isfinite(timeout_seconds) or not 0 < timeout_seconds <= 3600:
+        raise ValueError('Invalid SQLite snapshot deadline')
     source, destination = Path(source).resolve(), Path(destination).resolve()
     if not source.is_file():
         raise ValueError('Source database does not exist')
@@ -292,9 +299,13 @@ def backup_database(source, destination):
     with destination.open('xb'):
         pass
     try:
-        with closing(sqlite3.connect(source.as_uri() + '?mode=ro', uri=True)) as src:
+        deadline=time.monotonic()+timeout_seconds
+        def check_deadline(status,remaining,total):
+            if time.monotonic()>=deadline:
+                raise TimeoutError('SQLite snapshot deadline elapsed')
+        with closing(sqlite3.connect(source.as_uri() + '?mode=ro', uri=True,timeout=min(1,timeout_seconds))) as src:
             with closing(sqlite3.connect(destination)) as dst:
-                src.backup(dst)
+                src.backup(dst,pages=256,progress=check_deadline,sleep=.05)
                 if dst.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
                     raise RuntimeError('Backup integrity check failed')
     except BaseException:

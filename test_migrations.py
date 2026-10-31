@@ -8,6 +8,21 @@ import migrations
 
 
 class MigrationTests(unittest.TestCase):
+    def test_locked_source_times_out_without_publishing_and_can_retry(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source=Path(folder)/'source.db';target=Path(folder)/'copy.db'
+            with closing(sqlite3.connect(source)) as writer:
+                writer.execute('CREATE TABLE example(value INTEGER)')
+                writer.execute('BEGIN EXCLUSIVE')
+                writer.execute('INSERT INTO example VALUES(1)')
+                with self.assertRaises(TimeoutError):
+                    migrations.backup_database(source,target,timeout_seconds=.15)
+                self.assertFalse(target.exists())
+                writer.commit()
+                migrations.backup_database(source,target)
+                with closing(sqlite3.connect(target)) as copy:
+                    self.assertEqual(copy.execute('SELECT * FROM example').fetchall(),[(1,)])
+
     def test_admin_revocation_upgrade_removes_only_orphans_and_rename_revokes(self):
         with closing(sqlite3.connect(':memory:')) as con:
             con.execute('CREATE TABLE users(id TEXT PRIMARY KEY)')
