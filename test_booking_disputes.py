@@ -20,6 +20,43 @@ import test_support_tickets
 
 
 class DisputeTests(unittest.TestCase):
+    def test_decision_appeal_is_owner_scoped_and_does_not_reopen_booking_or_refund_twice(self):
+        import support_tickets
+        b=self.act(self.request())
+        case=self.report(b)
+        def write(actor,body,ticket=None,admin=False):
+            with server.db() as con:return support_tickets.write(con,actor,ticket,body,server.photo,admin,'local')
+        data={'action':'reply','subject':'TEST appeal','topic':'dispute_appeal','bookingId':b['id'],
+              'text':'TEST please review','image':None,'revision':0,'requestId':secrets.token_hex(16),'appealRevision':1}
+        self.expect_error(404,lambda:write('customer',data))
+        closed=self.resolve(b,self.decision(case));rev=closed['case']['revision']
+        self.expect_error(409,lambda:write('customer',data))
+        data['appealRevision']=rev
+        self.expect_error(404,lambda:write('stranger',data))
+        opened=write('customer',data);identity=opened['ticket']['id']
+        self.assertEqual(write('customer',data)['acknowledgement'],opened['acknowledgement'])
+        self.assertEqual(opened['disputeAppeal']['revision'],rev)
+        with server.db() as con:
+            con.execute("INSERT INTO admins VALUES('test-support','00','00')")
+            con.execute("INSERT INTO admin_permissions VALUES('test-support','support',1)")
+            limited=support_tickets.view(con,identity,'test-support',True)
+            self.assertFalse(limited['canResolve'])
+            self.assertEqual(set(limited['disputeAppeal']),{'bookingId','revision','eventId'})
+            money=list(con.execute('SELECT * FROM wallet_entries ORDER BY id'))
+        reply={'action':'resolve','text':'TEST administrator response','image':None,'revision':1,'requestId':secrets.token_hex(16)}
+        self.expect_error(403,lambda:write('test-support',reply,identity,True))
+        self.expect_error(428,lambda:write('admin',reply,identity,True))
+        self.expect_error(409,lambda:write('admin',{**reply,'reviewedDisputeEventId':'0'},identity,True))
+        reply['reviewedDisputeEventId']=opened['disputeAppeal']['eventId']
+        result=write('admin',reply,identity,True)
+        self.assertEqual(result['ticket']['status'],'resolved')
+        self.assertEqual(write('admin',reply,identity,True)['acknowledgement'],result['acknowledgement'])
+        with server.db() as con:
+            self.assertEqual(list(con.execute('SELECT * FROM wallet_entries ORDER BY id')),money)
+            audit=json.loads(con.execute("SELECT target FROM audit WHERE action='support-resolve'").fetchone()[0])
+            self.assertEqual(audit['disputeEventId'],reply['reviewedDisputeEventId'])
+        self.assertEqual(self.read(b)['case'],closed['case'])
+
     setUp=fixtures.BookingEngineTests.setUp
     save=fixtures.BookingEngineTests.save
     review=fixtures.BookingEngineTests.review
@@ -229,6 +266,18 @@ class DisputeHttpTests(unittest.TestCase):
             decision={'revision':1,'bookingRevision':case['bookingRevision'],'outcome':'not_started','fault':'sitter','emergency':False,'refundMinor':case['refundableMinor'],'reason':'TEST admin verified','requestId':secrets.token_hex(16)}
             result=self.admin(admin_path+'/resolve',decision)
             self.assertEqual(result['bookingStatus'],'cancelled')
+            appeal={'action':'reply','text':'TEST review request','image':None,'revision':0,
+                   'subject':'Decision review','topic':'dispute_appeal','bookingId':b['id'],
+                   'appealRevision':result['case']['revision'],'requestId':secrets.token_hex(16)}
+            created=self.req('/api/support','POST',appeal,user='abc')
+            tid=created['ticket']['id'];ref=created['disputeAppeal']
+            self.assertEqual(ref['bookingId'],b['id'])
+            self.req('/api/support/'+tid,user='customer',status=404)
+            self.assertNotIn('TEST private complaint',json.dumps(created))
+            reviewed=self.admin('/api/admin/support/'+tid,{'action':'resolve','text':'TEST decision reviewed',
+                'revision':1,'image':None,'requestId':secrets.token_hex(16),'reviewedDisputeEventId':ref['eventId']})
+            self.assertEqual(reviewed['ticket']['status'],'resolved')
+            self.assertEqual(self.req('/api/support','POST',appeal,user='abc')['acknowledgement'],created['acknowledgement'])
             self.assertEqual(self.req(path,user='abc')['items'][0]['role'],'admin')
             self.assertEqual(self.admin('/api/admin/disputes?status=resolved')['items'][0]['bookingId'],b['id'])
             rows=self.admin('/api/admin/incidents')['items'];self.assertEqual(rows[0]['count30Days'],1)

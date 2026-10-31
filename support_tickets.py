@@ -31,6 +31,17 @@ def public(row):
     return {k:row[v] for k,v in [('id','id'),('bookingId','booking_id'),('subject','subject'),('topic','topic'),('status','status'),('revision','revision'),('created','created'),('updated','updated')]}
 
 
+def dispute_decision(con,booking):
+    # The existing schema makes the resolved case, its decision event and a
+    # ticket's booking/topic immutable. No private dispute evidence is copied.
+    row=con.execute("""SELECT d.booking_id,d.revision,d.outcome,d.reason,d.refund_minor,e.id
+        FROM booking_disputes d JOIN dispute_events e ON e.booking_id=d.booking_id AND e.revision=d.revision
+        WHERE d.booking_id=? AND d.status='resolved' AND e.role='admin' AND e.action='resolve'""",(booking,)).fetchone()
+    if not row:raise engine.BookingError(404,'Yakunlangan nizo qarori topilmadi')
+    return {'bookingId':row['booking_id'],'revision':row['revision'],'eventId':str(row['id']),
+            'outcome':row['outcome'],'reason':row['reason'],'refundMinor':row['refund_minor']}
+
+
 def cursor(handler):
     query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
     if set(query)-{'before','status'} or any(len(v)!=1 for v in query.values()):raise ValueError('Invalid support query')
@@ -47,11 +58,15 @@ def view(con,identity,user,admin=False,before=None):
     target=support_targets.detail(con,identity)
     video = con.execute("""SELECT v.id,v.day,v.slot FROM support_video_reports r
                            JOIN booking_videos v ON v.id=r.video_id WHERE r.ticket_id=?""",(identity,)).fetchone()
-    can_resolve=bool(admin and (not target or target['purpose']!='appeal' or operator_access.role_for(con,user)=='administrator'))
+    dispute=dispute_decision(con,row['booking_id']) if row['topic']=='dispute_appeal' else None
+    appeal=dispute is not None or (target and target['purpose']=='appeal')
+    can_resolve=bool(admin and (not appeal or operator_access.role_for(con,user)=='administrator'))
     resolutions=support_resolutions.message_rows(con,identity,rows[:20],admin)
     return {'ticket':public(row),'items':[{'id':str(m['id']),'revision':m['revision'],'authorRole':m['author_role'],'action':m['action'],'text':m['text'],'hasImage':bool(m['image']),'created':m['created'],**({'resolution':resolutions[m['id']]} if m['id'] in resolutions else {})} for m in reversed(rows[:20])],
             'nextCursor':str(rows[19]['id']) if len(rows)>20 else None,
             'target':target,'canResolve':can_resolve,
+            **({'disputeAppeal':dispute if not admin or can_resolve else
+                {k:dispute[k] for k in ('bookingId','revision','eventId')}} if dispute else {}),
             **({'videoReport':{'id':video['id'],'day':video['day'],'slot':video['slot']}} if video else {}),
             **({'decisionContext':support_resolutions.context(con,target)} if can_resolve and target and target['purpose']=='appeal' else {})}
 
@@ -81,9 +96,13 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     variants = [required, required | ({'target'} if creating else {'decisionVersion'})]
     if creating:
         variants.append(required | {'reportVideoId'})
+    else:
+        variants.append(required | {'reviewedDisputeEventId'})
     deletion_request = creating and isinstance(data, dict) and data.get('topic') == 'account_deletion'
     if deletion_request:
         variants = [required | {'confirmAccountRequest'}]
+    if creating and isinstance(data,dict) and data.get('topic')=='dispute_appeal':
+        variants=[required|{'appealRevision'}]
     if not isinstance(data,dict) or set(data) not in variants:
         raise ValueError('Invalid support fields')
     if deletion_request and (data['confirmAccountRequest'] is not True or data['bookingId'] is not None):
@@ -95,6 +114,10 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if action not in ('reply','resolve') or (action=='resolve' and (creating or not admin)):raise ValueError('Invalid support action')
     if 'decisionVersion' in data and (creating or not admin or action!='resolve'):raise ValueError('Decision version is only for appeal closure')
     body=text(data['text'],4000,action=='resolve')
+    if 'appealRevision' in data and (not body or type(data['appealRevision']) is not int or data['appealRevision']<1):
+        raise ValueError('Appeal requires the reviewed revision and a reason')
+    if 'reviewedDisputeEventId' in data and (not admin or action!='resolve'):
+        raise ValueError('Only the adjudicator may confirm a dispute decision')
     if 'reportVideoId' in data and (
             not body or data.get('topic')!='safety' or not data.get('bookingId') or
             not isinstance(data['reportVideoId'],str) or not re.fullmatch('[a-f0-9]{32}',data['reportVideoId'])):
@@ -107,18 +130,19 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if creating:
         subject=text(data['subject'],120,True)
         topic=data['topic'];booking=data['bookingId']
-        if topic not in ('general','booking','payment','account','safety','account_deletion'):raise ValueError('Invalid topic')
+        if topic not in ('general','booking','payment','account','safety','account_deletion','dispute_appeal'):raise ValueError('Invalid topic')
         if booking is not None and (not isinstance(booking,str) or not re.fullmatch(r'[a-f0-9]{32}',booking)):raise ValueError('Invalid booking')
-        if topic=='booking' and booking is None:raise ValueError('Booking required')
+        if topic in ('booking','dispute_appeal') and booking is None:raise ValueError('Booking required')
     fingerprint=engine.retry_key(data['requestId'],{'ticketId':identity,**data})
     key=('admin:' if admin else 'owner:')+user
     engine.begin(con)
     if not admin:engine.account(con,user)
     if not creating:row=ticket(con,identity,user,admin)
     existing_target=None
+    dispute_closure=admin and action=='resolve' and row['topic']=='dispute_appeal'
     if admin and action=='resolve':
         existing_target=support_targets.detail(con,identity)
-        if existing_target and existing_target['purpose']=='appeal' and operator_access.role_for(con,user)!='administrator':
+        if (dispute_closure or (existing_target and existing_target['purpose']=='appeal')) and operator_access.role_for(con,user)!='administrator':
             raise engine.BookingError(403,'Apellyatsiyani administrator ko‘rib chiqadi')
     previous=con.execute('SELECT * FROM support_requests WHERE actor=? AND request_id=?',(key,data['requestId'])).fetchone()
     if previous:
@@ -128,11 +152,21 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if existing_target and existing_target['purpose']=='appeal':
         decision=support_resolutions.checked_context(con,existing_target,data.get('decisionVersion'))
     elif 'decisionVersion' in data:raise ValueError('Decision version is only for appeal closure')
+    reviewed_event=None
+    if dispute_closure:
+        reviewed_event=dispute_decision(con,row['booking_id'])['eventId']
+        if 'reviewedDisputeEventId' not in data:raise engine.BookingError(428,'Nizo qarorini yangilang')
+        if data['reviewedDisputeEventId']!=reviewed_event:raise engine.BookingError(409,'Nizo qarori mos emas')
+    elif 'reviewedDisputeEventId' in data:raise ValueError('Ticket is not a dispute appeal')
     conversations.quota(con,key,'support',30 if admin else 10)
     current=datetime.now(timezone.utc).isoformat()
     if creating:
         if revision!=0:raise engine.BookingError(409,'Yangi murojaat versiyasi 0 bo‘lsin')
         if booking:engine.owned(con,booking,user)
+        if topic=='dispute_appeal':
+            engine.test_gate(con,environment)
+            if data['appealRevision']!=dispute_decision(con,booking)['revision']:
+                raise engine.BookingError(409,'Nizo qarori mos emas')
         if 'reportVideoId' in data:
             import video_retention
             engine.test_gate(con,environment)
@@ -154,7 +188,7 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     message=con.execute('INSERT INTO support_messages(ticket_id,revision,actor,author_role,action,text,image,created) VALUES(?,?,?,?,?,?,?,?)',(identity,revision+1,key,'support' if admin else 'owner',action,body,image,current)).lastrowid
     if decision:support_resolutions.attach(con,identity,message,decision,current)
     con.execute('INSERT INTO support_requests VALUES(?,?,?,?)',(key,data['requestId'],fingerprint,identity))
-    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'support-'+action,engine.encode({'ticketId':identity,'revision':revision+1,**({'resolutionMessageId':message,'decisionVersion':decision['version'],'sourceEvent':decision['sourceEvent']} if decision else {})}),current))
+    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'support-'+action,engine.encode({'ticketId':identity,'revision':revision+1,**({'resolutionMessageId':message,'decisionVersion':decision['version'],'sourceEvent':decision['sourceEvent']} if decision else {}),**({'resolutionMessageId':message,'disputeEventId':reviewed_event} if reviewed_event else {})}),current))
     if admin:notifications.publish(con,row['owner_id'],f'support:{identity}:{revision+1}','support',identity,state,'')
     return write_result(con,identity,user,admin,key,data)
 

@@ -83,8 +83,9 @@ def deadline(value):
 def can_escalate(con,actor,role,kind,item,state):
     return bool(role=='support' and kind=='support' and item['active'] and state['assignee'] in (None,actor)
                 and con.execute("""SELECT 1 FROM support_targets WHERE ticket_id=? AND kind IN ('listing','review')
-                                   UNION ALL SELECT 1 FROM support_video_reports WHERE ticket_id=? LIMIT 1""",
-                                (item['target'],item['target'])).fetchone())
+                                   UNION ALL SELECT 1 FROM support_video_reports WHERE ticket_id=?
+                                   UNION ALL SELECT 1 FROM support_tickets WHERE id=? AND topic='dispute_appeal' LIMIT 1""",
+                                (item['target'],item['target'],item['target'])).fetchone())
 
 
 def write(con,actor,role,kind,target,data,current,escalate=False):
