@@ -117,7 +117,7 @@ Root deploy skripti smoke muvaffaqiyatsiz bo‘lganda avvalgi relizni tanlaydi v
 
 ### Unpublished video files
 
-Run `python media_reconcile.py --data <instance> --mode <expected-environment>` as the service account. The report contains counts. To remove old unpublished derivatives, repeat with `--purge --min-age-hours 24 --limit 100` after reviewing the dry run. The tool acquires the maintenance lock and rechecks the ID against the database under the writer lock before unlinking only canonical playback/poster files. Recent files, unexpected contents, active staging folders and known video IDs remain available for separate inspection. This command was tested only on synthetic data. Interrupted raw-upload/transcoding directories require separate operator investigation.
+Run `python media_reconcile.py --data <instance> --mode <expected-environment>` as the service account. The report contains counts. To remove old unpublished derivatives, repeat with `--purge --min-age-hours 24 --limit 100` after reviewing the dry run. The tool acquires the maintenance lock and rechecks the ID against the database under the writer lock before unlinking only canonical playback/poster files. Recent files, unexpected contents, live workspaces and known video IDs are preserved. Current uploads and transcodes hold a cross-process lease. Old workspaces carrying this marker are eligible for cleanup only after a nonblocking exclusive lease succeeds and every member name/type is checked. Unmarked legacy workspaces require operator inspection. The command was exercised on synthetic data after actual child-process exits before and after commit.
 
 ### Encrypted backup transfer and isolated restore
 

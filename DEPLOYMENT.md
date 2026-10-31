@@ -186,3 +186,8 @@ Certbot may have added certificate paths, redirects and TLS listeners to the ins
 ### Supplying the Tashkent service area
 
 Set both `MOMIQ_AREA_FILE` (absolute local path) and `MOMIQ_AREA_SHA256` (lowercase SHA-256) before starting workers. The loader accepts a 2D GeoJSON Polygon or MultiPolygon, optionally inside one Feature, up to 4 MiB, with closed nondegenerate rings and longitude before latitude. Use topology-validated geometry in WGS84. A digest mismatch or malformed ring stops startup. The owner must approve the actual source, licence, revision and exact geometry before rollout. No production polygon ships in the repository. A point on the polygon boundary is admitted, holes exclude their interior. Local and test instances can run without a polygon. Restart all workers together when changing the approved digest.
+
+
+### Local Linux reverse-proxy verification
+
+Run `python tool/verify_proxy.py` with the pinned Python dependencies, Nginx and OpenSSL installed. CI runs this check using temporary loopback ports, a locally trusted temporary TLS certificate, the repository proxy snippets and an isolated database. It verifies both hostname boundaries, unauthenticated access, invalid Origin, actual operator cookie flags, revocation, oversized bodies, proxy-level throttling and redacted access logs. All credentials and processes belong to the fixture. Hosted staging provisioning remains deferred by the owner.

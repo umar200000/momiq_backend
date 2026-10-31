@@ -10,7 +10,7 @@ import json
 import re
 import secrets
 import shutil
-import tempfile
+import media_maintenance
 import threading
 import time
 from urllib.parse import parse_qs, urlparse
@@ -104,7 +104,7 @@ def store(con, root, identity, user, data, source, clock):
         return acknowledgement(old,identity)
     writable(con, identity, user, data, clock())
     root = media.private_directory(root)
-    with tempfile.TemporaryDirectory(prefix='.processing-', dir=root) as temporary:
+    with media_maintenance.workspace(root,'.processing-') as temporary:
         prepared = media.prepare(source, temporary)
         destination = None
         try:
@@ -265,7 +265,7 @@ def receive(handler, con, user, match, query, root, clock):
     conversations.quota(con,user,'video-upload',6)
     con.commit()
     upload_root = media.private_directory(root)
-    with tempfile.TemporaryDirectory(prefix='.upload-',dir=upload_root) as folder:
+    with media_maintenance.workspace(upload_root,'.upload-') as folder:
         source = Path(folder)/'source.mp4'
         with source.open('wb') as stream:
             remaining = int(length)

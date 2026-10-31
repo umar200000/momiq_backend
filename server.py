@@ -397,7 +397,9 @@ class Handler(BaseHTTPRequestHandler):
     def handle_request(self):
         path = urlparse(self.path).path
         origin = self.headers.get("Origin")
-        if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
+        host = self.headers.get('Host', '')
+        allowed_origins = (f'https://{host}',) if PRODUCTION else (f'https://{host}', f'http://{host}')
+        if origin is not None and (not host or origin not in allowed_origins):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if path == '/api/health' and self.command == 'GET':
             self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False,

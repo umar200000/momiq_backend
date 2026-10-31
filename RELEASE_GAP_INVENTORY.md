@@ -64,9 +64,9 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M101 | Quote, buyurtma, asosiy qarorlar, ro‘yxat, top-up va public-photo murojaati shartnomasi kengaydi. | Support receipt va hosted mobil capability tekshirildi. Qolgan endpointlar va tarixiy versiyalarning keng moslik auditi ochiq. |
 | M102 | Eski hamyon sessiyasining kech javobi, begonaga tegishli tasdiq va source almashishi rad etiladi. | Barcha obyekt/rol kombinatsiyasi va yangi hosted build bo‘yicha qabul. |
 | M103 | Noto‘g‘ri bron query, summa/dalil tasdig‘i, maxfiy media linklari va buzilgan javoblar tekshirildi. | Qolgan endpoint/upload qamrovi va haqiqiy proxy limitlari. |
-| M104 | Lokal private media va bundle fayllari yo‘llari himoyalandi. | Object storage provayderi, bucket, kalitlar, migratsiya va yetim obyektlarni tozalash. |
+| M104 | Lokal private media, lease bilan himoyalangan vaqtinchalik fayllar va yetim derivativlar haqiqiy process-exit bilan tekshirildi. | Object storage provayderi, bucket, kalitlar, migratsiya va yetim obyektlarni tozalash. |
 | M105 | Noaniq chek takrori asl dalilni saqlaydi. Kredit va tuzatish process-exitdan keyin qayta tekshirildi. | Hosted worker/service restart va tashqi xizmat uzilishi qabuli. |
-| M106 | Ochiq domenlarda anonim hisob/admin hamda begona origin o‘qishlari rad etildi. | Reliz versiyasida haqiqiy cookie, CSRF va rate-limit qabul sinovlari. |
+| M106 | Ochiq domenlarda anonim hisob/admin hamda begona origin o‘qishlari rad etildi. | Haqiqiy Nginx/Gunicorn va TLS bilan cookie/CSRF/rate-limit lokal Linux’da tekshirildi. Reliz domenida hosted qabul stagingdan keyin. |
 | M107 | CI’da history va dependency skanlari, lock va litsenziya dalillari mavjud. | Kalit egasi va rotatsiya, provayder cheklovlari, native/asset litsenziyalari. |
 | M108 | Hisob o‘chirish murojaati va tiklangan moliyaviy ma’lumot tekshiruvi mavjud. | Eksport, haqiqiy o‘chirish, retention, rozilik va backupdan qayta ochilishni to‘sish. |
 | M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Qolgan qism root deploy skriptini o‘rnatish va hosted juftlikni tasdiqlash. |

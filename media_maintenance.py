@@ -8,13 +8,16 @@ import os
 import stat
 from pathlib import Path
 import time
+from tempfile import TemporaryDirectory
+
+LOCK_NAME = '.media-maintenance.lock'
 
 
 @contextmanager
-def lock(root, timeout=30):
+def lock(root, timeout=30, *, create=True):
     root=Path(root).resolve()
-    path=root/'.media-maintenance.lock'
-    flags = os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+    path=root/LOCK_NAME
+    flags = (os.O_CREAT if create else 0) | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
     descriptor=os.open(path,flags,0o600)
     with os.fdopen(descriptor,'r+b') as stream:
         info = os.fstat(descriptor)
@@ -54,3 +57,10 @@ def lock(root, timeout=30):
             else:
                 import fcntl
                 fcntl.flock(stream.fileno(),fcntl.LOCK_UN)
+
+
+@contextmanager
+def workspace(root, prefix):
+    with TemporaryDirectory(prefix=prefix,dir=root) as temporary:
+        with lock(temporary):
+            yield temporary

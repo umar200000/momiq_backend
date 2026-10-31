@@ -5,6 +5,8 @@ import hashlib
 import json
 import time
 import sqlite3
+import os
+import sys
 import subprocess
 import unittest
 import threading
@@ -20,6 +22,43 @@ import video_media
 
 
 class BookingVideoTests(unittest.TestCase):
+    def test_process_exit_at_publication_recovers_files_and_original_request(self):
+        import media_reconcile
+        booking, source, data = self.active(), self.source(), self.data()
+        instant = self.start + timedelta(hours=1)
+        script = """
+import json,os,sys
+from datetime import datetime
+from pathlib import Path
+import booking_videos,server
+stage,booking,source,data,clock=json.loads(sys.stdin.read())
+original=server.ClosingConnection.commit
+def stop(con):
+    if stage=='after':original(con)
+    os._exit(73)
+server.ClosingConnection.commit=stop
+with server.db() as con:
+    booking_videos.store(con,server.DATA,booking,'abc',data,Path(source),lambda:datetime.fromisoformat(clock))
+"""
+        root = server.DATA/'care-videos'
+        for stage in ('before','after'):
+            result=subprocess.run([sys.executable,'-c',script],capture_output=True,text=True,timeout=30,
+                                  env={**os.environ,'MOMIQ_DATA_DIR':str(server.DATA),'MOMIQ_ENV':server.ENVIRONMENT},
+                                  input=json.dumps([stage,booking['id'],str(source),data,instant.isoformat()]))
+            self.assertEqual(result.returncode,73,result.stderr)
+            old=time.time()-3*86400
+            for folder in root.iterdir():
+                for path in [*folder.iterdir(),folder]:
+                    os.utime(path,(old,old))
+            report=media_reconcile.reconcile(server.DATA,server.ENVIRONMENT,purge=True)
+            self.assertEqual(report['temporaryPurged'],1)
+            self.assertEqual(report['purged'],int(stage=='before'))
+            self.assertEqual(report['referenced'],int(stage=='after'))
+        retry=self.upload(booking,data,source)
+        self.assertEqual([f.name for f in root.iterdir()],[retry['id']])
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_videos').fetchone()[0],1)
+            self.assertEqual(con.execute("SELECT count(*) FROM audit WHERE action='care-video'").fetchone()[0],1)
     def test_lost_commit_acknowledgement_keeps_the_published_files(self):
         import media_reconcile
         booking, source, data = self.active(), self.source(), self.data()

@@ -52,7 +52,7 @@ jobs:
       - name: Install video and encrypted recovery test tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg age
+          sudo apt-get install -y --no-install-recommends ffmpeg age nginx
       - name: Resolve the exact tested admin revision
         id: admin_pair
         run: |
@@ -71,6 +71,8 @@ jobs:
           MOMIQ_ADMIN_DIR: ${{ github.workspace }}/admin-fixture
       - name: Verify isolated load fixture and HTTP workload
         run: python tool/load_test.py --accounts 20 --active 2 --cycles 1 --output "${{ runner.temp }}/momiq-load-smoke.json"
+      - name: Verify Nginx TLS and Gunicorn on isolated loopback ports
+        run: python tool/verify_proxy.py
       - name: Check each deployment script
         run: |
           for script in deploy/momiq-deploy deploy/momiq-deploy-entry deploy/bootstrap.sh; do
