@@ -459,15 +459,22 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/admin/login" and self.command == "POST":
                 data = self.body()
+                if urlparse(self.path).query or set(data) != {'username', 'password'}:
+                    raise ValueError('Unexpected operator login fields')
                 self.throttle(con, "admin:" + self.client_ip())
-                # Serialize credential verification and issuance with revocation.
+                username = string(data['username'])
+                password = string(data['password'], 200)
+                row = con.execute("SELECT salt,hash FROM admins WHERE username=?", (username,)).fetchone()
+                usable = row and re.fullmatch(r'(?:[0-9a-fA-F]{2})+', row['salt']) and re.fullmatch(r'[0-9a-f]{64}', row['hash'])
+                # Apply the same expensive check to unknown names, without blocking database writers.
+                digest = password_hash(password, row['salt'] if usable else '0' * 32)
+                if not hmac.compare_digest(digest, row['hash'] if usable else '0' * 64) or not usable:
+                    raise ApiError(401,"Login yoki parol noto‘g‘ri")
                 con.execute('BEGIN IMMEDIATE')
-                row = con.execute("SELECT * FROM admins WHERE username=?", (string(data.get("username","")),)).fetchone()
-                if not row or not hmac.compare_digest(row["hash"],password_hash(string(data.get("password",""),200),row["salt"])):
+                current = con.execute("SELECT salt,hash FROM admins WHERE username=?", (username,)).fetchone()
+                if current != row or not operator_access.role_for(con, username):
                     raise ApiError(401,"Login yoki parol noto‘g‘ri")
-                if not operator_access.role_for(con,row['username']):
-                    raise ApiError(401,"Login yoki parol noto‘g‘ri")
-                token = self.session(con,row["username"],"admin")
+                token = self.session(con, username, "admin")
                 con.commit()
                 self.reply(200, {"ok":True}, "momiq_admin="+token+"; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=604800")
                 return

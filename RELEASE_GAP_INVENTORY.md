@@ -69,7 +69,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M106 | Ochiq domenlarda anonim hisob/admin hamda begona origin o‘qishlari rad etildi. | Reliz versiyasida haqiqiy cookie, CSRF va rate-limit qabul sinovlari. |
 | M107 | CI’da history va dependency skanlari, lock va litsenziya dalillari mavjud. | Kalit egasi va rotatsiya, provayder cheklovlari, native/asset litsenziyalari. |
 | M108 | Hisob o‘chirish murojaati va tiklangan moliyaviy ma’lumot tekshiruvi mavjud. | Eksport, haqiqiy o‘chirish, retention, rozilik va backupdan qayta ochilishni to‘sish. |
-| M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Majburiy GitHub checks bo‘yicha egasining tanlovi va root deploy skriptini o‘rnatish. |
+| M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Qolgan qism root deploy skriptini o‘rnatish va hosted juftlikni tasdiqlash. |
 | M110 | Draft PR va testlangan backend/admin juftligi mavjud. | Alohida stagingdan aynan sinovdan o‘tgan artefaktni productionga chiqarish. |
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
 | M112 | Preview’da yettita read-only smoke va baza yaxlitligi tekshirildi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |

@@ -3,6 +3,7 @@ import json
 import secrets
 import time
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -18,8 +19,8 @@ class AdminSessionTests(unittest.TestCase):
     req=fixtures.AdminBookingTests.req
     admin=fixtures.AdminBookingTests.admin
 
-    def login(self,password,status=200):
-        request=Request(self.base+'/api/admin/login',data=json.dumps({'username':'TEST operator','password':password}).encode(),
+    def login(self,password,status=200,username='TEST operator'):
+        request=Request(self.base+'/api/admin/login',data=json.dumps({'username':username,'password':password}).encode(),
                         headers={'Content-Type':'application/json'})
         try: response=urlopen(request)
         except HTTPError as error: response=error
@@ -31,6 +32,26 @@ class AdminSessionTests(unittest.TestCase):
                 self.assertIn('SameSite=Strict',cookie)
                 self.admin_token=cookie.split(';')[0].split('=',1)[1]
             else:self.assertIsNone(cookie)
+
+    def test_login_hashing_allows_revocation_and_unknown_names_get_one_hash(self):
+        salt = secrets.token_hex(16)
+        original = server.password_hash
+        digest = original('TEST before rotation', salt)
+        updated = original('TEST after rotation', salt)
+        with server.db() as con:
+            con.execute("UPDATE admins SET salt=?,hash=? WHERE username='TEST operator'", (salt, digest))
+        def rotate_during_check(value, checked_salt):
+            with server.db() as writer:
+                writer.execute('PRAGMA busy_timeout=50')
+                writer.execute("UPDATE admins SET hash=? WHERE username='TEST operator'", (updated,))
+            return original(value, checked_salt)
+        with patch.object(server, 'password_hash', side_effect=rotate_during_check) as derive:
+            self.login('TEST before rotation', status=401)
+            self.assertEqual(derive.call_count, 1)
+        with patch.object(server, 'password_hash', wraps=original) as derive:
+            self.login('TEST before rotation', status=401, username='unknown TEST operator')
+            self.assertEqual(derive.call_count, 1)
+        self.login('TEST after rotation')
 
     def test_delete_recreate_and_orphan_tokens_never_restore_admin_access(self):
         self.admin('/api/admin/users')
