@@ -81,7 +81,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M122 | Store review qoralamasida hisob o‘chirish murojaati sinov yo‘li yangilandi. | Haqiqiy screenshot, support/privacy/delete URL va review kirishi. |
 | M123 | Yangi foto shikoyati va hisob so‘rovi uchun uch tilda matn bor. Rozilik izohi 320 × 640 ekranda 2× shrift bilan uch tilda accessibility daraxti va bosish orqali sinaldi. | Barcha ekranlarda real screen reader, kontrast, klaviatura va OS ruxsatlari. |
 | M124 | Noto‘g‘ri tasdiq yoki eskirgan sessiya chek qoralamasini muvaffaqiyat deb o‘chirmaydi. | Haqiqiy offline, fon va qurilma restartidan keyingi to‘liq oqimlar. |
-| M125 | CI’da Android QA va imzosiz iOS simulator paketlari saqlanadi. | Release artefakti, symbol, minimal versiya va bosqichli pilot. |
+| M125 | QA paketidan o‘qilgan ID, versiya, build va minimal OS manifestga yoziladi. Android target SDK ham saqlanadi. | Release artefakti, symbol, minimal versiya va bosqichli pilot. |
 | M128 | Alohida komponentlar fixture va CI’da ishlaydi. | Ikki qurilma va admin bilan bitta yakuniy E2E oqimi. |
 | M129 | Rad, timeout, retry, begona hisob, qaror, no-show va komissiya holatlarida regressiyalar bor. | Real qurilmadagi muqobil oqimlar va siyosatga bog‘liq hisob amallari. |
 | M130 | Haqiqiy child jarayon uzilganda top-up krediti va tuzatish takrorlanmasligi sinaldi. | Hosted deploy/DB, provider va storage uzilishi mashqi. |

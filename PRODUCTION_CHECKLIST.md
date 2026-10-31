@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-10-31. Joriy 49 band bo‘yicha tekshiruvlar
 
+- [x] **M125 QA paketlari.** Android APK manifestidan ilova ID, versiya nomi, build raqami, minSdk va targetSdk o‘qiladi. iOS simulator paketidan bundle ID, versiya, build va minimal OS olinadi. ID yoki versiya loyiha bilan mos kelmasa artefakt saqlanmaydi. 11 ta packaging/dependency vositasi testi o‘tdi. Lokal emulyator uchun oldingi x86 APK ARM64 tekshiruvida kutilganidek rad etildi. Platforma CI o‘ziga tegishli haqiqiy binarni tekshiradi. Signing yakuniy navbatda.
+
 - [x] **M024/M066/M123.** 320 × 640 ekranda ikki baravar shrift bilan qoldiq haqidagi izoh va checkbox bitta haddan tashqari baland element bo‘lib qolgan edi. Izohni rozilikdan oldin alohida o‘qiladigan elementga ajratdik. Uch tilda izoh accessibility daraxtida ko‘rinishi, foydalanuvchi rozilikkacha siljitib belgilay olishi va noaniq so‘rov aynan takrorlanishi tekshirildi.
 
 - [x] **M008/M009/M024/M066.** Hisob o‘chirish murojaatida enaga qoldig‘i qaytarilmasligi tasdiqlash oldidan uch tilda ko‘rsatiladi. Forma testi izohning o‘zbekcha matni va roziliksiz yuborish blokini tekshirdi. Preview qayta ishga tushgach `start.ps1` chaqiruvchining avval mavjud bo‘lmagan muhit kalitlarini bo‘sh satrga aylantirgani sabab Python portni o‘qiy olmadi. Launcher endi mavjud qiymatlarni tiklaydi va avval mavjud bo‘lmaganlarini olib tashlaydi. Ishlayotgan preview orqali takroriy chaqiruvda to‘rtta yo‘q qiymat va bitta eski qiymat saqlandi, odatiy backend importi muvaffaqiyatli o‘tdi.
