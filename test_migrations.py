@@ -91,6 +91,23 @@ class MigrationTests(unittest.TestCase):
                     migrations.migrate(con)
             self.assertEqual(con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall(), [])
 
+    def test_gap_in_applied_history_is_not_silently_replayed(self):
+        with closing(sqlite3.connect(':memory:')) as con:
+            con.execute('CREATE TABLE users(id TEXT PRIMARY KEY)')
+            migrations.migrate(con)
+            with con:con.execute('DELETE FROM schema_migrations WHERE version=1')
+            original=list(con.iterdump())
+            with self.assertRaisesRegex(RuntimeError,'gap'):migrations.migrate(con)
+            self.assertEqual(list(con.iterdump()),original)
+
+    def test_invalid_foreign_key_rolls_back_even_with_foreign_keys_disabled(self):
+        steps=((1,'fixture',('CREATE TABLE parent(id INTEGER PRIMARY KEY)',
+                            'CREATE TABLE child(ref INTEGER REFERENCES parent(id))',
+                            'INSERT INTO child VALUES(1)')),)
+        with closing(sqlite3.connect(':memory:')) as con, patch.object(migrations,'MIGRATIONS',steps):
+            with self.assertRaisesRegex(RuntimeError,'foreign keys'):migrations.migrate(con)
+            self.assertEqual(con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall(),[])
+
     def test_changed_or_unknown_migration_rejected(self):
         with closing(sqlite3.connect(':memory:')) as con:
             con.execute('CREATE TABLE users(id TEXT PRIMARY KEY)')

@@ -55,7 +55,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M082 | Bron, chat, parvarish, moliya va moderatsiya uchun tranzaksion ichki xabar sinovlari mavjud. | Tashqi yuborish navbati, retry va deduplikatsiyani provider bilan tasdiqlash. |
 | M083 | Serverdagi afzalliklar va tranzaksion ichki tarix izohi mobil testlarda. | OS ruxsatlari va push sozlamalari birga sinalishi kerak. |
 | M084 | Ichki xabardan manbaga o‘tish va sessiya invalidatsiyasi testlangan. | OS orqali fon/yopiq holatdan kirish, o‘chgan obyekt va login qabuli. |
-| M085 | Ichki tarix, o‘qish tasdig‘i va sahifalash testlangan. | Provider yetkazish natijasi, retry va lock-screen maxfiyligi. |
+| M085 | O‘qish tasdig‘i asl ID, vaqt va umumiy hisobga bog‘langan. Sahifa ID lari qat’iy kamayishi tekshirildi. | Provider yetkazish natijasi, retry va haqiqiy lock-screen qabuli. |
 | M090 | Ommaviy profil/uy rasmiga shikoyat ko‘rilgan rasmning slot va xeshiga bog‘landi. | Xususiy hisobot uchun aniq video va bron bilan shikoyat hamda admin ko‘rigi ulandi. Dalil saqlash siyosati, qolgan apellyatsiyalar va haqiqiy operator navbati qabuli ochiq. |
 | M092 | Support, moliya, moderatsiya va administrator ruxsat testlari mavjud. | MFA, kirishni tiklash va haqiqiy shaxsiy operator hisoblari. |
 | M097 | To‘lov qarorining takrori asl operator bilan bog‘landi. O‘qish va yozish auditi tekshirildi. | Audit saqlash muddati, arxiv kirishi va hosted nazorati. |
@@ -74,8 +74,8 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
 | M112 | Preview’da sakkizta HTTP tekshiruvi, schema 28, tashqi kalitlar va 60 jadval mazmuni tekshirildi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
 | M113 | Uchta deploy/bootstrap skriptining har biri Bash sintaksis tekshiruvidan o‘tkaziladi. | Hostdagi systemd/nginx, firewall, TLS yangilanishi va filesystem huquqlari. |
-| M114 | Tasdiqlangan nusxani age orqali shifrlash, buzilgan ciphertextni rad etish va offline restore sinaldi. | Alohida joydagi shifrlangan nusxa, kalit egasi, retention va signal. |
-| M115 | Vaqtinchalik katalogga tiklash, media xeshi, hamyon va jurnal solishtiruvi sinaldi. | Haqiqiy offsite nusxa bilan RPO/RTO, o‘chirilgan hisoblar va operator mashqi. |
+| M114 | Nusxani shifrlash, alohida ulangan diskka uzatish, qayta o‘qish va dublikatsiz retry sintetik ma’lumot bilan tekshirildi. | Haqiqiy offsite manzil, kalit egasi, storage retention va tashqi signal. |
+| M115 | Sinov diskidan qaytarilgan nusxada hamyonlar, tushum va bron komissiyalari yarashtirildi. Tiklashning vaqt chegarasi oshishi alohida exit kod beradi. | Haqiqiy offsite nusxa bilan RPO/RTO, o‘chirilgan hisoblar va operator mashqi. |
 | M116 | Log kesimi uchun chegara ichida, oshgan va dalil yetishmaydigan holatlar CLI exit kodlari bilan ajratildi. | Monitoring manzili, alert egasi, mobil crash va real signal. |
 | M117 | Tiklash, moliyaviy uzilish, threshold va rollback amallari operatsion yo‘riqnomada. | Mas’ullar, amaliy incident mashqi, xarajat va provayder limitlari. |
 | M122 | Store review qoralamasida hisob o‘chirish murojaati sinov yo‘li yangilandi. | Haqiqiy screenshot, support/privacy/delete URL va review kirishi. |
@@ -84,6 +84,6 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M125 | QA paketidan o‘qilgan ID, versiya, build va minimal OS manifestga yoziladi. Android target SDK ham saqlanadi. | Release artefakti, symbol, minimal versiya va bosqichli pilot. |
 | M128 | Alohida komponentlar fixture va CI’da ishlaydi. | Ikki qurilma va admin bilan bitta yakuniy E2E oqimi. |
 | M129 | Rad, timeout, retry, begona hisob, qaror, no-show va komissiya holatlarida regressiyalar bor. | Real qurilmadagi muqobil oqimlar va siyosatga bog‘liq hisob amallari. |
-| M130 | Haqiqiy child jarayon uzilganda top-up krediti va tuzatish takrorlanmasligi sinaldi. | Hosted deploy/DB, provider va storage uzilishi mashqi. |
+| M130 | Haqiqiy Gunicorn workeri moliyaviy commit oldida va keyin uzilgach, ayni HTTP so‘rovini qayta yuborish bitta kredit, tarix, audit va xabar bilan tugadi. | Hosted deploy/DB, provider va storage uzilishi mashqi. |
 | M131 | Izolyatsiyalangan HTTP yuklama, katalog, media va xavfsizlik testlari mavjud. | Kelishilgan Android/iOS qurilmalar matritsasi, mobil tarmoq va hosted yuklama sinovi. |
 | M133 | API, deploy, operatsion, test chegaralari, store va ushbu 49 band dalillari yangilandi. | Pilotdan oldin ochiq bandlar, mock/placeholder inventari va yakuniy hujjat auditi. |

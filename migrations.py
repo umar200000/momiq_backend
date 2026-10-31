@@ -259,6 +259,8 @@ def migrate(con):
         applied = dict(con.execute('SELECT version, checksum FROM schema_migrations'))
         if set(applied) - {item[0] for item in MIGRATIONS}:
             raise RuntimeError('Database schema is newer than this application')
+        if set(applied) != {item[0] for item in MIGRATIONS[:len(applied)]}:
+            raise RuntimeError('Database migration history contains a gap')
         completed = []
         for version, name, statements in MIGRATIONS:
             digest = hashlib.sha256('\n'.join(statements).encode()).hexdigest()
@@ -271,6 +273,8 @@ def migrate(con):
             con.execute('INSERT INTO schema_migrations VALUES(?,?,?,?)',
                         (version, name, digest, datetime.now(timezone.utc).isoformat()))
             completed.append(version)
+        if completed and con.execute('PRAGMA foreign_key_check').fetchone():
+            raise RuntimeError('Migration would leave invalid foreign keys')
         con.commit()
         return completed
     except BaseException:

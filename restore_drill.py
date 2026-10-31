@@ -80,23 +80,67 @@ def rehearse(bundle, mode):
                 JOIN topup_requests t ON t.id=c.topup_id
                 WHERE credit.source_key<>'topup:'||t.id OR debit.source_key<>'topup-correction:'||c.id
                    OR debit.kind<>'topup_correction' OR debit.amount_minor<>-c.amount_minor
-                   OR c.user_id<>t.user_id OR debit.user_id<>t.user_id OR debit.actor<>c.actor LIMIT 1""").fetchone():
+                   OR c.user_id<>t.user_id OR debit.user_id<>t.user_id OR debit.actor<>c.actor
+                UNION ALL SELECT 1 FROM wallet_entries e
+                WHERE (e.kind='topup_correction' OR e.source_key GLOB 'topup-correction:*')
+                  AND NOT EXISTS(SELECT 1 FROM wallet_corrections c WHERE c.entry_id=e.id)
+                LIMIT 1""").fetchone():
                 raise ValueError('Restored top-up correction and debit disagree')
+            if con.execute("""
+                WITH agreements AS (
+                    SELECT b.id,b.sitter_id,json_extract(q.snapshot,'$.price.commission_minor') fee
+                    FROM bookings b JOIN booking_quotes q ON q.id=b.quote_id
+                    WHERE EXISTS(SELECT 1 FROM booking_events e WHERE e.booking_id=b.id AND e.action='accept')
+                ), expected(source_key,user_id,amount_minor,kind,actor) AS (
+                    SELECT 'booking:'||id||':commission',sitter_id,-fee,'commission',sitter_id
+                    FROM agreements WHERE fee>0
+                    UNION ALL
+                    SELECT 'booking:'||a.id||':refund',a.sitter_id,a.fee,'commission_refund',e.actor
+                    FROM agreements a JOIN booking_events e ON e.booking_id=a.id
+                    WHERE e.action='cancel' AND a.fee>0
+                    UNION ALL
+                    SELECT 'booking:'||a.id||':refund',a.sitter_id,d.refund_minor,'commission_refund',e.actor
+                    FROM agreements a JOIN booking_disputes d ON d.booking_id=a.id
+                    JOIN booking_events e ON e.booking_id=a.id AND e.action='resolve_dispute'
+                    WHERE d.status='resolved' AND d.refund_minor>0
+                ), actual AS (
+                    SELECT source_key,user_id,amount_minor,kind,actor FROM wallet_entries
+                    WHERE kind IN ('commission','commission_refund') OR source_key GLOB 'booking:*'
+                )
+                SELECT * FROM (SELECT * FROM expected EXCEPT SELECT * FROM actual)
+                UNION ALL SELECT * FROM (SELECT * FROM actual EXCEPT SELECT * FROM expected)
+                LIMIT 1""").fetchone():
+                raise ValueError('Restored booking commission disagrees with the agreement or refund decision')
             wallets = con.execute('SELECT COUNT(*) FROM wallet_accounts').fetchone()[0]
             entries = con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0]
     return {'schema':schema, 'schemaBefore':before, 'migrationsApplied':applied,
             'mediaFiles':result['mediaFiles'], 'walletAccounts':wallets,
             'journalEntries':entries, 'reconciled':True,
-            'snapshotAgeSeconds':round((now-created).total_seconds(), 2),
-            'drillSeconds':round(time.monotonic()-started, 3)}
+            'snapshotAgeSeconds':(now-created).total_seconds(),
+            'drillSeconds':time.monotonic()-started}
+
+
+def recovery_status(result, max_snapshot_age_seconds, max_drill_seconds):
+    limits={'snapshotAgeSeconds':max_snapshot_age_seconds,'drillSeconds':max_drill_seconds}
+    breached=[]
+    for metric,limit in limits.items():
+        if limit is None:continue
+        if limit<0:raise ValueError('Recovery limit must be non-negative')
+        if result[metric]>limit:breached.append(metric)
+    return {'breached':breached,'limits':{k:v for k,v in limits.items() if v is not None}}
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bundle', type=Path, required=True)
     parser.add_argument('--mode', choices=('local','test','staging','production'), required=True)
+    parser.add_argument('--max-snapshot-age-seconds',type=int)
+    parser.add_argument('--max-drill-seconds',type=int)
     args = parser.parse_args()
     try:
-        print(json.dumps(rehearse(args.bundle, args.mode)))
+        result=rehearse(args.bundle, args.mode)
+        status=recovery_status(result,args.max_snapshot_age_seconds,args.max_drill_seconds)
+        print(json.dumps({**result,**status}))
+        if status['breached']:raise SystemExit(2)
     except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
         parser.exit(1, 'Offline restore verification failed\n')

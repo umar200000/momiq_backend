@@ -54,6 +54,6 @@ def route(handler, con, user, path):
         read_at=con.execute('SELECT read_at FROM notifications WHERE id=? AND user_id=?',(int(match[1]),user)).fetchone()[0]
         unread=con.execute('SELECT COUNT(*) FROM notifications WHERE user_id=? AND read_at IS NULL',(user,)).fetchone()[0]
         con.commit()
-        handler.reply(200, {'ok': True,'readAt':read_at,'unreadCount':unread})
+        handler.reply(200, {'ok': True,'noticeId':match[1],'readAt':read_at,'unreadCount':unread})
         return True
     return False

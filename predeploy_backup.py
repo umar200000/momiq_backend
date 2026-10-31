@@ -43,6 +43,10 @@ def create(data, backup_root, revision, mode):
     name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + secrets.token_hex(4)
     target = backup_root / name
     verified = backup_bundle.create(data, target)
+    snapshot = backup_bundle.bundle_file(target,'momiq.sqlite3')
+    with closing(sqlite3.connect(snapshot.as_uri()+'?mode=ro&immutable=1',uri=True)) as con:
+        if known_schema(con,mode) != version:
+            raise ValueError('Database schema changed during pre-migration backup')
     return {'releaseSha': revision, 'backupName': name, 'schemaBefore': version, 'verified': verified}
 
 

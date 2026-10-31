@@ -16,6 +16,20 @@ import server
 
 
 class PredeployBackupTests(unittest.TestCase):
+    def test_environment_swap_between_precheck_and_snapshot_blocks_upgrade(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data=Path(tmp)/'runtime'
+            with patch.object(server,'DATA',data), patch.object(server,'ENVIRONMENT','test'):
+                server.setup()
+                create=backup_bundle.create
+                def changed(directory,target):
+                    with server.db() as con:
+                        con.execute("UPDATE runtime_metadata SET value='local' WHERE key='environment'")
+                    return create(directory,target)
+                with patch.object(backup_bundle,'create',side_effect=changed):
+                    with self.assertRaisesRegex(ValueError,'environment'):
+                        predeploy_backup.create(data,Path(tmp)/'backups','a'*40,'test')
+
     def test_old_known_schema_is_backed_up_without_migration_or_source_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); data = root / 'runtime'; backups = root / 'backups'

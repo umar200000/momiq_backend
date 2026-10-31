@@ -10,6 +10,34 @@ import wallet
 
 
 class RestoreDrillTests(unittest.TestCase):
+    def test_recovery_thresholds_use_observed_values_without_rounding_or_assumed_slos(self):
+        metrics={'drillSeconds':1.0001,'snapshotAgeSeconds':60}
+        self.assertEqual(restore_drill.recovery_status(metrics,None,None),{'breached':[],'limits':{}})
+        self.assertEqual(restore_drill.recovery_status(metrics,60,1)['breached'],['drillSeconds'])
+        self.assertEqual(restore_drill.recovery_status(metrics,59,2)['breached'],['snapshotAgeSeconds'])
+        with self.assertRaises(ValueError):restore_drill.recovery_status(metrics,-1,None)
+
+    def test_balanced_journal_cannot_hide_unearned_booking_refund_or_unlinked_correction(self):
+        import seed_scenarios
+        import sqlite3
+        from contextlib import closing
+        for kind,source,value,message in (
+                ('commission_refund','booking:'+'f'*32+':refund',10,'booking commission'),
+                ('topup_correction','topup-correction:'+'e'*32,-10,'correction and debit')):
+            with self.subTest(kind=kind), TemporaryDirectory() as tmp:
+                root=Path(tmp)
+                seed_scenarios.build(root/'data',payments=True)
+                backup_bundle.create(root/'data',root/'before')
+                self.assertTrue(restore_drill.rehearse(root/'before','test')['reconciled'])
+                with closing(sqlite3.connect(root/'data'/'momiq.sqlite3')) as con, con:
+                    con.row_factory=sqlite3.Row
+                    owner=con.execute('SELECT user_id FROM wallet_accounts WHERE balance_minor>=10 LIMIT 1').fetchone()[0]
+                    con.execute('BEGIN IMMEDIATE')
+                    wallet.post_entry(con,owner,value,kind,source,'operator','TEST corrupted link')
+                backup_bundle.create(root/'data',root/'after')
+                with self.assertRaisesRegex(ValueError,message):
+                    restore_drill.rehearse(root/'after','test')
+
     def test_preupgrade_backup_migrates_only_its_disposable_restore(self):
         import migrations
         with TemporaryDirectory() as tmp:

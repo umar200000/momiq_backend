@@ -62,9 +62,10 @@ def bundle_file(folder, relative):
     return path
 
 
-def verify(folder):
+def verify(folder, *, manifest=None):
     folder=Path(folder).resolve()
-    manifest=json.loads(bundle_file(folder,'manifest.json').read_text(encoding='utf-8'))
+    if manifest is None:
+        manifest=json.loads(bundle_file(folder,'manifest.json').read_text(encoding='utf-8'))
     database=bundle_file(folder,'momiq.sqlite3')
     if manifest.get('version')!=1 or digest(database)!=manifest.get('databaseSha256'):
         raise ValueError('Backup manifest/database mismatch')
@@ -80,10 +81,11 @@ def verify(folder):
     return {'database':'ok','mediaFiles':len(expected)}
 
 
-def bundle_expiry(folder):
+def bundle_expiry(folder, *, manifest=None):
     """Existing 14-day DB backup rotation, shortened for earlier video expiry."""
     folder=Path(folder).resolve()
-    manifest=json.loads(bundle_file(folder,'manifest.json').read_text(encoding='utf-8'))
+    if manifest is None:
+        manifest=json.loads(bundle_file(folder,'manifest.json').read_text(encoding='utf-8'))
     created=datetime.fromisoformat(manifest['created'])
     if created.tzinfo is None:raise ValueError('Backup date requires timezone')
     expiry=created+timedelta(days=14)
@@ -108,7 +110,9 @@ def prune(root, now):
         for folder in root.iterdir():
             if not re.fullmatch(r'\d{8}T\d{6}Z-[a-f0-9]{8}',folder.name):continue
             try:
-                if folder.is_symlink() or not folder.is_dir() or folder.resolve().parent!=root:
+                info=folder.lstat()
+                if (not stat.S_ISDIR(info.st_mode) or getattr(info,'st_file_attributes',0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+                        or folder.resolve().parent!=root):
                     raise ValueError('Unsafe backup path')
                 if now<bundle_expiry(folder):continue
                 verify(folder)
@@ -120,16 +124,27 @@ def prune(root, now):
                     allowed.add('momiq.sqlite3-wal')
                 if (folder/'momiq.sqlite3-shm').exists():allowed.add('momiq.sqlite3-shm')
                 directories={parent.as_posix() for relative in allowed for parent in Path(relative).parents if parent.as_posix()!='.'}
-                paths=list(folder.rglob('*'))
-                for path in paths:
-                    if path.is_symlink() or not path.resolve().is_relative_to(folder):raise ValueError('Unsafe backup content')
-                    if path.is_file() and path.relative_to(folder).as_posix() not in allowed:raise ValueError('Unknown backup content')
-                    if path.is_dir() and path.relative_to(folder).as_posix() not in directories:raise ValueError('Unknown backup directory')
-                for path in paths:
-                    if path.is_file():path.unlink()
-                for path in sorted((p for p in paths if p.is_dir()),key=lambda p:len(p.parts),reverse=True):path.rmdir()
-                folder.rmdir();result['removed']+=1
-            except (OSError,ValueError,KeyError):result['failed']+=1
+                files=[]
+                checked_dirs=[folder]
+                # Inspect each directory entry before descending. Unknown trees,
+                # junctions, special files and hard links leave the bundle intact.
+                for directory in checked_dirs:
+                    for path in directory.iterdir():
+                        info=path.lstat()
+                        relative=path.relative_to(folder).as_posix()
+                        if getattr(info,'st_file_attributes',0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+                            raise ValueError('Unsafe backup content')
+                        if stat.S_ISDIR(info.st_mode) and relative in directories:
+                            checked_dirs.append(path)
+                        elif stat.S_ISREG(info.st_mode) and info.st_nlink==1 and relative in allowed:
+                            files.append(path)
+                        else:
+                            raise ValueError('Unexpected backup member')
+                for path in files:path.unlink()
+                for directory in reversed(checked_dirs):directory.rmdir()
+                result['removed']+=1
+            except (OSError,ValueError,TypeError,KeyError,IndexError,AttributeError,sqlite3.Error):
+                result['failed']+=1
     return result
 
 

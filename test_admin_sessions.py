@@ -12,6 +12,35 @@ import test_admin_bookings as fixtures
 
 
 class AdminSessionTests(unittest.TestCase):
+    def test_duplicate_credentials_cannot_select_or_revoke_a_session(self):
+        from http.client import HTTPConnection
+        from urllib.parse import urlsplit
+        host=urlsplit(self.base).netloc
+        valid='Bearer '+self.tokens['customer']
+        cookie='momiq_admin='+self.admin_token
+        def send(path,headers,status):
+            con=HTTPConnection(host,timeout=5)
+            try:
+                con.putrequest('POST',path)
+                for name,value in headers:con.putheader(name,value)
+                con.putheader('Content-Type','application/json');con.putheader('Content-Length','2')
+                con.endheaders(b'{}')
+                response=con.getresponse()
+                self.assertEqual(response.status,status)
+                response.read()
+            finally:con.close()
+        for values in ((valid,'Bearer invalid'),(valid+', Bearer invalid',),(self.tokens['customer'],)):
+            send('/api/auth/logout',[('Authorization',v) for v in values],401)
+            self.req('/api/me')
+        for values in ((cookie,'momiq_admin=invalid'),(cookie+'; momiq_admin=invalid',),
+                       (cookie+'; extra=x, momiq_admin=invalid',)):
+            send('/api/admin/logout',[('Cookie',v) for v in values],401)
+            self.admin('/api/admin/me')
+        send('/api/auth/logout',[('Authorization','bearer '+self.tokens['customer'])],200)
+        self.req('/api/me',status=401)
+        send('/api/admin/logout',[('Cookie','unrelated=1; '+cookie)],200)
+        self.admin('/api/admin/me',status=401)
+
     def test_operator_password_preserves_intentional_whitespace(self):
         password='  private TEST operator credential  '
         salt=secrets.token_hex(16)

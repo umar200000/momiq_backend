@@ -10,7 +10,6 @@ import secrets
 import sqlite3
 import time
 from datetime import datetime, timezone
-from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -349,11 +348,29 @@ class Handler(BaseHTTPRequestHandler):
             # Never reuse an HTTP connection with unread/ambiguous request bytes.
             self.close_connection=True
             raise
-    def auth(self, con, role="client", *, bind=True):
-        token = self.headers.get("Authorization", "").removeprefix("Bearer ")
+    def session_token(self, role):
+        # Both transports must choose one credential, including during logout.
         if role == "admin":
-            cookie = SimpleCookie(self.headers.get("Cookie", ""))
-            token = cookie["momiq_admin"].value if "momiq_admin" in cookie else ""
+            values = []
+            for header in self.headers.get_all('Cookie', []):
+                if ',' in header:
+                    raise ApiError(401,"Qayta kiring")
+                for pair in header.split(';'):
+                    name, sep, value = pair.strip().partition('=')
+                    if sep and name.strip() == 'momiq_admin':
+                        values.append(value.strip())
+            if len(values) == 1 and re.fullmatch(r'[A-Za-z0-9_-]{1,128}', values[0]):
+                return values[0]
+        else:
+            values = self.headers.get_all('Authorization', [])
+            if len(values) == 1:
+                match = re.fullmatch(r'Bearer +([A-Za-z0-9_-]{1,128})',values[0],re.ASCII|re.IGNORECASE)
+                if match:
+                    return match[1]
+        raise ApiError(401,"Qayta kiring")
+
+    def auth(self, con, role="client", *, bind=True):
+        token = self.session_token(role)
         digest = hashlib.sha256(token.encode()).hexdigest()
         session = con.execute("SELECT * FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
         if not session:
@@ -410,7 +427,7 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if path == '/api/health' and self.command == 'GET':
             self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False,
-                             "mobileFeatures": ["booking-receipts-v1","home-visit-address-v1","wallet-receipts-v1","support-receipts-v1","private-video-report-v1"],
+                             "mobileFeatures": ["booking-receipts-v1","home-visit-address-v1","wallet-receipts-v1","support-receipts-v1","private-video-report-v1","notice-read-receipts-v1"],
                              "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN, 'releaseSha': RELEASE_SHA})
             return
         if path == '/api/ready' and self.command == 'GET':
@@ -559,11 +576,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path in ["/api/auth/logout", "/api/admin/logout"] and self.command == "POST":
                 if self.body():raise ValueError('Chiqish uchun bo‘sh JSON yuboring')
-                if admin:
-                    cookie = SimpleCookie(self.headers.get('Cookie',''))
-                    token = cookie['momiq_admin'].value
-                else:
-                    token = self.headers.get('Authorization','').removeprefix('Bearer ')
+                token = self.session_token('admin' if admin else 'client')
                 con.execute('DELETE FROM sessions WHERE hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
                 if admin:
                     self.audit(con, user, 'operator-logout', 'admin-session')

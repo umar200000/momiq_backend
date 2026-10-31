@@ -182,13 +182,22 @@ class DisputeTests(unittest.TestCase):
             start=self.start+timedelta(days=index*4)
             b=self.act(self.request(self.quote(start=start,end=start+timedelta(days=1))))
             ids.append(b['id']);self.act(b,'cancel','abc',now=start-timedelta(hours=24,microseconds=extra))
-        # Reconstruct pre-17 schema only inside this test's temporary database.
-        with server.db() as con:
-            for table in ['incident_events','booking_incidents','dispute_requests','dispute_events','booking_disputes']:con.execute('DROP TABLE '+table)
-            con.execute('DELETE FROM schema_migrations WHERE version=17');con.commit()
-            self.assertEqual(migrations.migrate(con),[17])
-            rows=con.execute('SELECT booking_id FROM booking_incidents').fetchall()
-            self.assertEqual([r[0] for r in rows],[ids[-1]])
+        # Exercise the historical upgrade with a real version-16 prefix.
+        # Copy only the immutable inputs and their required parent records.
+        source=server.DATA/'momiq.sqlite3'
+        release=migrations.MIGRATIONS
+        with patch.object(server,'DATA',server.DATA/'pre17'):
+            with patch.object(migrations,'MIGRATIONS',release[:16]):server.setup()
+            with server.db() as con:
+                con.execute('ATTACH DATABASE ? AS fixture',(str(source),))
+                for table in ('users','booking_quotes','bookings','booking_events'):
+                    con.execute(f'INSERT INTO main.{table} SELECT * FROM fixture.{table}')
+                con.commit()
+                con.execute('DETACH DATABASE fixture')
+                with patch.object(migrations,'MIGRATIONS',release[:17]):
+                    self.assertEqual(migrations.migrate(con),[17])
+                rows=con.execute('SELECT booking_id FROM booking_incidents').fetchall()
+                self.assertEqual([r[0] for r in rows],[ids[-1]])
 
 
 class DisputeHttpTests(unittest.TestCase):

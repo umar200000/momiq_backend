@@ -1,6 +1,7 @@
 from pathlib import Path
 from contextlib import closing
 import sqlite3
+import os
 import shutil
 import subprocess
 import tempfile
@@ -49,6 +50,29 @@ class BackupBundleTests(unittest.TestCase):
             result=backup_bundle.prune(root,datetime.now(timezone.utc)+timedelta(days=15))
             self.assertEqual(result,{'removed':0,'failed':1})
             self.assertTrue((target/'user-notes.txt').exists());self.assertTrue(custom.exists())
+
+    def test_invalid_manifest_does_not_block_other_expired_backups(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            broken=root/'20261028T000000Z-1234abcd'
+            valid=root/'20261028T000000Z-1234abce'
+            backup_bundle.create(server.DATA,broken)
+            backup_bundle.create(server.DATA,valid)
+            (broken/'manifest.json').write_text('[]')
+            result=backup_bundle.prune(root,datetime.now(timezone.utc)+timedelta(days=15))
+            self.assertEqual(result,{'failed':1,'removed':1})
+            self.assertTrue((broken/'momiq.sqlite3').is_file())
+            self.assertFalse(valid.exists())
+
+    @unittest.skipUnless(hasattr(os,'mkfifo'),'POSIX special files')
+    def test_rotation_validates_all_member_types_before_unlinking_anything(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);target=root/'20261028T000000Z-1234abcd'
+            backup_bundle.create(server.DATA,target)
+            os.mkfifo(target/'extra')
+            self.assertEqual(backup_bundle.prune(root,datetime.now(timezone.utc)+timedelta(days=15)),
+                             {'removed':0,'failed':1})
+            self.assertEqual(backup_bundle.verify(target),{'database':'ok','mediaFiles':0})
 
     def test_bundle_restore_contains_referenced_media_and_detects_corruption(self):
         import restore_drill

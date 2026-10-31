@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from time import monotonic
 from tempfile import TemporaryDirectory
 import zipfile
 
@@ -28,14 +29,16 @@ def seal(bundle, destination, recipient):
     if (not re.fullmatch(r'age1[0-9a-z]{58}',recipient) or destination.exists() or
             destination.is_symlink() or destination.resolve().is_relative_to(bundle)):
         raise ValueError('Choose a native X25519 public recipient and a new destination outside the bundle')
-    backup_bundle.verify(bundle)
-    expires = backup_bundle.bundle_expiry(bundle)
+    manifest_bytes = backup_bundle.bundle_file(bundle,'manifest.json').read_bytes()
+    manifest = json.loads(manifest_bytes.decode('utf-8'))
+    backup_bundle.verify(bundle,manifest=manifest)
+    expires = backup_bundle.bundle_expiry(bundle,manifest=manifest)
     if datetime.now(timezone.utc) >= expires:
         raise ValueError('Backup retention elapsed')
-    manifest = json.loads(backup_bundle.bundle_file(bundle,'manifest.json').read_text(encoding='utf-8'))
     if datetime.fromisoformat(manifest['created']) > datetime.now(timezone.utc):
         raise ValueError('Backup snapshot is future-dated')
-    members = ['manifest.json','momiq.sqlite3',*(item['path'] for item in manifest['files'])]
+    members = {'momiq.sqlite3': manifest['databaseSha256'],
+               **{item['path']:item['sha256'] for item in manifest['files']}}
     with TemporaryDirectory(dir=destination.parent) as temp:
         encrypted = Path(temp)/'bundle.age'
         with encrypted.open('xb') as output:
@@ -44,9 +47,15 @@ def seal(bundle, destination, recipient):
                                   stdout=output,stderr=subprocess.DEVNULL) as process:
                 try:
                     with zipfile.ZipFile(_ArchiveSink(process.stdin),'w',compression=zipfile.ZIP_STORED) as archive:
-                        for name in members:
+                        archive.writestr('manifest.json',manifest_bytes)
+                        for name,expected in members.items():
+                            digest = hashlib.sha256()
                             with backup_bundle.bundle_file(bundle,name).open('rb') as src, archive.open(name,'w',force_zip64=True) as dst:
-                                shutil.copyfileobj(src,dst)
+                                while chunk := src.read(1024*1024):
+                                    digest.update(chunk)
+                                    dst.write(chunk)
+                            if digest.hexdigest() != expected:
+                                raise ValueError('Backup member changed during encryption')
                     process.stdin.close()
                     if process.wait():
                         raise ValueError('Encryption failed')
@@ -57,6 +66,8 @@ def seal(bundle, destination, recipient):
             os.fsync(output.fileno())
         checksum = backup_bundle.digest(encrypted)
         size = encrypted.stat().st_size
+        if datetime.now(timezone.utc) >= expires:
+            raise ValueError('Backup retention elapsed during encryption')
         # Atomic publication without replacing an existing export on concurrent runs.
         os.link(encrypted,destination)
     return {'sha256':checksum,'bytes':size,'createdAt':manifest['created'],'expiresAt':expires.isoformat()}
@@ -89,6 +100,7 @@ def inspect_copy(encrypted, receipt, *, max_age_hours, min_bytes, max_bytes, now
 
 
 def drill(encrypted, identity, checksum, mode, max_bytes=8*1024**3):
+    started=monotonic()
     encrypted = Path(encrypted).resolve(strict=True)
     if (not re.fullmatch('[0-9a-f]{64}',checksum) or not 0 < encrypted.stat().st_size <= max_bytes or
             not mode in ('local','test','staging','production')):
@@ -134,7 +146,8 @@ def drill(encrypted, identity, checksum, mode, max_bytes=8*1024**3):
         result = restore_drill.rehearse(restored,mode)
         if len(members)!=result['mediaFiles']+2:
             raise ValueError('Unreferenced media in encrypted backup')
-        return result
+    result['drillSeconds']=monotonic()-started
+    return result
 
 
 if __name__ == '__main__':
@@ -147,6 +160,8 @@ if __name__ == '__main__':
     for option in ('encrypted','identity','sha256','mode'):
         restore.add_argument('--'+option,required=True)
     restore.add_argument('--max-bytes',type=int,default=8*1024**3)
+    restore.add_argument('--max-snapshot-age-seconds',type=int)
+    restore.add_argument('--max-drill-seconds',type=int)
     inspect = commands.add_parser('inspect')
     for option in ('encrypted','receipt'):
         inspect.add_argument('--'+option,required=True)
@@ -162,6 +177,8 @@ if __name__ == '__main__':
                                   min_bytes=args.min_bytes,max_bytes=args.max_bytes)
         else:
             result = drill(args.encrypted,args.identity,args.sha256,args.mode,args.max_bytes)
+            result.update(restore_drill.recovery_status(result,args.max_snapshot_age_seconds,args.max_drill_seconds))
         print(json.dumps(result))
+        if result.get('breached'):raise SystemExit(2)
     except Exception:
         parser.exit(1, 'Encrypted backup operation failed\n')

@@ -107,7 +107,9 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.req('/api/notifications',token=b['token'])['items'],[])
         path='/api/notifications/'+first['items'][0]['id']+'/read'
         self.req(path,'POST',{},token=b['token'],expected=404)
-        self.req(path,'POST',{},token=a['token']);self.req(path,'POST',{},token=a['token'])
+        receipt=self.req(path,'POST',{},token=a['token'])
+        self.assertEqual(receipt['noticeId'],first['items'][0]['id'])
+        self.assertEqual(self.req(path,'POST',{},token=a['token']),receipt)
         self.assertEqual(self.req('/api/notifications',token=a['token'])['unreadCount'],22)
         self.req('/api/notifications?before=-1',token=a['token'],expected=400)
         self.req('/api/notifications',expected=401)

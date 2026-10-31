@@ -73,6 +73,8 @@ jobs:
         run: python tool/load_test.py --accounts 20 --active 2 --cycles 1 --output "${{ runner.temp }}/momiq-load-smoke.json"
       - name: Verify Nginx TLS and Gunicorn on isolated loopback ports
         run: python tool/verify_proxy.py
+      - name: Replay payment approvals after worker death before and after commit
+        run: python -m tool.verify_worker_recovery
       - name: Check each deployment script
         run: |
           for script in deploy/momiq-deploy deploy/momiq-deploy-entry deploy/bootstrap.sh; do

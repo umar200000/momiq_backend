@@ -1,5 +1,9 @@
 # Current API contract
 
+Client authentication accepts one Bearer credential. Administrator authentication accepts one `momiq_admin` cookie. Ambiguous credentials and raw bearer tokens return 401. Logout validates and revokes the same credential that authenticated the request.
+
+A notification read acknowledgement contains `ok`, `noticeId`, the original `readAt` and the current `unreadCount`. Hosted mobile builds check the `notice-read-receipts-v1` capability and match the ID before navigating. Pages are strictly descending by notification ID and a later page starts below its requested cursor. Older local builds can still consume the original fields. New support tickets bind their confirmation to the submitted subject, topic, booking and reported content. Appeals additionally match the captured source revision.
+
 JSON request bodies must use UTF-8 and contain Unicode scalar values. Unpaired surrogate escapes in a key or value return 400 before a mutation. Valid surrogate pairs and literal backslash text are preserved. If an older record already contains a lone surrogate, the JSON response renders U+FFFD at that position without rewriting the stored record.
 
 ## Liveness, readiness and release identity
