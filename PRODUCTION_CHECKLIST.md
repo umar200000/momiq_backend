@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-10-31. Joriy 49 band bo‘yicha tekshiruvlar
 
+- [x] **M008/M009/M024/M066.** Hisob o‘chirish murojaatida enaga qoldig‘i qaytarilmasligi tasdiqlash oldidan uch tilda ko‘rsatiladi. Forma testi izohning o‘zbekcha matni va roziliksiz yuborish blokini tekshirdi. Preview qayta ishga tushgach `start.ps1` chaqiruvchining avval mavjud bo‘lmagan muhit kalitlarini bo‘sh satrga aylantirgani sabab Python portni o‘qiy olmadi. Launcher endi mavjud qiymatlarni tiklaydi va avval mavjud bo‘lmaganlarini olib tashlaydi. Ishlayotgan preview orqali takroriy chaqiruvda to‘rtta yo‘q qiymat va bitta eski qiymat saqlandi, odatiy backend importi muvaffaqiyatli o‘tdi.
+
 - [x] **M092/M099/M102/M106.** Operator loginida parolni qimmat hisoblash boshqa yozuvlarni ushlab turmaydi. Login vaqti noma’lum nomda ham bitta password hash hisoblanadi. Hisob huquqi va credential versiyasi sessiya berishdan oldin yana tekshiriladi. Tekshiruv vaqtida boshqa ulanish parolni almashtirgan testda eski parolga sessiya berilmadi, yangi parol bilan kirish ishladi.
 
 - [x] **M106/M113.** Bootstrap qayta bajarilganda Certbot sozlagan HTTPS sayt konfiguratsiyasini oddiy HTTP namuna bilan almashtirish xavfi tuzatildi. Farq bo‘lsa tizimga o‘zgartirishdan oldin to‘xtaydi. Operator TLS va proxy qoidalarini solishtirib birlashtirgach mavjud konfiguratsiya saqlanadi. Yangi, mos, farqli va boshqarilmaydigan vaqtinchalik site yo‘llari bash bilan tekshirildi. Haqiqiy serverda bootstrap alohida qabul talab qiladi.

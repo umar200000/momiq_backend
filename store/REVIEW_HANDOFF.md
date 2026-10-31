@@ -55,3 +55,5 @@ Bu kelajakdagi review ssenariysi; ushbu amallar hozir bajarildi degan dalil emas
 `metadata.draft.json`dagi noma’lum URL/email maydonlari ataylab `null`; soxta manzil bilan to‘ldirilmaydi. Bu hujjat qabul qilinadigan store siyosati yoki yuridik moslik haqida kafolat bermaydi; maqsad mavjud dalillar va qolgan aniq ma’lumotlarni bir joyga yig‘ishdir.
 
 2026-10-31. Mobil yordam formasida hisobni o‘chirish so‘rovi mavjud. Sinovchi “Hisobni o‘chirish so‘rovi” mavzusini tanlaydi, matnni kiritadi va tasdiq belgisini qo‘yadi. Kutilgan natija — egaga bog‘langan yordam murojaati. Haqiqiy hisobni o‘chirish, tashqi veb manzil va retention/backup bo‘yicha yakuniy siyosat ochiq. Store matnlaridagi delete/privacy URL qiymatlari egasi tasdiqlagach kiritiladi.
+
+The deletion-request consent explains in Uzbek, English and Russian that the sitter’s unused prepaid balance is non-refundable on account deletion.

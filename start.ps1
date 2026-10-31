@@ -62,7 +62,13 @@ try {
         }
     } finally { Pop-Location }
 } finally {
-    foreach ($key in $saved.Keys) { [Environment]::SetEnvironmentVariable($key, $saved[$key], 'Process') }
+    foreach ($key in $saved.Keys) {
+        if ($null -eq $saved[$key]) {
+            Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue
+        } else {
+            [Environment]::SetEnvironmentVariable($key, $saved[$key], 'Process')
+        }
+    }
 }
 Write-Host "Admin: $baseUrl/admin/"
 Write-Host "Credentials file: $DataDir/admin-login.txt"
