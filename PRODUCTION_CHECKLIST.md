@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-10-31. Qolgan 48 banddan davom etilgan ishlar
 
+Mahalliy yakuniy tekshiruvda Flutter to‘plamida 522 test o‘tdi, bitta avvaldan ixtiyoriy test o‘tkazib yuborildi. Analyzer xato topmadi. Adminning 78 testi o‘tdi. Backendning 402 testidan Windows’da 398 tasi o‘tdi, Linux talab qiladigan to‘rttasi o‘tkazib yuborildi. Ularni ham qamragan oltita Linux testi va haqiqiy Nginx/Gunicorn sinovi WSL’da o‘tdi. Yangilangan preview qayta ishga tushgach 60 ta jadval mazmunining xeshi saqlandi, schema 28, integrity OK, FK xatosi nol. Sakkizta HTTP tekshiruvi kutilgan 200 yoki 401 javobini oldi.
+
 - [x] **M007/M099/M103/M131.** Sana va masofali katalog avval faqat ochiq koordinataga yaxlitlangan nuqtalar bo‘yicha ID’larni tartiblaydi. So‘ng sahifaga yetguncha enaga profili, moderatsiyasi, balansi va bandligini bir xil DB snapshotida tekshiradi. Yaqindagi nomos e’lonlarni tashlab keyingilar bilan sahifa to‘ldirilishi sinaldi. Bir daqiqalik bir xil 1 000/100 aralash HTTP yuklamasida katalog p95 4688.16 ms dan 889.45 ms ga tushdi. Yakuniy 5867 so‘rovning barchasi o‘tdi, bron nol, integrity va FK toza. [Oldin/keyin dalili](performance/dated-proximity-http-2026-10-31.json)
 - [x] **M092/M097/M115.** Operator CLI saqlagan parol chetlaridagi bo‘sh joylarni HTTP login ham aynan saqlab tekshiradi. Qisqartirilgan variant rad etildi. Tiklash tekshiruvi mavjud bo‘lmagan top-upga bog‘langan kreditni ham aniqlaydi, hatto yakuniy balans va jurnal summasi teng bo‘lsa ham.
 
