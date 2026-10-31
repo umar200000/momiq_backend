@@ -285,14 +285,27 @@ def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=No
                 'bookingEnabled':environment in ('local','test')}
 
 
-def known_names(con):
-    # Archived/unavailable contacts remain valid references for existing data.
-    names={r['id']:json.loads(r['profile']).get('name','') for r in con.execute('SELECT id,profile FROM sitters')}
-    for row in con.execute('SELECT m.user_id,m.service,u.account FROM listing_moderation m JOIN users u ON u.id=m.user_id'):
-        profile=json.loads(row['account']).get('profile',{})
-        names[row['user_id']+':'+row['service']]=(profile.get('first','')+' '+profile.get('last','')).strip()
-    for row in con.execute('SELECT l.user_id,l.data,u.account FROM listings l JOIN users u ON u.id=l.user_id'):
-        profile=json.loads(row['account']).get('profile',{})
-        for item in json.loads(row['data'])['listings']:
-            names[row['user_id']+':'+item['type']]=(profile.get('first','')+' '+profile.get('last','')).strip()
-    return names
+def contacts_exist(con, identities):
+    # An archived listing is still a valid historical contact. Only a new
+    # conversation additionally requires current discovery eligibility.
+    if not all(isinstance(identity, str) for identity in identities):
+        return False
+    requested = []
+    for identity in dict.fromkeys(identities):
+        owner, _, service = identity.rpartition(':')
+        requested.append([identity, owner or None, service])
+    if not requested:
+        return True
+    unknown = con.execute("""
+        WITH contacts AS (
+            SELECT json_extract(value,'$[0]') AS id, json_extract(value,'$[1]') AS owner,
+                   json_extract(value,'$[2]') AS service FROM json_each(?)
+        )
+        SELECT 1 FROM contacts c
+        WHERE NOT EXISTS (SELECT 1 FROM sitters WHERE id=c.id)
+          AND NOT EXISTS (SELECT 1 FROM listing_moderation WHERE user_id=c.owner AND service=c.service)
+          AND NOT EXISTS (
+              SELECT 1 FROM listings l, json_each(l.data,'$.listings') item
+              WHERE l.user_id=c.owner AND json_extract(item.value,'$.type')=c.service
+          ) LIMIT 1""", (json.dumps(requested),)).fetchone()
+    return unknown is None

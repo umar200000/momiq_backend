@@ -38,6 +38,9 @@ class CatalogTests(unittest.TestCase):
             con.execute("INSERT INTO user_roles VALUES('eee','sitter')")
             con.execute("INSERT INTO wallet_accounts VALUES('eee',1500000)")
             con.execute("INSERT INTO listings VALUES('eee','invalid legacy JSON',?)",(server.now(),))
+            self.assertTrue(catalog.contacts_exist(con,['abc:boarding','abc:boarding']))
+            self.assertFalse(catalog.contacts_exist(con,['abc:boarding','missing:boarding']))
+            self.assertFalse(catalog.contacts_exist(con,[{}]))
             self.assertEqual(catalog.profile(con,'local','abc:boarding'),expected)
             for identity in ('abc:other','missing:boarding',"abc' OR 1=1:boarding",None):self.assertIsNone(catalog.profile(con,'local',identity))
             self.assertIsNone(catalog.profile(con,'production','abc:boarding'))
@@ -131,7 +134,7 @@ class CatalogTests(unittest.TestCase):
         with server.db() as con: con.execute("UPDATE users SET blocked=1 WHERE id='abc'")
         self.assertEqual(self.public(),[])
         with server.db() as con:
-            self.assertIn('abc:boarding',catalog.known_names(con))
+            self.assertTrue(catalog.contacts_exist(con,['abc:boarding']))
 
     def test_stale_save_or_admin_review_rolls_back(self):
         self.save()
@@ -178,7 +181,7 @@ class CatalogTests(unittest.TestCase):
         self.save({'housing':'house','listings':[]},7)
         self.assertEqual(self.public(),[])
         with server.db() as con:
-            self.assertIn('abc:boarding',catalog.known_names(con))
+            self.assertTrue(catalog.contacts_exist(con,['abc:boarding']))
 
     def test_no_implicit_identity_approval_or_incomplete_profile(self):
         self.save()

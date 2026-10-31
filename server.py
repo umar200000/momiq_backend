@@ -179,10 +179,6 @@ def sitter_profiles():
         con.execute('BEGIN')
         return catalog.profiles(con, ENVIRONMENT)
 
-def sitter_names():
-    with db() as con:
-        return catalog.known_names(con)
-
 def photo(value):
     return validate_photo(value)
 
@@ -206,9 +202,10 @@ def validate_account(data):
     fav = data.get("favorites", [])
     if not isinstance(fav, list) or any(not isinstance(x, str) for x in fav):
         raise ValueError("Enaga noto‘g‘ri")
-    known = sitter_names()
-    if any(x not in known for x in fav):
-        raise ValueError("Enaga noto‘g‘ri")
+    if fav:
+        with db() as con:
+            if not catalog.contacts_exist(con, fav):
+                raise ValueError("Enaga noto‘g‘ri")
     result["favorites"] = list(dict.fromkeys(fav))
     addresses = data.get("addresses", [])
     if not isinstance(addresses, list) or len(addresses) > 30:
@@ -752,7 +749,7 @@ class Handler(BaseHTTPRequestHandler):
     def save_message(self,con,user,mine,data,operator=None):
         if not mine and operator is None:raise ApiError(403,'Operator sessiyasi kerak')
         sitter = data.get('sitter')
-        if sitter not in sitter_names(): raise ValueError('Enaga topilmadi')
+        if not catalog.contacts_exist(con, [sitter]): raise ValueError('Enaga topilmadi')
         text = string(data.get('text',''),4000)
         image = photo(data.get('image'))
         if not text and not image: raise ValueError('Xabar yoki rasm kiriting')
@@ -765,7 +762,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ApiError(409,'So‘rov identifikatori takrorlangan')
         else:
             if mine and not con.execute('SELECT 1 FROM messages WHERE user_id=? AND sitter=? LIMIT 1',(user,sitter)).fetchone():
-                if sitter not in {s['id'] for s in catalog.profiles(con,ENVIRONMENT)}:
+                if catalog.profile(con,ENVIRONMENT,sitter) is None:
                     raise ApiError(409,'Bu enaga hozir yangi mijoz qabul qilmayapti. Katalogni yangilang.')
             con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,image,time,request_id) VALUES(?,?,?,?,?,?,?,?)',
                         (secrets.token_hex(16),user,sitter,int(mine),text,image,now(),request_id))

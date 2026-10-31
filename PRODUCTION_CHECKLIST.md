@@ -92,6 +92,9 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-10-31. Joriy 47 band bo‘yicha davom
 
+- [x] **M007/M099.** Tanlangan enagalar va birinchi chat uchun faqat so‘ralgan ID lar qidiriladi. Arxivdagi kontakt bilan mavjud suhbat va dublikatsiz retry saqlandi. Boshqa enaganing buzilgan eski profili tanlangan kontaktni buzmasligi ham tekshirildi. Bir xil 1 000 hisob va 167 e’lon bilan 50 juft SQLite o‘lchovida oltita ID uchun p95 2,134 dan 0,081 ms ga, birinchi chatdagi e’lon ko‘rinishi uchun 9,356 dan 0,198 ms ga tushdi. [O‘lchov](performance/contact-lookups-2026-10-31.json)
+- [x] **M009/M122/M125/M131.** iPhone 16 Pro va iOS 18.6 da toza o‘rnatilganda avval «Saqlangan sessiya ochilmadi» chiqdi. Mobil sessiyani tiklash tuzatildi. Keyingi paketning birinchi ochilish tasvirida «Mijozman», «Enagaman» va «Davom etish» ko‘rildi. [Simulator sinovi va tasvir](https://github.com/umar200000/momiq_app/actions/runs/41187994687)
+
 - [x] **M078/M103.** Video yuklashda takrorlangan hajm yoki media turi va bo‘sh transfer-kodlash sarlavhasi tana o‘qilishidan oldin rad etildi. Oxirgi bo‘lak muddatdan keyin kelganda 408 qaytdi. Keyingi yaroqli video yozildi va ishtirokchining HTTP Range so‘rovi o‘tdi.
 - [x] **M019/M112.** Reliz tekshiruvi production uchun SMS va mijoz kirishi ikkalasi yoqilganini talab qiladi. Sinov serveridagi uch holat bilan bu shart tekshirildi. Tekshiruv SMS yubormaydi.
 
