@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 
 @unittest.skipUnless(os.name == 'posix' and shutil.which('flock'), 'Linux deployment runner')
 class DeployRollbackTests(unittest.TestCase):
-    def exercise(self, previous_healthy):
+    def exercise(self, previous_healthy, *, stall=False):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)
             repository = base / 'fixture-source'
@@ -54,16 +54,18 @@ class DeployRollbackTests(unittest.TestCase):
                 "assert sys.argv[sys.argv.index('--backend-sha')+1]=='a'*40\n"
                 "previous=Path(sys.argv[sys.argv.index('--admin-dir')+1]).resolve()==base/'old-admin'\n"
                 "with (base/'checks').open('a') as log: print(int(previous),file=log)\n"
+                "if not previous and os.environ['TEST_STALL']=='1': __import__('time').sleep(60)\n"
                 "sys.exit(0 if previous and os.environ['PREVIOUS_HEALTHY']=='1' else 1)\n")
             source = (ROOT / 'deploy' / 'momiq-deploy').read_text()
             script = base / 'deployer'
             self.assertEqual(source.count('base=/opt/momiq'), 1)
             self.assertEqual(source.count('exec 9>/run/lock/momiq-deploy.lock'), 1)
-            script.write_text(source.replace('base=/opt/momiq', 'base="$FIXTURE_BASE"')
+            script.write_text(source.replace('smoke_timeout=40s','smoke_timeout=1s').replace('base=/opt/momiq', 'base="$FIXTURE_BASE"')
                               .replace('exec 9>/run/lock/momiq-deploy.lock', 'exec 9>"$FIXTURE_BASE/lock"'))
             result = subprocess.run(['bash', str(script), 'admin', sha], capture_output=True,
                                     text=True, timeout=35, env={**os.environ,'FIXTURE_BASE':folder,
                                     'PREVIOUS_HEALTHY':str(int(previous_healthy)),
+                                    'TEST_STALL':str(int(stall)),
                                     'GIT_ALLOW_PROTOCOL':'file','GIT_TERMINAL_PROMPT':'0'})
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertEqual((current / 'admin').resolve(), old)
@@ -77,6 +79,9 @@ class DeployRollbackTests(unittest.TestCase):
 
     def test_failure_verifies_restored_assets(self):
         self.exercise(True)
+
+    def test_stalled_smoke_times_out_and_checks_the_previous_release(self):
+        self.exercise(True,stall=True)
 
     def test_failed_recovery_never_claims_a_healthy_deployment(self):
         self.exercise(False)

@@ -181,6 +181,8 @@ Hosted mobile configuration rejects loopback aliases, unspecified addresses, unc
 
 ### Reapplying bootstrap on an HTTPS host
 
+For a release that contains session maintenance, the deployer checks the matching service and timer before migrating, then starts its timer after post-switch checks succeed. Each full local HTTP smoke attempt has a 40-second wall-clock limit and five seconds for forced termination. A stalled read therefore enters the same bounded retry and rollback sequence as a failed response.
+
 Certbot may have added certificate paths, redirects and TLS listeners to the installed Nginx site. Bootstrap compares the repository template with the installed site before package or service changes. If they differ, review both configurations and merge any new API/admin isolation and rate-limit rules into the installed TLS site. After reviewing that result, run `sudo bash /home/ubuntu/momiq-bootstrap/bootstrap.sh --preserve-reviewed-nginx`. The script keeps the installed site bytes, refreshes the shared proxy snippet, and runs `nginx -t` before reload. An unexpected site symlink target or unmanaged enabled file stops the bootstrap. Check both HTTPS hostnames and certificate renewal after any host change.
 
 ### Supplying the Tashkent service area

@@ -1,6 +1,7 @@
 [Unit]
 Description=Prune expired Momiq credentials and request counters
 After=momiq.service
+ConditionPathExists=/opt/momiq/current/backend/session_maintenance.py
 [Service]
 Type=oneshot
 User=momiq
