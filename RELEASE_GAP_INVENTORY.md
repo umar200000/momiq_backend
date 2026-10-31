@@ -46,7 +46,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M014 | Test chek va to‘lov tasdig‘i, rad, aniqlashtirish va uzilish vaqtinchalik bazada sinaldi. | Tashqi push/provider sinov muhiti va qurilmadagi to‘liq sinov. |
 | M019 | Yangi konfiguratsiya production test login’ni rad etadi. Amaldagi domen testLogin=true qaytardi. | Hosted konfiguratsiyani vakolatli rolloutda almashtirish. |
 | M024 | Egasi ilovadan tasdiqlangan o‘chirish murojaati yuboradi. Takroriy jo‘natish tekshirildi. | Tashqi veb yo‘l, qayta autentifikatsiya va majburiyat/retention siyosatidan keyin haqiqiy o‘chirish. |
-| M029 | Bron narx taklifi mijoz tanlagan sana va hayvonlarga bog‘lanadi. Saqlangan manzil va tarixiy snapshot qoidalari mavjud. | Aniq shahar chegarasi bilan yaratish/tahrirlash va chegara nuqtalari qabuli. |
+| M029 | Bron narx taklifi mijoz tanlagan sana va hayvonlarga bog‘lanadi. Saqlangan manzil va tarixiy snapshot qoidalari mavjud. | Aniq shahar chegarasi bilan yaratish/tahrirlash va chegara nuqtalari qabuli. Rasmiy [Kadastr geoportali](https://open.ngis.uz/) ko‘rib chiqildi. Reliz uchun tasdiqlangan sana va foydalanish shartlari bilan geometriya fayli hali tanlanmagan. |
 | M042 | Map access va joylashuv xato holatlari mobil test to‘plamida. | Ilova va muhitga cheklangan kalit, provayder kvotasi hamda haqiqiy geokodlash. |
 | M066 | Chek qancha summaga yuborilgani tasdiqlanadi. Tushum krediti qo‘lda tekshiriladi. | Kvitansiya va fiskal talablarni mutaxassis bilan tasdiqlash. |
 | M139 | QR manbasi almashganda eski ko‘rinish yopiladi. Chek qoralamasi asl dalil bilan takrorlanadi. | Native kamera, galereya, provayder ilovasidan qaytish va real qurilmada qabul. |
@@ -79,7 +79,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M116 | Log kesimi uchun chegara ichida, oshgan va dalil yetishmaydigan holatlar CLI exit kodlari bilan ajratildi. | Monitoring manzili, alert egasi, mobil crash va real signal. |
 | M117 | Tiklash, moliyaviy uzilish, threshold va rollback amallari operatsion yo‘riqnomada. | Mas’ullar, amaliy incident mashqi, xarajat va provayder limitlari. |
 | M122 | Store review qoralamasida hisob o‘chirish murojaati sinov yo‘li yangilandi. | Haqiqiy screenshot, support/privacy/delete URL va review kirishi. |
-| M123 | Yangi foto shikoyati va hisob so‘rovi uchun uch tilda matn bor. Forma va QR widgetlari sinaldi. | Barcha ekranlarda real screen reader, kontrast, klaviatura va OS ruxsatlari. |
+| M123 | Yangi foto shikoyati va hisob so‘rovi uchun uch tilda matn bor. Rozilik izohi 320 × 640 ekranda 2× shrift bilan uch tilda accessibility daraxti va bosish orqali sinaldi. | Barcha ekranlarda real screen reader, kontrast, klaviatura va OS ruxsatlari. |
 | M124 | Noto‘g‘ri tasdiq yoki eskirgan sessiya chek qoralamasini muvaffaqiyat deb o‘chirmaydi. | Haqiqiy offline, fon va qurilma restartidan keyingi to‘liq oqimlar. |
 | M125 | CI’da Android QA va imzosiz iOS simulator paketlari saqlanadi. | Release artefakti, symbol, minimal versiya va bosqichli pilot. |
 | M128 | Alohida komponentlar fixture va CI’da ishlaydi. | Ikki qurilma va admin bilan bitta yakuniy E2E oqimi. |
