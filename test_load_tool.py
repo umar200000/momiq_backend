@@ -14,7 +14,7 @@ class LoadToolTests(unittest.TestCase):
     def test_burst_and_paced_runs_ignore_existing_data_directory(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);existing=root/'existing';existing.mkdir();marker=existing/'momiq.sqlite3';marker.write_bytes(b'DO NOT TOUCH EXISTING INSTANCE')
-            for mode,args in [('burst_cycles',['--cycles','1']),('paced_duration',['--duration-seconds','2','--think-ms','100'])]:
+            for mode,args in [('burst_cycles',['--cycles','1','--dated-catalog']),('paced_duration',['--duration-seconds','2','--think-ms','100'])]:
                 report=root/(mode+'.json')
                 result=subprocess.run([sys.executable,'tool/load_test.py','--accounts','20','--active','2','--output',str(report),*args],cwd=ROOT,
                                       env={**os.environ,'MOMIQ_DATA_DIR':str(existing),'MOMIQ_ENV':'production','MOMIQ_ALLOW_TEST_LOGIN':'0',
@@ -23,6 +23,7 @@ class LoadToolTests(unittest.TestCase):
                 data=json.loads(report.read_text(encoding='utf-8'));self.assertEqual(data['mode'],mode)
                 self.assertEqual(data['requests'],data['successfulRequests']);self.assertGreater(data['requests'],0)
                 self.assertEqual(data['measurementVersion'],2)
+                self.assertEqual(data['catalogMode'],'interval-proximity' if mode=='burst_cycles' else 'boarding-cat')
                 self.assertEqual(sum(e['handlerDuration']['count'] for e in data['endpoints'].values()),data['requests'])
                 for endpoint in data['endpoints'].values():
                     self.assertEqual(sum(p['count'] for p in endpoint['clientPhases'].values()),endpoint['count'])

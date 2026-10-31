@@ -468,7 +468,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected operator login fields')
                 self.throttle(con, "admin:" + self.client_ip())
                 username = string(data['username'])
-                password = string(data['password'], 200)
+                password = data['password']
+                if not isinstance(password,str) or len(password)>200:
+                    raise ValueError('Invalid operator credential')
                 row = con.execute("SELECT salt,hash FROM admins WHERE username=?", (username,)).fetchone()
                 usable = row and re.fullmatch(r'(?:[0-9a-fA-F]{2})+', row['salt']) and re.fullmatch(r'[0-9a-f]{64}', row['hash'])
                 # Apply the same expensive check to unknown names, without blocking database writers.

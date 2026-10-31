@@ -4,7 +4,7 @@ import base64
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 from io import BytesIO
 import json
@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import Request, ProxyHandler, build_opener
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -63,7 +64,7 @@ def timings(values):
     return {'count':len(values),'p50Ms':percentile(values,.5),'p95Ms':percentile(values,.95),'p99Ms':percentile(values,.99)}
 
 
-def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
+def run(accounts,active,cycles,duration_seconds=0,think_ms=0,dated_catalog=False):
     with tempfile.TemporaryDirectory(prefix='momiq-isolated-load-') as directory:
         os.environ.update(MOMIQ_DATA_DIR=directory,MOMIQ_ENV='local',MOMIQ_ALLOW_TEST_LOGIN='1')
         import server
@@ -89,6 +90,9 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
         http.daemon_threads=False  # Drain handlers before measuring/removing data.
         serving=threading.Thread(target=http.serve_forever,daemon=True);serving.start()
         base=f'http://127.0.0.1:{http.server_port}'
+        start=datetime.now(timezone.utc)+timedelta(days=2)
+        catalog_path=('/api/sitters?'+urlencode({'lat':'41.3','lon':'69.2','startsAt':start.isoformat(),
+                     'endsAt':(start+timedelta(days=1)).isoformat()}) if dated_catalog else '/api/sitters?service=boarding&pet=cat')
         barrier=threading.Barrier(active)
         def request(token,category,path,data=None):
             if duration_seconds and time.perf_counter()>=deadline:return None
@@ -101,6 +105,8 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
                     status=response.status;result=json.load(response)
                     if not isinstance(result,dict):raise ValueError('Invalid response shape')
                     if category=='catalog' and not result.get('sitters'):raise ValueError('Empty synthetic catalog')
+                    if category=='catalog' and dated_catalog and any(item.get('availabilityKnown') is not True for item in result['sitters']):
+                        raise ValueError('Missing interval capacity')
             except HTTPError as failure:status=failure.code;failure.close()
             except Exception as failure:
                 cause=getattr(failure,'reason',failure)
@@ -114,7 +120,7 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
             cycle=0
             while (time.perf_counter()<deadline if duration_seconds else cycle<cycles):
                 local.phase='initial' if cycle==0 else 'repeat'
-                request(token,'catalog','/api/sitters?service=boarding&pet=cat')
+                request(token,'catalog',catalog_path)
                 request(token,'profile','/api/me')
                 request(token,'bookings','/api/bookings')
                 request(token,'inbox','/api/conversations')
@@ -132,7 +138,8 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0):
         for row in measurements:groups[row[0]].append(row)
         result={'createdAt':datetime.now(timezone.utc).isoformat(),'accounts':accounts,'activeCustomers':active,'sitters':sitters,'listings':sitters*3,'cycles':None if duration_seconds else cycles,'mode':'paced_duration' if duration_seconds else 'burst_cycles',
                 'durationSeconds':duration_seconds,'thinkMs':think_ms,
-                'measurementVersion':2,'clientTransport':'per-customer direct loopback opener prepared before timing; no HTTP warmup',
+                'measurementVersion':2,'catalogMode':'interval-proximity' if dated_catalog else 'boarding-cat',
+                'clientTransport':'per-customer direct loopback opener prepared before timing; no HTTP warmup',
                 'transport':'Windows/local stdlib ThreadingHTTPServer' if os.name=='nt' else 'local stdlib ThreadingHTTPServer',
                 'python':platform.python_version(),'logicalCpus':os.cpu_count(),'elapsedSeconds':round(elapsed,2),'requests':len(measurements),
                 'listenBacklog':http.request_queue_size,
@@ -165,6 +172,7 @@ def main():
     parser.add_argument('--active',type=int,default=100)
     parser.add_argument('--cycles',type=int,default=5)
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--dated-catalog',action='store_true',help='Search all services by dates and proximity')
     parser.add_argument('--duration-seconds',type=int,default=0,help='1–300 seconds of paced work, instead of fixed cycles')
     parser.add_argument('--think-ms',type=int,default=0,help='100–10000 ms after each request in duration mode')
     args=parser.parse_args()
@@ -173,7 +181,7 @@ def main():
         if not 1<=args.duration_seconds<=300 or not 100<=args.think_ms<=10000:parser.error('Duration mode requires 1–300 seconds and 100–10000 ms think time')
     elif args.think_ms:parser.error('Think time requires --duration-seconds')
     if args.output.exists():parser.error('Choose a new report file; existing evidence is never overwritten')
-    result=run(args.accounts,args.active,args.cycles,args.duration_seconds,args.think_ms)
+    result=run(args.accounts,args.active,args.cycles,args.duration_seconds,args.think_ms,args.dated_catalog)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     with args.output.open('x',encoding='utf-8') as output:json.dump(result,output,indent=2)
     print(json.dumps({key:result[key] for key in ('accounts','activeCustomers','requests','successfulRequests','elapsedSeconds','requestsPerSecond','database')},indent=2))

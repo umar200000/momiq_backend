@@ -33,6 +33,8 @@ def seal(bundle, destination, recipient):
     if datetime.now(timezone.utc) >= expires:
         raise ValueError('Backup retention elapsed')
     manifest = json.loads(backup_bundle.bundle_file(bundle,'manifest.json').read_text(encoding='utf-8'))
+    if datetime.fromisoformat(manifest['created']) > datetime.now(timezone.utc):
+        raise ValueError('Backup snapshot is future-dated')
     members = ['manifest.json','momiq.sqlite3',*(item['path'] for item in manifest['files'])]
     with TemporaryDirectory(dir=destination.parent) as temp:
         encrypted = Path(temp)/'bundle.age'

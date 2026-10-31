@@ -12,6 +12,19 @@ import test_booking_http as http_fixtures
 
 
 class SearchHttpTests(unittest.TestCase):
+    def test_nearest_search_limits_full_profiles_but_fills_past_ineligible_candidates(self):
+        from unittest.mock import patch
+        self.clones()
+        path='/api/sitters?lat=41.3&lon=69.27'
+        with patch.object(catalog,'fingerprint',wraps=catalog.fingerprint) as fingerprint:
+            self.assertEqual(len(self.req(path)['sitters']),20)
+            self.assertEqual(fingerprint.call_count,21)
+        with server.db() as con:
+            con.execute("UPDATE wallet_accounts SET balance_minor=0 WHERE user_id NOT IN ('sitter-23','sitter-22')")
+        result=self.req(path)
+        self.assertEqual({row['id'] for row in result['sitters']},{'sitter-23:boarding','sitter-22:boarding'})
+        self.assertIsNone(result['nextCursor'])
+
     setUp=http_fixtures.BookingHttpTests.setUp
     save=http_fixtures.BookingHttpTests.save
     review=http_fixtures.BookingHttpTests.review

@@ -84,20 +84,53 @@ def proximity_key(item):
     return (item['distance'] if item['distance'] is not None else 21000,*item['id'].split(':',1))
 
 
+def nearby_profiles(con,environment,selected,interval,after):
+    """Rank lightweight candidate IDs, then verify full profiles in the same snapshot."""
+    def rank(lat,lon):
+        if type(lat) not in (int,float) or type(lon) not in (int,float):
+            return 21000
+        return distance_km(selected['origin'],{'lat':round(lat,2),'lon':round(lon,2)})
+    con.create_function('momiq_catalog_distance',2,rank,deterministic=True)
+    rows=con.execute("""SELECT m.user_id,m.service,
+             momiq_catalog_distance(json_extract(j.value,'$.location.lat'),json_extract(j.value,'$.location.lon')) distance
+           FROM listing_moderation m JOIN listings l ON l.user_id=m.user_id, json_each(l.data,'$.listings') j
+           WHERE m.status='approved' AND j.type='object' AND json_extract(j.value,'$.type')=m.service
+             AND (? IS NULL OR m.service=?)
+           ORDER BY distance,m.user_id,m.service""",(selected['service'],selected['service']))
+    boundary=(after['distance'],*after['last'].split(':',1)) if after else None
+    def candidates():
+        for owner,service,distance in rows:
+            if boundary is not None and (distance,owner,service)<=boundary:
+                continue
+            if distance!=21000 and selected['maxDistance'] is not None and distance>selected['maxDistance']:
+                continue
+            yield owner+':'+service
+    ordered=candidates()
+    while batch:=list(itertools.islice(ordered,PAGE_SIZE+1)):
+        valid={item['id']:item for item in catalog.iter_profiles(con,environment,interval=interval,favorites=batch)}
+        for identity in batch:
+            if identity in valid:
+                yield valid[identity]
+
+
 def page(con, environment, params, *, user=None):
     selected,interval,digest,after=options(params,user)
     if not con.in_transaction:con.execute('BEGIN')
     now=datetime.now(timezone.utc)
     favorites=None
     if selected['favoritesOwner']:
-        row=con.execute("SELECT json_extract(account,'$.favorites') FROM users WHERE id=?",(user,)).fetchone()
+        row=con.execute("""SELECT json_extract(account,'$.favorites') FROM users
+                           WHERE id=? AND json_type(account,'$.favorites')='array'""",(user,)).fetchone()
         favorites=json.loads(row[0]) if row and row[0] else []
+    ranked=selected['origin'] is not None and favorites is None
+    source=(nearby_profiles(con,environment,selected,interval,after) if ranked else
+            catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',
+                                  service=selected['service'],favorites=favorites))
     def matches():
-        # iter_profiles orders by owner/service. One snapshot covers consecutive
-        # services for the same sitter, only for this transaction and interval.
+        # Reuse capacity for consecutive services belonging to the same sitter.
         last_owner = None
         usage = None
-        for item in catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',service=selected['service'],favorites=favorites):
+        for item in source:
             service=catalog.SERVICES[item['service']]
             if selected['service'] is not None and service!=selected['service']:continue
             if selected['pet'] is not None and catalog.PET_LABELS[selected['pet']] not in item['pets']:continue
@@ -121,7 +154,7 @@ def page(con, environment, params, *, user=None):
                 item.update(availabilityKnown=True,freeCapacity=free,
                             availabilityInterval={'startsAt':booking_capacity.stamp(interval[0]),'endsAt':booking_capacity.stamp(interval[1])})
             yield item
-    if selected['origin']:
+    if selected['origin'] and not ranked:
         result=heapq.nsmallest(PAGE_SIZE+1,matches(),key=proximity_key)
     else:
         result=list(itertools.islice(matches(),PAGE_SIZE+1))

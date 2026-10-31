@@ -66,7 +66,7 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Joriy bajarish navbati — 2026-10-29**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 79 bajarilgan, 60 ochiq**. Ochiq bandlarning **12 tasi yakuniy navbatga ko‘chirildi**, qolgan **48 tasi qisman bajarilgan yoki davom ettiriladigan bandlar**. Bu 48 tasining hammasi tashqi bog‘liqliksiz to‘liq yopiladi degani emas. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 79 bajarilgan, 60 ochiq**. Dastlabki 48 ochiq banddan **47 tasi joriy/qisman**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
@@ -77,7 +77,7 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 | 3 | M090 | Mavjud support/moderatsiyadan foydalanib e’lon/profil/sharh/media shikoyati va apellyatsiya qamrovini tugatish; ruxsat va dalil testlari. | Operatsion mas’ul va haqiqiy navbat qabuli. |
 | 4 | M123 | Uch tildagi matn, xato holati, kattalashtirilgan shrift/kichik ekran va accessibility widget tekshiruvlari. | Android/iPhone screen reader va haqiqiy klaviatura/ruxsat tekshiruvlari. |
 | 5 | M014 (M012 yopildi) | Izolyatsiyalangan test fixture/seed va test provider chegaralarini inventarizatsiya qilish; xavfsiz takrorlash tekshiruvlari. | Live bronni yaratib/qabul qilib bloklangan sinovni aylanib o‘tish yo‘q; SMS/push haqiqiy provayderlari keyin. |
-| 6 | M001, M007, M008, M009, M019, M029, M042 | Mavjud muhit/build/hudud/map xato himoyalarini tekshirish; 1000 hisob/100 faol mezoni va o‘lchangan katalog dalillarini saqlash. | Aniq Toshkent poligoni, provider egalari/kalitlar/kvota, SLO/xarajat va haqiqiy staging; eski hosted test-login sozlamasini almashtirish. |
+| 6 | M001, M007, M009, M019, M029, M042 | Mavjud muhit/build/hudud/map xato himoyalarini tekshirish; 1000 hisob/100 faol mezoni va o‘lchangan katalog dalillarini saqlash. | Aniq Toshkent poligoni, provider egalari/kalitlar/kvota, SLO/xarajat va haqiqiy staging; eski hosted test-login sozlamasini almashtirish. |
 | 7 | M024, M066, M108 | Hisob/pul/ma’lumot hayot davridagi mavjud kod va UI bo‘shliqlarini belgilash; tasdiqlangan qoldiq qaytarilmasligini bir xil ko‘rsatish. | O‘chirish/retention/aktiv majburiyat/fiskal siyosatini kelishmasdan qaytarilmas o‘chirish yoki yuridik tasdiq qilinmaydi. |
 | 8 | M078, M139 | Video/chek/QR picker, progress, cancel/retry, process-death qoralamasi va maxfiylikning avtomatlashtiriladigan qismlari. | APK install bloklangan; native kamera/playback/haqiqiy iPhone qabul sinovi oxirida. |
 | 9 | M081, M082, M083, M084, M085 | In-app notice, afzallik, event/dedupe va sahifaga o‘tish qamrovini tekshirish; providerga bog‘liq bo‘lmagan kamchiliklarni tuzatish. | Push loyihasi/kalitlar, APNs, OS token delivery va haqiqiy qurilma sinovi. |
@@ -92,9 +92,12 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-10-31. Qolgan 48 banddan davom etilgan ishlar
 
+- [x] **M007/M099/M103/M131.** Sana va masofali katalog avval faqat ochiq koordinataga yaxlitlangan nuqtalar bo‘yicha ID’larni tartiblaydi. So‘ng sahifaga yetguncha enaga profili, moderatsiyasi, balansi va bandligini bir xil DB snapshotida tekshiradi. Yaqindagi nomos e’lonlarni tashlab keyingilar bilan sahifa to‘ldirilishi sinaldi. Bir daqiqalik bir xil 1 000/100 aralash HTTP yuklamasida katalog p95 4688.16 ms dan 889.45 ms ga tushdi. Yakuniy 5867 so‘rovning barchasi o‘tdi, bron nol, integrity va FK toza. [Oldin/keyin dalili](performance/dated-proximity-http-2026-10-31.json)
+- [x] **M092/M097/M115.** Operator CLI saqlagan parol chetlaridagi bo‘sh joylarni HTTP login ham aynan saqlab tekshiradi. Qisqartirilgan variant rad etildi. Tiklash tekshiruvi mavjud bo‘lmagan top-upga bog‘langan kreditni ham aniqlaydi, hatto yakuniy balans va jurnal summasi teng bo‘lsa ham.
+
 - [x] **M108/M102/M123/M124.** Yordam sahifasida egasi profil, telefon, manzil, hayvonlar va sozlamalarni JSON ko‘rinishida o‘zi tanlagan joyga saqlashi mumkin. Server egani sessiyadan oladi. Eksportga rasm, pasport, yozishma, to‘lov yoki token kirmaydi. Anonim va boshqa owner query rad etilishi, hisob almashishi, noto‘g‘ri owner, fayl tanlashni bekor qilish va tasdiqlangan saqlash tekshirildi. Bu profil eksporti. To‘liq ma’lumot arxivi, o‘chirish va retention siyosati ochiq.
 
-- [x] **M078/M082/M090/M102.** Video yonidan bron ishtirokchisi aynan shu hisobotga oid sababni yuboradi. Schema 28 murojaatni asl videoga o‘zgarmas bog‘laydi. Admin ID, kun va vaqt oralig‘ini ko‘radi. Murojaat qo‘shimcha fayl nusxasi yoki ko‘rish huquqi bermaydi. Begona hisob, almashtirilgan ID, muddati tugagan video va asl retry sinovdan o‘tdi. Dalilni uzoqroq saqlash bo‘yicha alohida siyosat ochiq.
+- [x] **M078/M090/M102.** Video yonidan bron ishtirokchisi aynan shu hisobotga oid sababni yuboradi. Schema 28 murojaatni asl videoga o‘zgarmas bog‘laydi. Admin ID, kun va vaqt oralig‘ini ko‘radi. Murojaat qo‘shimcha fayl nusxasi yoki ko‘rish huquqi bermaydi. Begona hisob, almashtirilgan ID, muddati tugagan video va asl retry sinovdan o‘tdi. Dalilni uzoqroq saqlash bo‘yicha alohida siyosat ochiq.
 - [x] **M078/M103/M105/M131.** WSGI videoni tekshirilgan fayl deskriptoridan 64 KiB bo‘laklarda uzatadi. Ulanish uzilganda deskriptor yopiladi. 32 MiB sintetik faylda Python peak ajratmasi 37 807 838 dan 141 987 baytga tushdi, to‘liq oqim SHA-256 teng. Mobil poster faqat o‘sha API sessiyasidan olinadi. Redirect, begona yo‘l, noto‘g‘ri JPEG va 2 MiB dan ortiq javob sinaldi. [O‘lchov](performance/private-range-2026-10-31.json)
 - [x] **M100/M114/M115/M116.** Tiklashda asl backup saqlangan holda vaqtinchalik nusxa 27 dan 28 ga migratsiya qilindi. Hamyonning oraliq qoldiqlari, tushum qarori va kredit, tuzatish va debit tekshiriladi. Jami qoldiq teng bo‘lsa ham noto‘g‘ri qaror rad etildi. Disk, RAM, WAL va navbatlar uchun operator bergan chegaralarning uch xil natijasi tekshirildi.
 
@@ -623,7 +626,6 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 
 **B. Muhitlar va takrorlanadigan ish jarayoni**
 
-- [ ] M008 — Local, staging va production konfiguratsiyalarini ajratish: URL, baza, storage, push, SMS va payment kalitlari aralashmaydi; staging mavjudligi amalda tekshiriladi yoki yaratiladi.
 - [ ] M009 — Development/test/production build sozlamalarini joriy etish: muhit belgisi ko‘rinadi; production build localhost, umumiy OTP yoki test provider bilan chiqarilmaydi.
 - [x] M010 — Flutter/Dart, Python, Java, Gradle, SDK va NDK versiyalarini uyg‘unlashtirish: yangi kompyuter va CI bir xil lockfile bilan build qiladi; mavjud lokal sozlama o‘zgarishlari alohida ko‘rib chiqiladi.
 - [x] M011 — Mahalliy ishga tushirishni takrorlanadigan qilish: admin papka nomi, MapKit konfiguratsiyasi, emulator/telefon ulanishi hujjatlashtiriladi; yashirin qo‘lda tuzatish talab qilinmaydi.
@@ -889,6 +891,10 @@ Bu bo‘lim foydalanuvchining 2026-10-29 ko‘rsatmasi bilan ro‘yxat oxiriga k
 
   **Kutish sababi / davom etish sharti:** Haqiqiy provider, hosted backup/monitoring, signed qurilmalar va biznes egasining yakuniy pilot qabuli kerak.
 
+**2026-10-31 kuni alohida yakunga ko‘chirilgan staging bandi**
+
+- [ ] M008 — Local, staging va production konfiguratsiyalarini ajratish: URL, baza, storage, push, SMS va payment kalitlari aralashmaydi; staging mavjudligi amalda tekshiriladi yoki yaratiladi.
+
 **Davom etayotgan bandlarning tashqi qabul bosqichlari**
 
 - **2026-10-31, egasining qarori.** Alohida staging serveri/domeni va unga kirish yo‘li hozir noma’lum. M008/M009/M110 hamda shu muhitni talab qiladigan deploy, yuklama va qabul sinovlari yakunda birga hal qilinadi. Hozir alohida server olinmaydi. Bu ochiq bandlar ichidagi tashqi bog‘liqlik bo‘lib, oldingi 12 ta yakuniy band alohida hisoblanadi.
@@ -903,4 +909,4 @@ Bu yerda yangi asosiy band yaratilmaydi; yuqoridagi 48 bandning faqat hozir ochi
 - **Operatsiya va xarajat:** M007/M092/M099/M104/M107/M114–M117. Object storage/offsite backup joyi va credential, encryption/recovery kaliti egasi, MFA recovery, SLO/RPO/RTO, alert va support mas’uli/budjet kerak. Mavjud SQLite/load natijasi bazani amalda almashtirish yoki xarajat qilish uchun avtomatik qaror emas.
 - **Store va pilot:** M119–M122/M125/M128/M131/M132. Imzolash egasi, Apple/Google hisoblari, real Android/iPhone, public support/privacy/delete URL va egasining haqiqiy oqim qabuli kerak. Signing foydalanuvchi aytganidek oxirida.
 
-Ochiq bandlar sanog‘i tekshiruvi: **79 yopiq + 48 davom etayotgan/qisman + 12 yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
+Ochiq bandlar sanog‘i tekshiruvi: **79 yopiq + 47 joriy/qisman + 1 staging kutishida + 12 avvalgi yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.

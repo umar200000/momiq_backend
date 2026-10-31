@@ -12,6 +12,15 @@ import test_admin_bookings as fixtures
 
 
 class AdminSessionTests(unittest.TestCase):
+    def test_operator_password_preserves_intentional_whitespace(self):
+        password='  private TEST operator credential  '
+        salt=secrets.token_hex(16)
+        with server.db() as con:
+            con.execute("UPDATE admins SET salt=?,hash=? WHERE username='TEST operator'",
+                        (salt,server.password_hash(password,salt)))
+        self.login(password.strip(),status=401)
+        self.login(password)
+
     setUp=fixtures.AdminBookingTests.setUp
     save=fixtures.AdminBookingTests.save
     review=fixtures.AdminBookingTests.review

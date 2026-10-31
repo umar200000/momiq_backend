@@ -41,6 +41,18 @@ class RestoreDrillTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'decision and credit'):
                 restore_drill.rehearse(root/'copy','test')
 
+    def test_orphan_credit_is_refused_even_when_the_final_balance_matches(self):
+        with TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            with patch.object(server,'DATA',root/'data'),patch.object(server,'ENVIRONMENT','test'):
+                server.setup()
+                with server.db() as con:
+                    con.execute("INSERT INTO users VALUES('owner','998000000011','{}',0,'TEST')")
+                    wallet.post_entry(con,'owner',100,'topup','topup:'+'a'*32,'TEST','TEST')
+                backup_bundle.create(server.DATA,root/'copy')
+                with self.assertRaisesRegex(ValueError,'decision and credit'):
+                    restore_drill.rehearse(root/'copy','test')
+
     def test_offline_copy_checks_environment_and_wallet_reconciliation(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

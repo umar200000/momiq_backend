@@ -23,8 +23,8 @@ def rehearse(bundle, mode):
     manifest = json.loads(backup_bundle.bundle_file(source, 'manifest.json').read_text(encoding='utf-8'))
     created = datetime.fromisoformat(manifest['created'])
     now = datetime.now(timezone.utc)
-    if now >= backup_bundle.bundle_expiry(source):
-        raise ValueError('Backup retention elapsed')
+    if now < created or now >= backup_bundle.bundle_expiry(source):
+        raise ValueError('Backup snapshot is future-dated or its retention elapsed')
     with TemporaryDirectory(prefix='momiq-offline-restore-') as tmp:
         restored = Path(tmp).resolve()
         # Derive media members from the restored database, not manifest path strings.
@@ -68,7 +68,11 @@ def rehearse(bundle, mode):
                 SELECT 1 FROM topup_requests t LEFT JOIN wallet_entries e ON e.source_key='topup:'||t.id
                 WHERE (t.status='approved' AND (e.id IS NULL OR e.kind<>'topup' OR
                        e.user_id<>t.user_id OR e.amount_minor<>t.amount_minor))
-                   OR (t.status<>'approved' AND e.id IS NOT NULL) LIMIT 1""").fetchone():
+                   OR (t.status<>'approved' AND e.id IS NOT NULL)
+                UNION ALL SELECT 1 FROM wallet_entries e
+                WHERE e.source_key GLOB 'topup:*'
+                  AND NOT EXISTS(SELECT 1 FROM topup_requests t WHERE t.id=substr(e.source_key,7))
+                LIMIT 1""").fetchone():
                 raise ValueError('Restored top-up decision and credit disagree')
             if con.execute("""
                 SELECT 1 FROM wallet_corrections c JOIN wallet_entries debit ON debit.id=c.entry_id
