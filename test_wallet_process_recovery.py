@@ -36,6 +36,48 @@ os._exit(37)
 '''
 
 
+class CreditReview:
+    command = 'POST'
+    path = '/api/admin/topups/' + 'b'*32 + '/review'
+
+    def __init__(self, **changes):
+        self.payload = dict(decision='approve', revision=0, reason='TEST bank verified',
+                            receivedAmountMinor=1000, transferReference='TEST-XOLIS', fundsVerified=True)
+        self.payload.update(changes)
+        self.response = None
+
+    def body(self):
+        return self.payload
+
+    def reply(self, status, response):
+        if status != 200:
+            raise AssertionError('Unexpected status')
+        self.response = response
+
+
+def interrupt_credit(path, phase):
+    class Interrupted(sqlite3.Connection):
+        def commit(self):
+            if phase == 'before_commit':
+                os._exit(37)
+            super().commit()
+            if phase == 'after_commit':
+                os._exit(37)
+    con = sqlite3.connect(path, factory=Interrupted)
+    con.row_factory = sqlite3.Row
+    con.execute('PRAGMA foreign_keys=ON')
+    con.execute('PRAGMA synchronous=FULL')
+    if phase == 'after_credit':
+        post = wallet.post_entry
+        def interrupt(*args):
+            post(*args)
+            os._exit(37)
+        wallet.post_entry = interrupt
+    call = CreditReview()
+    wallet.route(call, con, 'operator', call.path, None, 'test')
+    raise AssertionError('Expected process interruption')
+
+
 class WalletProcessRecoveryTests(unittest.TestCase):
     def connect(self, path):
         con = sqlite3.connect(path, timeout=10)
@@ -104,6 +146,59 @@ class WalletProcessRecoveryTests(unittest.TestCase):
                     self.assertEqual(self.snapshot(con), final)
             finally:
                 con.close()
+
+    def test_credit_approval_recovers_without_duplicating_money_history_or_notice(self):
+        for mode in ('DELETE','WAL'):
+            for phase in ('after_credit','before_commit','after_commit'):
+                with self.subTest(mode=mode,phase=phase), tempfile.TemporaryDirectory() as tmp:
+                    path = Path(tmp)/'TEST-credit.sqlite3'
+                    con = self.connect(path)
+                    try:
+                        self.assertEqual(con.execute('PRAGMA journal_mode='+mode).fetchone()[0],mode.lower())
+                        con.execute('CREATE TABLE users(id TEXT PRIMARY KEY)')
+                        con.execute('CREATE TABLE audit(id INTEGER PRIMARY KEY,actor TEXT,action TEXT,target TEXT,time TEXT)')
+                        con.execute("INSERT INTO users VALUES('sitter')")
+                        con.commit()
+                        migrations.migrate(con)
+                        con.execute("""INSERT INTO topup_requests
+                            (id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created)
+                            VALUES(?,'sitter',1000,'synthetic','TEST-hash',1,'v1','TEST-credit','pending','2026-10-31')""",
+                            ('b'*32,))
+                        con.commit()
+                        before = self.snapshot(con)
+                    finally:
+                        con.close()
+                    run = subprocess.run([sys.executable,'-c',
+                        'import sys; from test_wallet_process_recovery import interrupt_credit; interrupt_credit(*sys.argv[1:])',
+                        str(path), phase], cwd=Path(__file__).resolve().parent, capture_output=True, timeout=30,
+                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                    self.assertEqual(run.returncode,37,run.stderr.decode(errors='replace'))
+                    con = self.connect(path)
+                    try:
+                        if phase != 'after_commit':
+                            self.assertEqual(self.snapshot(con),before)
+                        else:
+                            self.assertEqual(wallet.balance(con,'sitter'),1000)
+                        call = CreditReview()
+                        committed = self.snapshot(con)
+                        wallet.route(call,con,'operator',call.path,None,'test')
+                        self.assertEqual(call.response['topup']['status'],'approved')
+                        final = self.snapshot(con)
+                        if phase == 'after_commit':
+                            self.assertEqual(final,committed)
+                        wallet.route(call,con,'operator',call.path,None,'test')
+                        self.assertFalse(con.in_transaction)
+                        self.assertEqual(wallet.balance(con,'sitter'),1000)
+                        for table in ('wallet_entries','topup_history','audit','notifications'):
+                            self.assertEqual(len(final[table]),1,table)
+                        with self.assertRaises(wallet.WalletError), con:
+                            wallet.route(call,con,'different-operator',call.path,None,'test')
+                        with self.assertRaises(ValueError), con:
+                            wallet.route(CreditReview(decision='reject'),con,'operator',call.path,None,'test')
+                        self.assertEqual(self.snapshot(con),final)
+                        self.assertEqual(con.execute('PRAGMA foreign_key_check').fetchall(),[])
+                    finally:
+                        con.close()
 
     def test_death_after_debit_rolls_back_every_table(self):
         for journal in ('DELETE', 'WAL'):

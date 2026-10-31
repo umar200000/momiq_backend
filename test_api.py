@@ -1,3 +1,4 @@
+import hashlib
 import base64
 import http.cookiejar
 import json
@@ -586,7 +587,15 @@ class ApiTests(unittest.TestCase):
         approval['revision']=2
         self.req(review,'POST',approval,admin=True);self.req(review,'POST',approval,admin=True)
         self.assertEqual(self.req('/api/wallet',token=a['token'])['balanceMinor'],200)
-        self.assertEqual(self.req(amend,'POST',edit,token=a['token'])['topup']['status'],'approved')
+        retry=self.req(amend,'POST',edit,token=a['token'])
+        self.assertEqual(retry['topup']['status'],'approved')
+        self.assertEqual(retry['acknowledgement']['evidenceRevision'],2)
+        self.assertEqual(retry['acknowledgement']['requestId'],edit['requestId'])
+        self.assertEqual(retry['acknowledgement']['receiptSha256'],hashlib.sha256(base64.b64decode(edit['receipt'])).hexdigest())
+        first_receipt=self.req('/api/wallet/topups','POST',original,token=a['token'])['acknowledgement']
+        self.assertEqual((first_receipt['evidenceRevision'],first_receipt['amountMinor']), (0,original['amountMinor']))
+        self.assertNotIn('acknowledgement',self.req('/api/wallet/topups/'+tid,token=a['token']))
+
         self.req(amend,'POST',dict(edit,amountMinor=300),token=a['token'],expected=409)
         self.assertEqual(self.req('/api/wallet/topups','POST',original,token=a['token'])['topup']['revision'],3)
         self.req('/api/wallet/topups','POST',dict(original,requestId='reuse-old-image'),token=a['token'],expected=409)

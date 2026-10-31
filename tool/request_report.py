@@ -121,6 +121,28 @@ def summarize(stream):
     }
 
 
+def assess(report, group, min_requests, max_failure_percent, max_p95_ms):
+    bucket = report['total'] if group is None else report['groups'].get(group)
+    result = {'group':group, 'minRequests':min_requests,
+              'maxFailurePercent':max_failure_percent, 'maxP95Ms':max_p95_ms}
+    if report['rejectedLines'] or not bucket or bucket['requests'] < min_requests:
+        return {**result, 'status':'insufficient'}, 2
+    duration = bucket['handlerDurationMs']
+    if max_p95_ms is not None and duration['missing']:
+        return {**result, 'status':'insufficient'}, 2
+    failures = sum(count for code, count in bucket['statusCounts'].items()
+                   if int(code) == 0 or 500 <= int(code) <= 599)
+    count = bucket['requests']
+    exceeded = []
+    if max_failure_percent is not None and failures*100 > max_failure_percent*count:
+        exceeded.append('failurePercent')
+    if max_p95_ms is not None and duration['p95'] > max_p95_ms:
+        exceeded.append('handlerP95Ms')
+    return {**result, 'status':'exceeded' if exceeded else 'within',
+            'exceeded':exceeded, 'failedRequests':failures, 'requests':count,
+            'handlerP95Ms':duration['p95']}, int(bool(exceeded))
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message):
         self.exit(2, 'Invalid arguments; use --help.\n')
@@ -129,13 +151,28 @@ class _Parser(argparse.ArgumentParser):
 def main(argv=None):
     parser = _Parser(description=__doc__)
     parser.add_argument('input', help='JSON-lines log file, or - for binary stdin')
+    parser.add_argument('--group', choices=sorted(GROUPS))
+    parser.add_argument('--min-requests', type=int)
+    parser.add_argument('--max-failure-percent', type=float, help='Status 0 and HTTP 5xx')
+    parser.add_argument('--max-p95-ms', type=float)
     args = parser.parse_args(argv)
+    checking = args.max_failure_percent is not None or args.max_p95_ms is not None
+    if not checking and (args.group is not None or args.min_requests is not None):
+        parser.error('A threshold is required')
+    if ((args.max_failure_percent is not None and not 0 <= args.max_failure_percent <= 100)
+            or (args.max_p95_ms is not None and not 0 <= args.max_p95_ms <= 86_400_000)
+            or (args.min_requests is not None and not 1 <= args.min_requests <= MAX_LINES)):
+        parser.error('Invalid threshold')
+    status = 0
     try:
         if args.input == '-':
             report = summarize(sys.stdin.buffer)
         else:
             with open(args.input, 'rb') as stream:
                 report = summarize(stream)
+        if checking:
+            report['assessment'], status = assess(report, args.group, args.min_requests or 1,
+                                                   args.max_failure_percent, args.max_p95_ms)
         print(json.dumps(report, ensure_ascii=True, indent=2, allow_nan=False))
     except ReportError as error:
         print(str(error), file=sys.stderr)
@@ -143,7 +180,7 @@ def main(argv=None):
     except OSError:
         print('Cannot read diagnostics or write report.', file=sys.stderr)
         return 2
-    return 0
+    return status
 
 
 if __name__ == '__main__':

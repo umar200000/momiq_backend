@@ -586,3 +586,23 @@ Missing-video explanation POST returns `{ok, bookingId, requestId, petId, day, s
 The mobile video page validates the complete GET response before replacing its prior state: booking/day, current Tashkent server clock and both half-open report windows, capabilities, unique booking pets, media metadata/retention state, missing-video follow-ups and explanations. Historical `day` remains distinct from the current policy `today`; historical browsing cannot enable uploading. Malformed or source-mismatched results preserve the last valid page and saved upload request. Raw technical exceptions are not displayed in this page. This is client contract enforcement; server ownership/window/format checks remain authoritative.
 
 Review, care and dispute draft format failures expose an explicit local-clear action. No malformed retry is posted or silently deleted. Clearing does not delete any committed server record; a successful clear reloads server state before allowing a new write. A failed local clear retains the error and draft instead of masking it with an automatic refresh. This recovery handles malformed stored JSON/field shapes; native secure-storage, device process-death and I/O acceptance remain separate.
+
+### Participant booking receipts and mobile agreement checks, 2026-10-31
+
+Creating a booking returns the current participant view and an `acknowledgement` with `action=request`, `requestId`, `quoteId` and `bookingId`. A successfully processed accept, reject or cancel command includes the original request ID, booking ID, requested action, committed event action and event revision. Expiry at the deadline yields `eventAction=expire`. Replaying an exact request after a later decision returns its original event receipt beside the current booking state. GET responses omit write receipts. Deploy the compatible API before releasing the updated mobile client.
+
+The client matches the listing, selected animals, dates, instructions and quote validity window. It checks the server's integer per-animal rates, started 24-hour periods, total and commission rounding before showing a price. An invalid quote cannot be submitted. Invalid list rows or cursors preserve the prior page. A mismatched write receipt keeps the pending request retryable. Booking detail, review, animal image and policy reads reject unexpected query parameters.
+
+### Public photo reports and account requests
+
+A new private support ticket may use the existing listing target plus `media` and `sha256`. The slot is `portrait` or `home:N` with a zero-based index. The digest identifies the bytes of the approved public JPEG shown in the app. The server checks current visibility and the slot before capturing the digest and slot in the immutable support snapshot. Missing media returns 404. A replaced photo returns 409. Exact retries retain the original ticket after later moderation. A reporter can attach evidence through the existing private support image field.
+
+The owner can submit a privately authenticated ticket with `topic=account_deletion`, `confirmAccountRequest=true` and `bookingId=null`. The session identifies the owner. Submission and support closure are intake actions. Actual erasure, reauthentication for irreversible action, active obligations, retention, external access and recovery reconciliation are still release gates.
+
+A repeated top-up approval confirms the original decision only for the original operator and matching revision, verified amount, reference and reason. Another operator receives 409. Rejection and clarification reject approval-only verification fields.
+
+### Wallet evidence confirmation and account changes
+
+A successful top-up create or amendment returns the current owner-facing `topup` and a separate `acknowledgement`. It contains the original request ID, top-up ID, evidence revision, amount in minor UZS units, QR version and SHA-256 of the submitted receipt bytes. Create uses evidence revision zero and amendment uses the submitted revision plus one. A replay after later approval retains the original evidence receipt. Owner reads omit this write confirmation. Acknowledgement confirms receipt submission. Only the manual operator review can credit the balance.
+
+The updated wallet checks these fields before clearing the payment attempt. It keeps a newly submitted ambiguous attempt read-only and retries with the original evidence. Previously saved version-one drafts remain readable. The account, API, top-up ID and storage scope bind the wallet form, reads, payment and receipt selection. Replacing a displayed QR dismisses its old enlargement and an older gallery-save completion cannot announce success for the replacement QR.

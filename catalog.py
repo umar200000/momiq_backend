@@ -226,11 +226,25 @@ def profile(con,environment,identity,*,interval=None):
     return next(iter_profiles(con,environment,interval=interval,owner=owner,service=service),None)
 
 
-def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=None):
+def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=None,favorites=None):
     after_key=tuple(after.split(':',1)) if after else ('','')
     owner_clause=' AND m.user_id=?' if owner is not None else ''
     service_clause=' AND m.service=?' if service is not None else ''
     args=[*after_key,MINIMUM_BALANCE_MINOR]+([owner] if owner is not None else [])+([service] if service is not None else [])
+    favorite_clause = ''
+    if favorites is not None:
+        keys = []
+        for identity in favorites:
+            if not isinstance(identity, str):
+                continue
+            owner_id, separator, kind = identity.rpartition(':')
+            if separator and owner_id and kind in SERVICES:
+                keys.append((owner_id, kind))
+        if not keys:
+            return
+        favorite_clause = (" AND (m.user_id,m.service) IN (SELECT json_extract(value,'$[0]'),"
+                           "json_extract(value,'$[1]') FROM json_each(?))")
+        args.append(json.dumps(keys))
     # Read in the moderation primary-key order. Reputation stays in the same
     # read snapshot without one additional Python/SQLite call per listing.
     rows=con.execute("""SELECT u.id,u.account,l.data,m.service moderated_service,
@@ -243,7 +257,7 @@ def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=No
         WHERE (m.user_id,m.service)>(?,?) AND m.status='approved' AND u.blocked=0
         AND w.balance_minor>=?
         AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=m.user_id AND r.role='sitter')"""
-        +owner_clause+service_clause+' ORDER BY m.user_id,m.service',args)
+        +owner_clause+service_clause+favorite_clause+' ORDER BY m.user_id,m.service',args)
     for row in rows:
         account=json.loads(row['account']);data=json.loads(row['data'])
         if interval and sitter_availability.reason(account,*interval): continue

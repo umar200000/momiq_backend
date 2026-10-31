@@ -107,6 +107,21 @@ def topup_view(row, *, admin=False):
     return result
 
 
+def acknowledge_topup(handler, con, identity, request_id, revision, status):
+    row = con.execute('SELECT * FROM topup_requests WHERE id=?', (identity,)).fetchone()
+    original = con.execute('SELECT * FROM topup_history WHERE topup_id=? AND revision=?',
+                           (identity, revision)).fetchone()
+    if original is None:
+        raise RuntimeError('Missing top-up evidence revision')
+    receipt = {'topupId':identity, 'requestId':request_id, 'evidenceRevision':revision,
+               'amountMinor':original['amount_minor'], 'qrVersion':original['qr_version'],
+               'receiptSha256':original['receipt_hash']}
+    response = {'topup':topup_view(row), 'acknowledgement':receipt}
+    con.commit()
+    handler.reply(status, response)
+    return True
+
+
 def topup_page(handler, con, uid, admin=False):
     if not con.in_transaction:con.execute('BEGIN')
     query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
@@ -274,7 +289,7 @@ def route(handler, con, uid, path, photo, environment):
             if (original['amount_minor']!=value or original['receipt_hash']!=digest or original['qr_version']!=version
                     or original['payer_reference']!=payer_reference or original['paid_at']!=paid_at):
                 raise WalletError(409,'So‘rov identifikatori boshqa ma’lumot bilan ishlatilgan')
-            handler.reply(200,{'topup':topup_view(existing)});return True
+            return acknowledge_topup(handler, con, existing['id'], request_id, 0, 200)
         if not payer_reference and not paid_at:
             raise WalletError(400,'Chekdagi to‘lov vaqtini yoki operatsiya ID raqamini kiriting')
         qr=con.execute('SELECT * FROM platform_settings WHERE version=?',(version,)).fetchone()
@@ -290,9 +305,7 @@ def route(handler, con, uid, path, photo, environment):
         con.execute('INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created,payer_reference,paid_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                     (topup,uid,value,receipt,digest,version,TERMS_VERSION,request_id,'pending',now(),payer_reference,paid_at))
         topup_history.record(con,topup,'created',uid)
-        con.commit()
-        handler.reply(201,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(topup,)).fetchone())})
-        return True
+        return acknowledge_topup(handler, con, topup, request_id, 0, 201)
     if path == '/api/admin/topups' and method=='GET':
         handler.reply(200,topup_page(handler,con,uid,admin=True))
         return True
@@ -320,7 +333,7 @@ def route(handler, con, uid, path, photo, environment):
             if (previous['revision']!=revision+1 or previous['amount_minor']!=value or previous['receipt_hash']!=digest
                     or previous['qr_version']!=version or previous['payer_reference']!=payer_reference or previous['paid_at']!=paid_at):
                 raise WalletError(409,'Qayta yuborish identifikatori boshqa ma’lumot bilan ishlatilgan')
-            handler.reply(200,{'topup':topup_view(row)});return True
+            return acknowledge_topup(handler, con, row['id'], request_id, revision + 1, 200)
         if row['revision']!=revision or row['status'] not in ('needs_info','rejected'):
             raise WalletError(409,'So‘rov o‘zgargan yoki tahrirlashga ochiq emas. Qayta yuklang.')
         if version!=row['qr_version']: raise WalletError(409,'Asl to‘lovning QR versiyasini o‘zgartirmang')
@@ -330,13 +343,14 @@ def route(handler, con, uid, path, photo, environment):
                     (value,receipt,digest,payer_reference,paid_at,TERMS_VERSION,row['id']))
         topup_history.record(con,row['id'],'resubmitted',uid,request_id=request_id)
         con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'topup-resubmit',row['id']+':'+str(revision+1),now()))
-        con.commit()
-        handler.reply(200,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(row['id'],)).fetchone())});return True
+        return acknowledge_topup(handler, con, row['id'], request_id, revision + 1, 200)
     match=re.fullmatch(r'/api/admin/topups/([a-f0-9]{32})/review',path)
     if match and method=='POST':
         data=mutation(handler,{'decision','reason','revision','transferReference','receivedAmountMinor','fundsVerified'});reason=text(data.get('reason'),1000)
         decision=data.get('decision')
         if decision not in ('approve','reject','request_info'): raise ValueError('Qaror noto‘g‘ri')
+        if decision != 'approve' and {'transferReference','receivedAmountMinor','fundsVerified'} & data.keys():
+            raise ValueError('Tushum tasdig‘i faqat balansga kredit yozish uchun kerak')
         reference=text(data.get('transferReference'),200) if decision=='approve' else None
         if reference:
             reference=reference.upper()
@@ -351,8 +365,12 @@ def route(handler, con, uid, path, photo, environment):
         revision=data.get('revision')
         if type(revision) is not int: raise WalletError(428,'So‘rov versiyasi majburiy. Sahifani yangilang.')
         if row['status']!='pending':
-            if row['status']==status and row['transfer_reference']==reference and row['review_reason']==reason and row['revision']==revision+1:
-                handler.reply(200,{'topup':topup_view(row,admin=True)});return True
+            if (row['reviewed_by'] == uid and row['status'] == status and row['transfer_reference'] == reference
+                    and row['review_reason'] == reason and row['revision'] == revision + 1):
+                result = topup_view(row,admin=True)
+                con.commit()
+                handler.reply(200,{'topup':result})
+                return True
             raise WalletError(409,'Bu so‘rov allaqachon ko‘rib chiqilgan')
         if revision!=row['revision']: raise WalletError(409,'So‘rov o‘zgargan. Chekni qayta tekshiring.')
         if reference and con.execute('SELECT 1 FROM topup_requests WHERE transfer_reference=?',(reference,)).fetchone():

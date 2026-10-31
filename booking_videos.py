@@ -3,6 +3,7 @@
 Storage is inside the instance data directory, never the public admin tree.
 Original uploads are temporary; only normalized playback/poster files persist.
 """
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 import os
@@ -10,6 +11,7 @@ import json
 import re
 import secrets
 import shutil
+import stat
 import tempfile
 import threading
 import time
@@ -168,6 +170,45 @@ def byte_range(value, size):
     return start,end,206
 
 
+@contextmanager
+def open_derivative(root, video, kind):
+    """Open one regular, privately stored derivative under the configured data root."""
+    names = {'playback': 'playback.mp4', 'poster': 'poster.jpg'}
+    if not re.fullmatch('[a-f0-9]{32}', video) or kind not in names:
+        raise media.VideoUnavailable('Video fayli hozir mavjud emas')
+    with ExitStack() as stack:
+        try:
+            root = Path(root).resolve(strict=True)
+            parts = ('care-videos', video, names[kind])
+            if os.name == 'posix':
+                directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+                directory = os.open(root, directory_flags)
+                stack.callback(os.close, directory)
+                for component in parts[:-1]:
+                    directory = os.open(component, directory_flags, dir_fd=directory)
+                    stack.callback(os.close, directory)
+                fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=directory)
+            else:
+                path = root
+                for component in parts:
+                    path = path / component
+                    if path.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+                        raise OSError('Unexpected reparse point')
+                fd = os.open(path, os.O_RDONLY | os.O_BINARY)
+            stack.callback(os.close, fd)
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size <= 0:
+                raise OSError('Invalid private media file')
+            if os.name != 'posix' and (path.resolve(strict=True) != path or
+                                       not os.path.samestat(info, path.stat())):
+                raise OSError('Private media path changed')
+            stream = stack.enter_context(os.fdopen(fd, 'rb', closefd=False))
+        except OSError as error:
+            raise media.VideoUnavailable('Video fayli hozir mavjud emas') from error
+        yield stream
+
+
 def download(handler, con, root, identity, user, video, kind, *, admin=False):
     readable(con, identity, user, admin)
     row = con.execute('SELECT * FROM booking_videos WHERE id=? AND booking_id=?', (video,identity)).fetchone()
@@ -175,12 +216,7 @@ def download(handler, con, root, identity, user, video, kind, *, admin=False):
         raise engine.BookingError(404, 'Video topilmadi')
     if not video_retention.status(con,row,datetime.now(timezone.utc))['available']:
         raise engine.BookingError(410, 'Videoning saqlash muddati tugagan')
-    path = Path(root)/'care-videos'/row['id']/('playback.mp4' if kind == 'playback' else 'poster.jpg')
-    try:
-        stream = path.open('rb')
-    except FileNotFoundError as error:
-        raise media.VideoUnavailable('Video fayli hozir mavjud emas') from error
-    with stream:
+    with open_derivative(root, row['id'], kind) as stream:
         size = os.fstat(stream.fileno()).st_size
         start,end,status = byte_range(handler.headers.get('Range'),size)
         if admin:

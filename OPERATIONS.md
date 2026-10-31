@@ -104,3 +104,13 @@ Alert yoki byudjet oshganda kimga va qaysi kanalga xabar borishi kelishilib, tes
 `python -m unittest -q test_wallet_process_recovery` runs three crash scenarios in temporary TEST databases under both SQLite DELETE and WAL journal modes with `synchronous=FULL`. A real child process exits without connection cleanup after the debit, before commit, or after commit but before returning a response. Reopening checks integrity/FKs and all table snapshots: incomplete transactions leave every table unchanged; a committed correction survives and its exact retry leaves ledger, audit and notification counts unchanged. Changed-payload and stale new-request retries are rejected. No server, user balance or production database is contacted.
 
 This evidence covers abrupt process exit, including a lost post-commit response. It does not certify host power loss, a failing filesystem, offsite backups, deploy interruption, external SMS/storage behavior or an agreed RPO/RTO. Those acceptance gates remain M115/M130/M131.
+
+### Tiklash mashqi va qaytarilgan relizni tekshirish
+
+`python restore_drill.py --bundle <verified-bundle> --mode <mode>` nusxani yangi vaqtinchalik katalogga ochadi. U bazaning muhiti, migratsiya tarixi, yaxlitligi, tashqi kalitlari, media xeshlari va hamyon qoldiqlarining moliyaviy jurnal bilan mosligini tekshiradi. Natijada faqat sonlar, nusxa yoshi va mashq vaqti chiqadi. Muddati o‘tgan yoki buzilgan nusxa rad etiladi. Mashq ishga tushirilgan serverga yoki faol bazaga yozmaydi. Haqiqiy recovery uchun nusxadan keyingi pul operatsiyalari va o‘chirilgan hisoblarni solishtirish hamda offsite nusxani tekshirish zarur.
+
+Root deploy skripti smoke muvaffaqiyatsiz bo‘lganda avvalgi relizni tanlaydi va o‘sha versiyaga tegishli SHA hamda admin fayllarini qayta tekshiradi. Qaytarish tekshiruvi ham yiqilsa, operator aralashuvi kerakligi qayd etiladi. Har ikki holatda yangi deploy muvaffaqiyatsiz tugaydi. O‘zgarish serverga vakolatli bootstrap orqali o‘rnatilgach kuchga kiradi.
+
+### Log kesimiga operator tanlagan chegarani qo‘llash
+
+`python tool/request_report.py <json-lines> --group sitters --min-requests 100 --max-failure-percent 1 --max-p95-ms 500` buyruq shakliga misol. Bu sonlar production SLO sifatida tasdiqlanmagan. Status 0 va HTTP 5xx muvaffaqiyatsizlik hisoblanadi. Exit 0 berilgan chegaralar ichida, exit 1 chegara oshganini, exit 2 esa kirish yoki namuna yetarli emasligini bildiradi. Rad etilgan satr, yetarli so‘rov bo‘lmasligi yoki latency tekshiruvida vaqt yetishmasligi sog‘lom natija bermaydi. Oddiy jamlanma rejimi avvalgidek ishlaydi. Tashqi alert manzili va chegara qiymatlarini mas’ul operator belgilaydi.

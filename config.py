@@ -35,5 +35,8 @@ class Settings:
         port = int(env.get('MOMIQ_PORT', '8080'))
         if not 1 <= port <= 65535:
             raise ValueError('MOMIQ_PORT is outside 1..65535')
-        return cls(mode, data.resolve(), Path(env.get('MOMIQ_ADMIN_DIR', admin_default)).resolve(),
-                   env.get('MOMIQ_HOST', '127.0.0.1'), port, flag == '1')
+        data = data.resolve()
+        admin = Path(env.get('MOMIQ_ADMIN_DIR', admin_default)).resolve()
+        if data.is_relative_to(admin) or admin.is_relative_to(data):
+            raise ValueError('Runtime data and public admin assets require separate directories')
+        return cls(mode, data, admin, env.get('MOMIQ_HOST', '127.0.0.1'), port, flag == '1')

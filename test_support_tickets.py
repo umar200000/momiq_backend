@@ -48,6 +48,23 @@ class SupportTests(unittest.TestCase):
             self.assertEqual(response.status,status)
             return response.read() if binary else json.load(response)
 
+    def test_deletion_intake_requires_confirmation_and_never_executes_account_or_wallet_changes(self):
+        data=self.data(topic='account_deletion',confirmAccountRequest=True)
+        def protected_state():
+            with server.db() as con:
+                return {table:[tuple(row) for row in con.execute('SELECT * FROM '+table+' ORDER BY rowid')]
+                        for table in ('users','sessions','wallet_accounts','wallet_entries','bookings','listing_moderation')}
+        before=protected_state()
+        for invalid in [{k:v for k,v in data.items() if k!='confirmAccountRequest'},
+                        {**data,'confirmAccountRequest':1},{**data,'topic':'general'},
+                        {**data,'ownerId':'other'},{**data,'bookingId':'a'*32}]:
+            self.req('/api/support','POST',invalid,status=400)
+        created=self.req('/api/support','POST',data)
+        self.assertEqual(created['ticket']['topic'],'account_deletion')
+        self.assertEqual(self.req('/api/support','POST',data),created)
+        self.req('/api/support/'+created['ticket']['id'],user='stranger',status=404)
+        self.assertEqual(protected_state(),before)
+
     def test_owner_admin_boundaries_private_image_and_immutable_history(self):
         created=self.req('/api/support','POST',self.data(image=fixture_image()))
         identity=created['ticket']['id'];path='/api/support/'+identity

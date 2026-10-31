@@ -23,6 +23,13 @@ def route(handler, con, user, path, environment, data_root):
         return False
     engine.test_gate(con, environment)
     now = datetime.now(timezone.utc)
+    query_string = urlparse(handler.path).query
+    if handler.command == 'GET' and query_string and (
+        path == '/api/bookings/policy' or re.fullmatch(
+            r'/api/bookings/[a-f0-9]{32}(?:/review|/pets/[^/]+/(?:photo|passport))?', path
+        )
+    ):
+        raise ValueError('Unexpected booking read query')
     if booking_videos.route(handler, con, user, path, data_root):
         return True
     if handler.command in ('POST','PUT','PATCH','DELETE') and urlparse(handler.path).query:
@@ -70,11 +77,15 @@ def route(handler, con, user, path, environment, data_root):
         data = body(handler, ['quoteId', 'requestId'])
         result = engine.request_booking(con, user, data.get('quoteId'), data.get('requestId'),
                                          environment=environment, now=now)
+        result['acknowledgement'] = {
+            'bookingId': result['id'], 'action': 'request',
+            'requestId': data['requestId'], 'quoteId': data['quoteId'],
+        }
         con.commit()
         handler.reply(200, result)
         return True
     if path == '/api/bookings' and handler.command == 'GET':
-        query = parse_qs(urlparse(handler.path).query)
+        query = parse_qs(query_string, keep_blank_values=True)
         booking_index.options(query)
         # Read-time catch-up complements the bounded background expiry worker.
         engine.expire_due(con, environment=environment, now=now, owner=user)
@@ -100,6 +111,17 @@ def route(handler, con, user, path, environment, data_root):
         data = body(handler, ['revision', 'requestId', 'reason'])
         result = engine.act(con, user, identity, action, data.get('revision'), data.get('requestId'),
                             reason=data.get('reason', ''), environment=environment, now=now)
+        if action in ('accept', 'reject', 'cancel'):
+            # The engine verified the actor and fingerprint (also on replay).
+            # A deadline crossing records expiry instead of the requested action.
+            event = next(e for e in result['history'] if e['revision'] == data['revision'] + 1)
+            if not ((event['action'] == action and event['actor'] == user) or
+                    (event['action'] == 'expire' and event['actor'] == 'system')):
+                raise RuntimeError('Booking acknowledgement event mismatch')
+            result['acknowledgement'] = {
+                'bookingId': identity, 'requestId': data['requestId'], 'action': action,
+                'eventAction': event['action'], 'eventRevision': event['revision'],
+            }
         con.commit()
         handler.reply(200, result)
         return True

@@ -49,10 +49,20 @@ class BackupBundleTests(unittest.TestCase):
             self.assertTrue((target/'user-notes.txt').exists());self.assertTrue(custom.exists())
 
     def test_bundle_restore_contains_referenced_media_and_detects_corruption(self):
+        import restore_drill
+        import wallet
+        with server.db() as con:
+            # Replace this fixture's synthetic opening balance with a journalled one.
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM wallet_entries").fetchone()[0], 0)
+            con.execute("UPDATE wallet_accounts SET balance_minor=0 WHERE user_id='abc'")
+            wallet.post_entry(con,'abc',100000000,'topup','TEST-drill','operator','TEST recovery credit')
         b=self.active();self.upload(b,self.data(),self.source())
         with tempfile.TemporaryDirectory() as folder:
             target=Path(folder)/'snapshot'
             self.assertEqual(backup_bundle.create(server.DATA,target),{'database':'ok','mediaFiles':2})
+            result=restore_drill.rehearse(target,server.ENVIRONMENT)
+            self.assertEqual(result['mediaFiles'],2)
+            self.assertTrue(result['reconciled'])
             with closing(sqlite3.connect(target/'momiq.sqlite3')) as con:
                 self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_videos').fetchone()[0],1)
                 self.assertEqual(con.execute('PRAGMA foreign_key_check').fetchall(),[])

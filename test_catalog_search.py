@@ -50,6 +50,22 @@ class SearchHttpTests(unittest.TestCase):
         self.req('/api/sitters?after=bogus',status=400)
         self.req('/api/sitters?after=W10',status=400)
 
+    def test_favorite_filter_checks_only_selected_eligible_profiles(self):
+        from unittest.mock import patch
+        self.clones()
+        with server.db() as con:
+            for ids, expected in [
+                ([], []),
+                (['legacy-id', 'sitter-23:boarding', 'sitter-23:boarding'], ['sitter-23:boarding']),
+                (['abc:personal'], []),
+            ]:
+                con.execute("UPDATE users SET account=json_set(account,'$.favorites',json(?)) WHERE id='customer'",
+                            (json.dumps(ids),))
+                with patch.object(catalog, 'fingerprint', wraps=catalog.fingerprint) as fingerprint:
+                    result = catalog_search.page(con, 'local', {'favorites':['1']}, user='customer')
+                    self.assertEqual([r['id'] for r in result['sitters']], expected)
+                    self.assertEqual(fingerprint.call_count, len(expected))
+
     def test_filters_favorites_authorization_and_no_private_leaks(self):
         self.clones()
         query={'service':'boarding','pet':'cat','minPrice':'10005','maxPrice':'10008','animals':'2','q':'enaga'}

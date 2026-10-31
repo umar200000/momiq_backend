@@ -79,6 +79,28 @@ class SupportTargetTests(unittest.TestCase):
         self.assertEqual(closed['ticket']['status'],'resolved')
         with server.db() as con:self.assertEqual(catalog.document(con,'abc')['moderation']['boarding']['status'],'rejected')
 
+    def test_public_photo_report_binds_approved_derivative_and_replays_after_hiding(self):
+        import base64
+        import hashlib
+        from test_media import fixture_image
+        from media_validation import public_photo
+        photo = public_photo(fixture_image())
+        with server.db() as con:
+            con.execute("UPDATE listing_moderation SET public_media=? WHERE user_id='abc' AND service='boarding'",
+                        (json.dumps({'photo':photo, 'homePhotos':[photo]}),))
+        digest = hashlib.sha256(base64.b64decode(photo)).hexdigest()
+        target = {'kind':'listing','id':'abc:boarding','media':'home:0','sha256':digest}
+        data = self.data(target=target)
+        for changes,status in [({'sha256':'f'*64},409),({'media':'home:1'},404),
+                               ({'media':'passport'},400),({'image':photo},400)]:
+            self.req('/api/support','POST',self.data(target={**target,**changes}),status=status)
+        saved = self.req('/api/support','POST',data)
+        self.assertEqual(saved['target']['snapshot']['media'], {'slot':'home:0','sha256':digest})
+        self.assertNotIn(photo,json.dumps(saved))
+        self.reject_listing()
+        self.assertEqual(self.req('/api/support','POST',data), saved)
+        self.req('/api/support','POST',self.data(target=target),status=404)
+
     def test_public_snapshot_is_server_owned_private_and_survives_source_changes(self):
         created=self.req('/api/support','POST',self.report())
         identity=created['ticket']['id'];target=created['target']

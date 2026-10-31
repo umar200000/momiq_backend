@@ -245,16 +245,28 @@ class BookingHttpTests(unittest.TestCase):
         self.assertEqual(quote['snapshot']['price']['service_total_minor'],50000000)
         payload={'quoteId':quote['id'],'requestId':secrets.token_hex(16)}
         booking=self.req('/api/bookings','POST',payload)
-        self.assertEqual(self.req('/api/bookings','POST',payload)['id'],booking['id'])
+        receipt = {'action':'request','bookingId':booking['id'],**payload}
+        self.assertEqual(booking['acknowledgement'], receipt)
+        self.assertEqual(self.req('/api/bookings','POST',payload)['acknowledgement'], receipt)
         identity=booking['id'];path='/api/bookings/'+identity
         self.assertNotIn('PRIVATE',json.dumps(booking))
-        accepted=self.req(path+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        command = {'revision':0,'requestId':secrets.token_hex(16)}
+        accepted=self.req(path+'/accept','POST',command,user='abc')
+        confirmation = {'bookingId':identity,'requestId':command['requestId'],'action':'accept','eventAction':'accept','eventRevision':1}
+        self.assertEqual(accepted['acknowledgement'], confirmation)
         self.assertEqual(accepted['status'],'accepted')
         self.assertIn('PRIVATE',json.dumps(self.req(path)))
         self.assertNotIn('PRIVATE',json.dumps(self.req('/api/bookings')))
         cancelled=self.req(path+'/cancel','POST',{'revision':1,'requestId':secrets.token_hex(16),'reason':'TEST cancellation'})
         self.assertEqual(cancelled['status'],'cancelled')
         self.assertEqual([v['action'] for v in cancelled['history']],['request','accept','cancel'])
+        replay = self.req(path+'/accept','POST',command,user='abc')
+        self.assertEqual(replay['status'], 'cancelled')
+        self.assertEqual(replay['acknowledgement'], confirmation)
+        self.assertNotIn('acknowledgement', self.req(path))
+        for suffix in ('?before=', '?unknown=', '?bucket=all&bucket='):
+            self.req('/api/bookings'+suffix,status=400)
+        self.req(path+'?owner=other',status=400)
         with server.db() as con:
             self.assertEqual(con.execute("SELECT balance_minor FROM wallet_accounts WHERE user_id='abc'").fetchone()[0],100000000)
 
@@ -354,6 +366,7 @@ class BookingHttpTests(unittest.TestCase):
         self.assertEqual(policy['amendmentMode'],'new_quote_and_request')
         self.assertFalse(policy['newRequestCancelsPrevious'])
         booking=self.book(); path='/api/bookings/'+booking['id']
+        booking.pop('acknowledgement')  # Request receipts are only sent to the writer.
         changes={'startsAt':'2030-01-01T00:00:00Z','petIds':['someone-else'], 'service':'personal', 'price':1}
         for method,suffix in [('PUT',''),('PATCH',''),('DELETE',''),('POST','/change'),('POST','/extend')]:
             for user in ['customer','abc']:

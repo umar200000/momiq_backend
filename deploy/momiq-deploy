@@ -49,23 +49,34 @@ if [[ "$kind" == backend ]]; then
   # A failed restart must reach the same recovery path as failed HTTP checks.
   systemctl restart momiq || true
 fi
-backend="$base/current/backend"
-backend_sha=$(cat "$backend/.release-sha")
-healthy=0
-for attempt in {1..3}; do
-  if "$backend/.venv/bin/python" "$backend/deploy_smoke.py" --api-url http://127.0.0.1:8080 --admin-url http://127.0.0.1:8080 --backend-sha "$backend_sha" --mode production --admin-dir "$base/current/admin"; then healthy=1; break; fi
-  sleep 1
-done
-if [[ "$healthy" != 1 ]]; then
+smoke_current_pair() {
+  local backend="$base/current/backend" revision attempt
+  revision=$(cat "$backend/.release-sha") || return 1
+  [[ "$revision" =~ ^[a-f0-9]{40}$ ]] || return 1
+  for attempt in {1..3}; do
+    if "$backend/.venv/bin/python" "$backend/deploy_smoke.py" \
+        --api-url http://127.0.0.1:8080 --admin-url http://127.0.0.1:8080 \
+        --backend-sha "$revision" --mode production --admin-dir "$base/current/admin"; then
+      return 0
+    fi
+    if [[ "$attempt" != 3 ]]; then sleep 1; fi
+  done
+  return 1
+}
+if ! smoke_current_pair; then
   if [[ "$kind" == admin && -n "$old" ]]; then
     ln -s "$old" "$base/current/.rollback"; mv -Tf "$base/current/.rollback" "$base/current/admin"
-    echo 'Admin smoke failed; prior assets restored; database untouched'
   elif [[ "$kind" == backend && -n "$old" && -f "$old/deployment_health.py" ]] &&
     (set -a; source /etc/momiq/backend.env; set +a; runuser -u momiq -- "$old/.venv/bin/python" "$old/deployment_health.py" --data "$MOMIQ_DATA_DIR" --mode "$MOMIQ_ENV"); then
     ln -s "$old" "$base/current/.rollback"; mv -Tf "$base/current/.rollback" "$base/current/backend"; systemctl restart momiq
-    echo 'Backend smoke failed; schema-compatible previous code restored; database untouched'
   else
     echo 'Smoke failed; automatic code rollback is unsafe or unavailable. Operator recovery required; database untouched'
+    exit 1
+  fi
+  if smoke_current_pair; then
+    echo "Previous $kind restored and serving checks passed"
+  else
+    echo "Previous $kind selected but serving checks failed. Operator recovery required" >&2
   fi
   exit 1
 fi

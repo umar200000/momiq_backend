@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shutil
 import sqlite3
+import stat
 import tempfile
 from migrations import backup_database
 import media_maintenance
@@ -42,10 +43,28 @@ def references(database, now):
         return result
 
 
+def bundle_file(folder, relative):
+    """Resolve a known bundle member, refusing redirected or special files."""
+    path = folder
+    components = Path(relative).parts
+    if not components:
+        raise ValueError('Empty backup member')
+    for component in components:
+        if component in ('.', '..') or Path(component).anchor:
+            raise ValueError('Unsafe backup member')
+        path = path / component
+        info = path.lstat()
+        if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+            raise ValueError('Unsafe backup member')
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError('Invalid backup member')
+    return path
+
+
 def verify(folder):
     folder=Path(folder).resolve()
-    manifest=json.loads((folder/'manifest.json').read_text(encoding='utf-8'))
-    database=folder/'momiq.sqlite3'
+    manifest=json.loads(bundle_file(folder,'manifest.json').read_text(encoding='utf-8'))
+    database=bundle_file(folder,'momiq.sqlite3')
     if manifest.get('version')!=1 or digest(database)!=manifest.get('databaseSha256'):
         raise ValueError('Backup manifest/database mismatch')
     now=datetime.fromisoformat(manifest['created'])
@@ -54,7 +73,7 @@ def verify(folder):
     if manifest.get('files')!=[{'path':path,'sha256':checksum} for path,checksum in expected]:
         raise ValueError('Backup media manifest mismatch')
     for relative,checksum in expected:
-        source=folder/relative
+        source=bundle_file(folder,relative)
         if not source.resolve().is_relative_to(folder) or digest(source)!=checksum:
             raise ValueError('Backup video missing or corrupt')
     return {'database':'ok','mediaFiles':len(expected)}
@@ -63,11 +82,11 @@ def verify(folder):
 def bundle_expiry(folder):
     """Existing 14-day DB backup rotation, shortened for earlier video expiry."""
     folder=Path(folder).resolve()
-    manifest=json.loads((folder/'manifest.json').read_text(encoding='utf-8'))
+    manifest=json.loads(bundle_file(folder,'manifest.json').read_text(encoding='utf-8'))
     created=datetime.fromisoformat(manifest['created'])
     if created.tzinfo is None:raise ValueError('Backup date requires timezone')
     expiry=created+timedelta(days=14)
-    database=folder/'momiq.sqlite3'
+    database=bundle_file(folder,'momiq.sqlite3')
     with closing(sqlite3.connect(f'{database.as_uri()}?mode=ro&immutable=1',uri=True)) as con:
         con.row_factory=sqlite3.Row
         ids={item['path'].split('/')[1] for item in manifest['files']}
@@ -92,7 +111,7 @@ def prune(root, now):
                     raise ValueError('Unsafe backup path')
                 if now<bundle_expiry(folder):continue
                 verify(folder)
-                manifest=json.loads((folder/'manifest.json').read_text(encoding='utf-8'))
+                manifest=json.loads(bundle_file(folder,'manifest.json').read_text(encoding='utf-8'))
                 allowed={'manifest.json','momiq.sqlite3',*(item['path'] for item in manifest['files'])}
                 # Older read-only SQLite verification could leave harmless sidecars.
                 if (folder/'momiq.sqlite3-wal').exists():

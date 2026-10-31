@@ -90,11 +90,10 @@ def page(con, environment, params, *, user=None):
     now=datetime.now(timezone.utc)
     favorites=None
     if selected['favoritesOwner']:
-        row=con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()
-        favorites=set(json.loads(row[0]).get('favorites',[])) if row else set()
+        row=con.execute("SELECT json_extract(account,'$.favorites') FROM users WHERE id=?",(user,)).fetchone()
+        favorites=json.loads(row[0]) if row and row[0] else []
     def matches():
-        for item in catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',service=selected['service']):
-            if favorites is not None and item['id'] not in favorites:continue
+        for item in catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',service=selected['service'],favorites=favorites):
             service=catalog.SERVICES[item['service']]
             if selected['service'] is not None and service!=selected['service']:continue
             if selected['pet'] is not None and catalog.PET_LABELS[selected['pet']] not in item['pets']:continue

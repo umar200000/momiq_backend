@@ -1,4 +1,6 @@
 """Server-resolved public-text references; no private documents or media custody."""
+import base64
+import hashlib
 import json
 import re
 
@@ -8,11 +10,17 @@ import catalog
 
 
 def validate(value):
-    if (not isinstance(value,dict) or set(value) not in ({'kind','id'},{'kind','id','purpose','revision'})
+    if (not isinstance(value,dict) or set(value) not in ({'kind','id'},{'kind','id','purpose','revision'},{'kind','id','media','sha256'})
             or value['kind'] not in ('listing','review') or not isinstance(value['id'],str)):
         raise ValueError('Invalid support target')
     pattern=r'[^/:\s]{1,100}:(?:boarding|homeVisit|personal)' if value['kind']=='listing' else r'[1-9][0-9]{0,17}'
     if not re.fullmatch(pattern,value['id']):raise ValueError('Invalid support target identity')
+    if 'media' in value and (
+        value['kind'] != 'listing' or not isinstance(value['media'], str)
+        or not re.fullmatch(r'portrait|home:(?:0|[1-9][0-9]?)', value['media'])
+        or not isinstance(value['sha256'], str) or not re.fullmatch('[a-f0-9]{64}', value['sha256'])
+    ):
+        raise ValueError('Invalid public photo target')
     if 'purpose' in value and (value['purpose']!='appeal' or not isinstance(value['revision'],str)
             or not re.fullmatch(r'[1-9][0-9]{0,17}',value['revision'])):
         raise ValueError('Invalid appeal revision')
@@ -28,6 +36,20 @@ def capture(con,target,environment,user=None):
         if not item:raise engine.BookingError(404,'E’lon topilmadi')
         snapshot={k:item[k] for k in ('name','about','service','price','priceUnit','pets','capacity','years','testOnly')}
         snapshot['revision']=catalog.revision(con,item['userId'])
+        if 'media' in target:
+            slot = target['media']
+            if slot == 'portrait':
+                photo = item['photo']
+            else:
+                index = int(slot.split(':')[1])
+                photos = item['homePhotos'] if item['service'] != 1 else []
+                photo = photos[index] if index < len(photos) else None
+            if not photo:
+                raise engine.BookingError(404, 'E’lon rasmi topilmadi')
+            digest = hashlib.sha256(base64.b64decode(photo, validate=True)).hexdigest()
+            if digest != target['sha256']:
+                raise engine.BookingError(409, 'E’lon rasmi o‘zgargan. Yangilang')
+            snapshot['media'] = {'slot':slot, 'sha256':digest}
     else:
         row=con.execute('SELECT * FROM booking_reviews WHERE id=? AND hidden=0 AND withdrawn=0',(int(identity),)).fetchone()
         if (not row or (environment=='production' and row['test_only'])

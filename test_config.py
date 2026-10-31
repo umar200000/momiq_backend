@@ -30,6 +30,16 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 Settings.load({'MOMIQ_PORT': '0'}, root)
 
+    def test_reject_public_admin_and_private_runtime_directory_overlap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            public=root/'admin'
+            for data,admin in [(public,public),(public/'data',public),(public,public/'assets')]:
+                with self.assertRaisesRegex(ValueError,'separate directories'):
+                    Settings.load({'MOMIQ_DATA_DIR':str(data),'MOMIQ_ADMIN_DIR':str(admin)}, root)
+            cfg=Settings.load({'MOMIQ_DATA_DIR':str(root/'data'),'MOMIQ_ADMIN_DIR':str(public)},root)
+            self.assertEqual(cfg.admin, public)
+
     def test_database_cannot_cross_environments(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(server, 'DATA', Path(tmp)):
             with patch.object(server, 'ENVIRONMENT', 'local'):

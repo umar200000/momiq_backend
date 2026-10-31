@@ -63,7 +63,14 @@ def audit_detail(con,identity,user,before,status=None):
 def write(con,user,identity,data,validate_photo,admin=False,environment='production'):
     creating=identity is None
     required={'requestId','text','image','revision','action'}|({'subject','topic','bookingId'} if creating else set())
-    if not isinstance(data,dict) or set(data) not in (required,required|({'target'} if creating else {'decisionVersion'})):raise ValueError('Invalid support fields')
+    variants = [required, required | ({'target'} if creating else {'decisionVersion'})]
+    deletion_request = creating and isinstance(data, dict) and data.get('topic') == 'account_deletion'
+    if deletion_request:
+        variants = [required | {'confirmAccountRequest'}]
+    if not isinstance(data,dict) or set(data) not in variants:
+        raise ValueError('Invalid support fields')
+    if deletion_request and (data['confirmAccountRequest'] is not True or data['bookingId'] is not None):
+        raise ValueError('Confirm an account deletion request for your own account')
     target=data.get('target')
     if 'target' in data:support_targets.validate(target)
     action=data['action'];revision=data['revision']
@@ -79,7 +86,7 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if creating:
         subject=text(data['subject'],120,True)
         topic=data['topic'];booking=data['bookingId']
-        if topic not in ('general','booking','payment','account','safety'):raise ValueError('Invalid topic')
+        if topic not in ('general','booking','payment','account','safety','account_deletion'):raise ValueError('Invalid topic')
         if booking is not None and (not isinstance(booking,str) or not re.fullmatch(r'[a-f0-9]{32}',booking)):raise ValueError('Invalid booking')
         if topic=='booking' and booking is None:raise ValueError('Booking required')
     fingerprint=engine.retry_key(data['requestId'],{'ticketId':identity,**data})

@@ -78,6 +78,21 @@ class RequestReportTests(unittest.TestCase):
         self.assertEqual(value['groups']['sitters']['handlerDurationMs']['p95'], 123)
         self.assertEqual(value['rejectedLines'], 0)
 
+    def test_thresholds_include_transport_failure_and_refuse_incomplete_samples(self):
+        lines = [access_record('GET','/api/sitters',s,elapsed_seconds=.1) for s in (0,503,200,404)]
+        data = report.summarize(BytesIO(('\n'.join(lines)+'\n').encode()))
+        assessment, code = report.assess(data, 'sitters', 4, 50, 100)
+        self.assertEqual((code,assessment['failedRequests']), (0,2))
+        assessment, code = report.assess(data, 'sitters', 4, 49.9, 99)
+        self.assertEqual((code,assessment['exceeded']), (1,['failurePercent','handlerP95Ms']))
+        self.assertEqual(report.assess(data, 'sitters', 5, 100, None)[1], 2)
+        self.assertEqual(report.assess(data, 'support', 1, 100, None)[1], 2)
+        data['rejectedLines'] = 1
+        self.assertEqual(report.assess(data, None, 1, 100, None)[1],2)
+        data['rejectedLines'] = 0
+        data['total']['handlerDurationMs']['missing'] = 1
+        self.assertEqual(report.assess(data,None,1,None,100)[1],2)
+
     def test_cli_read_only_file_stdin_and_sanitized_failures(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'PRIVATE.log'

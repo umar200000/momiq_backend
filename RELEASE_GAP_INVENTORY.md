@@ -30,3 +30,60 @@ Test seed/cleanup, vaqtinchalik fixture va provayder chegaralari: [TEST_DATA_BOU
 Manba skani `lib/**/*.dart`, runtime Python modullari va admin JavaScript’ida TODO/FIXME/mock/placeholder hamda “hali ulanmagan” markerlari, so‘ng tegishli chaqiruvlar va muhit guardlarini o‘qish orqali bajarildi. Test fixture’lari va oddiy HTML input placeholderlari mahsulotning tayyor bo‘lmagan imkoniyati deb sanalmadi. Dependency kataloglari, secret/runtime fayllari va foydalanuvchi ma’lumotlari bu inventarga ko‘chirilmadi.
 
 Marker topilmagani funksiyaning to‘liq ishlashini isbotlamaydi. Bu inventar M133’ning bir ichki bosqichi; umumiy production/readiness yoki barcha61ochiq band tugagan degan xulosa emas. Har bir topilma yuqoridagi asosiy ID bilan kuzatiladi, yangi dublikat vazifa sanalmaydi.
+
+
+## 2026-10-31 kuni ko‘rib chiqilgan 49 band
+
+Jadval 49 ochiq bandning mahalliy dalili va qolgan ishini ajratadi. Bajarilgan yangi qadamlar asosiy rejaning jurnalida belgilangan.
+
+| Band | Tekshirilgan qism yoki amaldagi dalil | Yopish uchun qolgan ish |
+| --- | --- | --- |
+| M001 | Uch xizmat va har hayvonga kunlik narx bron javobida tekshiriladi. | Tasdiqlangan Toshkent poligonini qo‘llash va ikki platformada qabul. |
+| M007 | Saqlangan enaga filtrining 200 ta juft lokal o‘lchovi bor. Yuklama vositasi mavjud instansga ulanmaydi. | Tezlik, mavjudlik, RPO/RTO va infratuzilma budjetini kelishish. |
+| M008 | Muhit belgilari, bazaning muhiti hamda admin va runtime kataloglarining ajratilishi tekshirildi. | Haqiqiy staging domeni, baza, storage va muhit kalitlari. |
+| M009 | Hosted build loopback taxalluslari va .invalid namuna domenini rad etadi. Production API porti 443. | Staging konfiguratsiyasi bilan haqiqiy build va hosted qabul. |
+| M012 | Boshqariladigan seed va alohida sinov fixturelari tekshirildi. | Barcha demo holatlari uchun boshqariladigan ssenariy seed’i hali to‘liq emas. |
+| M014 | Test chek va to‘lov tasdig‘i, rad, aniqlashtirish va uzilish vaqtinchalik bazada sinaldi. | Tashqi push/provider sinov muhiti va qurilmadagi to‘liq sinov. |
+| M019 | Yangi konfiguratsiya production test login’ni rad etadi. Amaldagi domen testLogin=true qaytardi. | Hosted konfiguratsiyani vakolatli rolloutda almashtirish. |
+| M024 | Egasi ilovadan tasdiqlangan o‘chirish murojaati yuboradi. Takroriy jo‘natish tekshirildi. | Tashqi veb yo‘l, qayta autentifikatsiya va majburiyat/retention siyosatidan keyin haqiqiy o‘chirish. |
+| M029 | Bron narx taklifi mijoz tanlagan sana va hayvonlarga bog‘lanadi. Saqlangan manzil va tarixiy snapshot qoidalari mavjud. | Aniq shahar chegarasi bilan yaratish/tahrirlash va chegara nuqtalari qabuli. |
+| M042 | Map access va joylashuv xato holatlari mobil test to‘plamida. | Ilova va muhitga cheklangan kalit, provayder kvotasi hamda haqiqiy geokodlash. |
+| M066 | Chek qancha summaga yuborilgani tasdiqlanadi. Tushum krediti qo‘lda tekshiriladi. | Kvitansiya va fiskal talablarni mutaxassis bilan tasdiqlash. |
+| M139 | QR manbasi almashganda eski ko‘rinish yopiladi. Chek qoralamasi asl dalil bilan takrorlanadi. | Native kamera, galereya, provayder ilovasidan qaytish va real qurilmada qabul. |
+| M078 | Xususiy playback/poster fayli uchun oddiy fayl, aniq katalog va link chegarasi tekshirildi. | Haqiqiy qurilmada tanlash, ijro, ruxsat va jarayon uzilishidan tiklash. |
+| M081 | Sessiya va provider chegaralari inventarda. | Push loyihasi, token ro‘yxati/lifecycle, ikki hisob va ikki qurilmada delivery. |
+| M082 | Bron, chat, parvarish, moliya va moderatsiya uchun tranzaksion ichki xabar sinovlari mavjud. | Tashqi yuborish navbati, retry va deduplikatsiyani provider bilan tasdiqlash. |
+| M083 | Serverdagi afzalliklar va tranzaksion ichki tarix izohi mobil testlarda. | OS ruxsatlari va push sozlamalari birga sinalishi kerak. |
+| M084 | Ichki xabardan manbaga o‘tish va sessiya invalidatsiyasi testlangan. | OS orqali fon/yopiq holatdan kirish, o‘chgan obyekt va login qabuli. |
+| M085 | Ichki tarix, o‘qish tasdig‘i va sahifalash testlangan. | Provider yetkazish natijasi, retry va lock-screen maxfiyligi. |
+| M090 | Ommaviy profil/uy rasmiga shikoyat ko‘rilgan rasmning slot va xeshiga bog‘landi. | Private media dalilini saqlash, qolgan apellyatsiyalar va operator navbati qabuli. |
+| M092 | Support, moliya, moderatsiya va administrator ruxsat testlari mavjud. | MFA, kirishni tiklash va haqiqiy shaxsiy operator hisoblari. |
+| M097 | To‘lov qarorining takrori asl operator bilan bog‘landi. O‘qish va yozish auditi tekshirildi. | Audit saqlash muddati, arxiv kirishi va hosted nazorati. |
+| M099 | SQLite DELETE/WAL moliya uzilishlari, qoldiq yarashtirishi va tanlangan enagalarni o‘qish tekshirildi. | Hosted parallel yuklamadan so‘ng DB tanlovini asoslash. |
+| M100 | Tiklangan mustaqil bazaning muhiti va schema migratsiya checksumlari tekshirildi. | Eski hosted ma’lumotlar bilan migratsiya dry-run va qabul. |
+| M101 | Quote, buyurtma, asosiy qarorlar, ro‘yxat, top-up va public-photo murojaati shartnomasi kengaydi. | Qolgan endpointlar va eski mobil versiyalar bilan moslik auditi. |
+| M102 | Eski hamyon sessiyasining kech javobi, begonaga tegishli tasdiq va source almashishi rad etiladi. | Barcha obyekt/rol kombinatsiyasi va yangi hosted build bo‘yicha qabul. |
+| M103 | Noto‘g‘ri bron query, summa/dalil tasdig‘i, maxfiy media linklari va buzilgan javoblar tekshirildi. | Qolgan endpoint/upload qamrovi va haqiqiy proxy limitlari. |
+| M104 | Lokal private media va bundle fayllari yo‘llari himoyalandi. | Object storage provayderi, bucket, kalitlar, migratsiya va yetim obyektlarni tozalash. |
+| M105 | Noaniq chek takrori asl dalilni saqlaydi. Kredit va tuzatish process-exitdan keyin qayta tekshirildi. | Hosted worker/service restart va tashqi xizmat uzilishi qabuli. |
+| M106 | Ochiq domenlarda anonim hisob/admin hamda begona origin o‘qishlari rad etildi. | Reliz versiyasida haqiqiy cookie, CSRF va rate-limit qabul sinovlari. |
+| M107 | CI’da history va dependency skanlari, lock va litsenziya dalillari mavjud. | Kalit egasi va rotatsiya, provayder cheklovlari, native/asset litsenziyalari. |
+| M108 | Hisob o‘chirish murojaati va tiklangan moliyaviy ma’lumot tekshiruvi mavjud. | Eksport, haqiqiy o‘chirish, retention, rozilik va backupdan qayta ochilishni to‘sish. |
+| M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Majburiy GitHub checks bo‘yicha egasining tanlovi va root deploy skriptini o‘rnatish. |
+| M110 | Draft PR va testlangan backend/admin juftligi mavjud. | Alohida stagingdan aynan sinovdan o‘tgan artefaktni productionga chiqarish. |
+| M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
+| M112 | Preview’da yettita read-only smoke va baza yaxlitligi tekshirildi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
+| M113 | Uchta deploy/bootstrap skriptining har biri Bash sintaksis tekshiruvidan o‘tkaziladi. | Hostdagi systemd/nginx, firewall, TLS yangilanishi va filesystem huquqlari. |
+| M114 | DB va media bundle tekshiriladi, yo‘naltirilgan yoki maxsus fayllar rad etiladi. | Alohida joydagi shifrlangan nusxa, kalit egasi, retention va signal. |
+| M115 | Vaqtinchalik katalogga tiklash, media xeshi, hamyon va jurnal solishtiruvi sinaldi. | Haqiqiy offsite nusxa bilan RPO/RTO, o‘chirilgan hisoblar va operator mashqi. |
+| M116 | Log kesimi uchun chegara ichida, oshgan va dalil yetishmaydigan holatlar CLI exit kodlari bilan ajratildi. | Monitoring manzili, alert egasi, mobil crash va real signal. |
+| M117 | Tiklash, moliyaviy uzilish, threshold va rollback amallari operatsion yo‘riqnomada. | Mas’ullar, amaliy incident mashqi, xarajat va provayder limitlari. |
+| M122 | Store review qoralamasida hisob o‘chirish murojaati sinov yo‘li yangilandi. | Haqiqiy screenshot, support/privacy/delete URL va review kirishi. |
+| M123 | Yangi foto shikoyati va hisob so‘rovi uchun uch tilda matn bor. Forma va QR widgetlari sinaldi. | Barcha ekranlarda real screen reader, kontrast, klaviatura va OS ruxsatlari. |
+| M124 | Noto‘g‘ri tasdiq yoki eskirgan sessiya chek qoralamasini muvaffaqiyat deb o‘chirmaydi. | Haqiqiy offline, fon va qurilma restartidan keyingi to‘liq oqimlar. |
+| M125 | CI’da Android QA va imzosiz iOS simulator paketlari saqlanadi. | Release artefakti, symbol, minimal versiya va bosqichli pilot. |
+| M128 | Alohida komponentlar fixture va CI’da ishlaydi. | Ikki qurilma va admin bilan bitta yakuniy E2E oqimi. |
+| M129 | Rad, timeout, retry, begona hisob, qaror, no-show va komissiya holatlarida regressiyalar bor. | Real qurilmadagi muqobil oqimlar va siyosatga bog‘liq hisob amallari. |
+| M130 | Haqiqiy child jarayon uzilganda top-up krediti va tuzatish takrorlanmasligi sinaldi. | Hosted deploy/DB, provider va storage uzilishi mashqi. |
+| M131 | Izolyatsiyalangan HTTP yuklama, katalog, media va xavfsizlik testlari mavjud. | Kelishilgan Android/iOS qurilmalar matritsasi, mobil tarmoq va hosted yuklama sinovi. |
+| M133 | API, deploy, operatsion, test chegaralari, store va ushbu 49 band dalillari yangilandi. | Pilotdan oldin ochiq bandlar, mock/placeholder inventari va yakuniy hujjat auditi. |
