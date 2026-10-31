@@ -75,7 +75,69 @@ def populate(directory, current):
         con.execute('INSERT INTO runtime_metadata(key,value) VALUES(?,?)', ('fixture_scenario', SCENARIO))
 
 
-def build(directory):
+def populate_payments(directory):
+    """Only called on the private, unpublished staging copy of a new TEST scenario."""
+    import base64
+    from io import BytesIO
+    from PIL import Image, ImageDraw
+    import server
+    import wallet
+
+    def picture(label):
+        with Image.new('RGB',(320,104),'white') as image, BytesIO() as output:
+            draw = ImageDraw.Draw(image)
+            draw.text((12,18),'MOMIQ TEST / NO PAYMENT',fill='black')
+            draw.text((12,58),label,fill='black')
+            image.save(output,format='PNG')
+            return base64.b64encode(output.getvalue()).decode()
+
+    with sqlite3.connect(directory/'momiq.sqlite3',factory=server.ClosingConnection) as con:
+        con.row_factory = sqlite3.Row
+        con.execute('PRAGMA foreign_keys=ON')
+        labels = dict(con.execute("SELECT key,value FROM runtime_metadata WHERE key IN ('environment','fixture_scenario')"))
+        if labels != {'environment':'test','fixture_scenario':SCENARIO}:
+            raise ValueError('Expected offline TEST scenario')
+        def call(user, method, path, payload):
+            class RecordedRequest:
+                command = method
+                def body(self):
+                    return payload
+                def reply(self, status, data):
+                    if not 200 <= status < 300:
+                        raise ValueError('TEST scenario write failed')
+                    self.result = data
+            request = RecordedRequest()
+            request.path = path
+            if not wallet.route(request, con, user, path, server.validate_photo, 'test'):
+                raise ValueError('Missing wallet fixture route')
+            return request.result
+        actor, user = 'TEST finance', fixture_id('personal')
+        qr = call(actor,'PUT','/api/admin/platform-settings',{
+            'version':wallet.settings(con)['version'], 'testOnly':True,'qrActive':True,
+            'qrImage':base64.b64encode((Path(__file__).parent/'fixtures/paynet-test-qr.png').read_bytes()).decode(),
+            'recipientName':'TEST MOMIQ',
+            'reason':'Offline simulation','paymentInstructions':'TEST. Do not send money.'})
+        for case in ('approve','reject','request_info','amend','pending'):
+            payload = {'amountMinor':2000000,'requestId':fixture_id(case),'receipt':picture('TEST RECEIPT '+case),
+                       'qrVersion':qr['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True,
+                       'payerReference':'TEST-'+case.upper().replace('_','-')}
+            topup = call(user,'POST','/api/wallet/topups',payload)['topup']
+            if case == 'pending':
+                continue
+            review = '/api/admin/topups/'+topup['id']+'/review'
+            decision = {'revision':0,'decision':'request_info' if case=='amend' else case,'reason':'TEST '+case}
+            if case == 'approve':
+                decision.update(fundsVerified=True,receivedAmountMinor=2000000,transferReference='TEST-INCOMING-0001')
+            call(actor,'POST',review,decision)
+            if case == 'approve':
+                call(actor,'POST',review,decision)
+            if case == 'amend':
+                changed = dict(payload,revision=1,requestId=fixture_id('corrected'),receipt=picture('TEST CORRECTED'))
+                call(user,'POST','/api/wallet/topups/'+topup['id']+'/amend',changed)
+        con.execute("INSERT INTO runtime_metadata VALUES('fixture_payment_suite','1')")
+
+
+def build(directory, *, payments=False):
     if os.environ.get('MOMIQ_ENV', 'local') not in ('local', 'test'):
         raise ValueError('Scenario fixtures require a local/test runtime')
     target = fixture_directory(directory)
@@ -88,6 +150,8 @@ def build(directory):
             with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as con:
                 labels = dict(con.execute("SELECT key,value FROM runtime_metadata WHERE key IN ('environment','fixture_scenario')"))
                 if labels == {'environment': 'test', 'fixture_scenario': SCENARIO}:
+                    if payments and not con.execute("SELECT 1 FROM runtime_metadata WHERE key='fixture_payment_suite' AND value='1'").fetchone():
+                        raise ValueError('Use a new directory for a TEST payment scenario')
                     return 'already-created'
         raise ValueError('Scenario requires a new directory')
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -95,6 +159,8 @@ def build(directory):
         staged = Path(temporary) / 'dataset'
         seed(staged, 'test')
         populate(staged, datetime.now(timezone.utc).replace(microsecond=0))
+        if payments:
+            populate_payments(staged)
         staged.rename(target)
     return 'created'
 
@@ -102,8 +168,9 @@ def build(directory):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', required=True)
+    parser.add_argument('--payments', action='store_true')
     args = parser.parse_args()
     try:
-        print(build(args.data_dir))
+        print(build(args.data_dir,payments=args.payments))
     except (ValueError, OSError, sqlite3.Error) as error:
         parser.exit(1, f'{error}\n')

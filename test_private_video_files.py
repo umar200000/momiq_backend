@@ -34,6 +34,7 @@ class PrivateVideoFileTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == 'posix', 'POSIX descriptor traversal')
     def test_linked_folder_linked_file_and_fifo_fail_without_reading(self):
+        import video_media
         target = self.folder / 'poster.jpg'
         target.symlink_to(self.external)
         with self.assertRaises(VideoUnavailable), open_derivative(self.root, self.video, 'poster'):
@@ -46,3 +47,8 @@ class PrivateVideoFileTests(unittest.TestCase):
         linked.symlink_to(self.folder, target_is_directory=True)
         with self.assertRaises(VideoUnavailable), open_derivative(self.root, linked.name, 'poster'):
             self.fail('Unexpected linked folder opened')
+        alternate = self.root/'other-instance'
+        alternate.mkdir()
+        (alternate/'care-videos').symlink_to(self.folder.parent,target_is_directory=True)
+        with self.assertRaises(VideoUnavailable):
+            video_media.private_directory(alternate)

@@ -15,6 +15,7 @@ import stat
 import tempfile
 from migrations import backup_database
 import media_maintenance
+import video_media
 from video_retention_policy import expires_at
 
 
@@ -56,7 +57,7 @@ def bundle_file(folder, relative):
         info = path.lstat()
         if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
             raise ValueError('Unsafe backup member')
-    if not stat.S_ISREG(info.st_mode):
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
         raise ValueError('Invalid backup member')
     return path
 
@@ -144,15 +145,19 @@ def _create(data, target):
     with tempfile.TemporaryDirectory(prefix='.momiq-backup-',dir=target.parent) as temporary:
         staging=Path(temporary)/'bundle';staging.mkdir(mode=0o700)
         database=staging/'momiq.sqlite3'
-        backup_database(data/'momiq.sqlite3',database)
+        backup_database(bundle_file(data,'momiq.sqlite3'),database)
         database.chmod(0o600)
         now=datetime.now(timezone.utc)
         expected=references(database,now)
         for relative,checksum in expected:
-            source=data/relative
-            if not source.resolve().is_relative_to(data):raise ValueError('Media path escapes instance')
+            _, identity, name = relative.split('/')
             destination=staging/relative;destination.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
-            shutil.copyfile(source,destination);destination.chmod(0o600)
+            try:
+                with video_media.open_derivative(data, identity, 'poster' if name == 'poster.jpg' else 'playback') as source, destination.open('xb') as output:
+                    shutil.copyfileobj(source,output)
+            except video_media.VideoUnavailable as error:
+                raise ValueError('Unsafe or missing source video') from error
+            destination.chmod(0o600)
             if digest(destination)!=checksum:raise ValueError('Source video missing or corrupt')
         manifest={'version':1,'created':now.isoformat(),
                   'databaseSha256':digest(database),'files':[{'path':p,'sha256':h} for p,h in expected]}

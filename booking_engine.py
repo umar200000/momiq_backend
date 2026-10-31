@@ -14,6 +14,7 @@ import secrets
 
 import booking_rules as rules
 import catalog
+import service_area
 import conversations
 import wallet
 import notifications
@@ -83,7 +84,7 @@ def check_schedule(con, sitter, start, end):
 
 
 def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
-                  policy, environment, now, instructions='', address=None, passports=None):
+                  policy, environment, now, instructions='', address=None, passports=None, area=None):
     """Read all prices/animals/settings on the server. No client price/day argument."""
     if type(policy) is not DailyPolicy or policy.version != 'elapsed-24h-v1':
         raise BookingError(503, 'Tasdiqlangan sana siyosati kerak')
@@ -131,6 +132,7 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
         private = next(v for v in raw['listings'] if v['type'] == service)['location']
         if address is not None:
             raise ValueError('Listing supplies the handover address for this service')
+    service_area.require(area,private,environment)
     days = rules.billable_days(start, end)
     settings = wallet.settings(con)
     price = rules.price_snapshot(service, [rules.AnimalRate(p, item['price']*100) for p in sorted(pet_ids)],
@@ -185,6 +187,8 @@ def quote_view(con, identity, customer):
         raise BookingError(404, 'Narx taklifi topilmadi')
     detail = json.loads(row['snapshot'])
     # Exact private address is disclosed only after acceptance, not by a quote.
+    if row['service'] == 'homeVisit':
+        detail['addressId'] = detail['address']['id']
     detail['address'] = {'address': 'Toshkent'}
     return {'id': row['id'], 'created': row['created'], 'expiresAt': row['expires_at'], 'snapshot': detail}
 
@@ -246,7 +250,7 @@ def remember(con, user, request_id, fingerprint, identity):
     con.execute('INSERT INTO booking_requests VALUES(?,?,?,?)', (user, request_id, fingerprint, identity))
 
 
-def request_booking(con, customer, quote_id, request_id, *, environment, now):
+def request_booking(con, customer, quote_id, request_id, *, environment, now, area=None):
     if not isinstance(quote_id, str) or not re.fullmatch(r'[a-f0-9]{32}', quote_id):
         raise ValueError('Valid quote ID required')
     fingerprint = retry_key(request_id, {'action': 'request', 'quoteId': quote_id})
@@ -269,12 +273,19 @@ def request_booking(con, customer, quote_id, request_id, *, environment, now):
         raise BookingError(409, 'Narx taklifi muddati tugagan')
     detail = json.loads(quote['snapshot'])
     listing(con, customer, detail['listingId'], environment)
+    service_area.require(area,detail['address'],environment)
     check_schedule(con, quote['sitter_id'], parse(detail['startsAt']), parse(detail['endsAt']))
     # A quote pins the price, but removal/archive/type changes of selected pets
     # must not create a request against animals the account no longer owns.
-    pets = {p['id']: p for p in account(con, customer).get('pets', []) if not p.get('archived', False)}
+    owner = account(con, customer)
+    pets = {p['id']: p for p in owner.get('pets', []) if not p.get('archived', False)}
     if any(p['type'] not in ('It','Mushuk') or p['id'] not in pets or p['type'] != pets[p['id']]['type'] for p in detail['pets']):
         raise BookingError(409, 'Hayvon ma’lumoti o‘zgargan; yangi taklif oling')
+    if quote['service'] == 'homeVisit':
+        original = detail['address']
+        current_address = next((a for a in owner.get('addresses', []) if a.get('id') == original['id']), None)
+        if current_address is None or any(current_address.get(k) != original.get(k) for k in ('lat','lon','address','apartment')):
+            raise BookingError(409, 'Tashrif manzili o‘zgargan. Yangi narx taklifini oling')
     identity = secrets.token_hex(16)
     con.execute('INSERT INTO bookings(id,quote_id,customer_id,sitter_id,service,starts_at,ends_at,reply_deadline,status,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                 (identity, quote_id, customer, quote['sitter_id'], quote['service'], detail['startsAt'], detail['endsAt'],
@@ -334,7 +345,7 @@ def check_capacity(con, row, detail, current):
         raise BookingError(409, 'Hayvon uchun shu vaqtda boshqa bron bor')
 
 
-def act(con, user, identity, action, revision, request_id, *, reason='', environment, now):
+def act(con, user, identity, action, revision, request_id, *, reason='', environment, now, area=None):
     if action not in ('accept', 'reject', 'cancel', 'start', 'complete'):
         raise ValueError('Unsupported booking action')
     if type(revision) is not int or revision < 0:
@@ -369,6 +380,7 @@ def act(con, user, identity, action, revision, request_id, *, reason='', environ
         account(con, row['customer_id'], 'customer')
         account(con, row['sitter_id'], 'sitter')
         listing(con, row['customer_id'], detail['listingId'], environment)
+        service_area.require(area,detail['address'],environment)
         check_schedule(con, row['sitter_id'], parse(row['starts_at']), parse(row['ends_at']))
         check_capacity(con, row, detail, current)
         if wallet.balance(con, user) < max(rules.MINIMUM_BALANCE_MINOR, commission):

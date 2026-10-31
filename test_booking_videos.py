@@ -20,6 +20,24 @@ import video_media
 
 
 class BookingVideoTests(unittest.TestCase):
+    def test_lost_commit_acknowledgement_keeps_the_published_files(self):
+        import media_reconcile
+        booking, source, data = self.active(), self.source(), self.data()
+        original = server.ClosingConnection.commit
+        def lose_reply(con):
+            original(con)
+            raise OSError('TEST lost commit acknowledgement')
+        with patch.object(server.ClosingConnection, 'commit', lose_reply):
+            with self.assertRaisesRegex(OSError, 'commit acknowledgement'):
+                self.upload(booking, data, source)
+        result = self.upload(booking, data, source)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT count(*) FROM booking_videos').fetchone()[0], 1)
+        for kind in ('poster','playback'):
+            with videos.open_derivative(server.DATA, result['id'], kind) as stream:
+                self.assertTrue(stream.read(1))
+        self.assertEqual(media_reconcile.reconcile(server.DATA,server.ENVIRONMENT,purge=True)['referenced'],1)
+
     setUp = test_booking_care.BookingCareTests.setUp
     save = test_booking_care.BookingCareTests.save
     review = test_booking_care.BookingCareTests.review

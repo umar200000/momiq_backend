@@ -52,6 +52,15 @@ class AdminSessionTests(unittest.TestCase):
             self.login('TEST before rotation', status=401, username='unknown TEST operator')
             self.assertEqual(derive.call_count, 1)
         self.login('TEST after rotation')
+        request = Request(self.base+'/api/admin/logout', data=b'{}', headers={
+            'Cookie':'momiq_admin='+self.admin_token, 'Content-Type':'application/json'})
+        with urlopen(request) as response:
+            self.assertEqual(response.status, 200)
+        with server.db() as con:
+            entries = con.execute("SELECT actor,action,target FROM audit WHERE action IN ('operator-login','operator-logout') ORDER BY id").fetchall()
+            self.assertEqual([tuple(row) for row in entries], [
+                ('TEST operator','operator-login','admin-session'), ('TEST operator','operator-logout','admin-session')])
+        self.admin('/api/admin/users',status=401)
 
     def test_delete_recreate_and_orphan_tokens_never_restore_admin_access(self):
         self.admin('/api/admin/users')

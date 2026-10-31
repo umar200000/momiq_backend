@@ -90,6 +90,14 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-10-31. Qolgan 48 banddan davom etilgan ishlar
+
+- [x] **M029/M101/M102/M105/M124.** Tashrif taklifi mijoz tanlagan manzil ID sini qaytaradi. Ilova begona manzil tasdig‘ini rad etadi. Ko‘cha yoki koordinata o‘zgarsa eski taklifdan yangi bron ochilmaydi. Oldingi buyurtmaning manzili saqlanadi. Mobil JSON API redirectni rad etadi. Ikki loopback serverli sinovda na GET, na POST boshqa serverga o‘tdi. Sessiya-race testining HTTP dubliga yangi transport xususiyati qo‘shildi.
+- [x] **M001/M008/M029.** Tasdiqlanadigan GeoJSON hududi va SHA-256 konfiguratsiyasi ulandi. Sun’iy poligonda tashqi nuqta, chegara, ichki teshik, alohida orol, buzilgan digest, mijoz manzili hamda yangi quote/request/accept sinaldi. Rad etish revision va eski kelishuvni saqladi. Toshkentning haqiqiy geometriyasi hali tanlanmagan.
+- [x] **M014/M082/M085/M139.** Yangi test bazasida 5 ta Paynet so‘rovi, haqiqiy skaner bilan o‘qilgan to‘lovsiz TEST QR, rad, tasdiq va tuzatilgan chek tekshirildi. Mock push uzilishida cursor siljimadi. Tasdiq javobi yo‘qolgach aynan bitta nusxa yetkazildi. Push simulyatori app DB jadvallarini o‘zgartirmadi. Haqiqiy provayder/qurilma hali ochiq.
+- [x] **M078/M097/M103/M104/M105/M130.** Video commitidan keyin javob yo‘qolishi imitatsiyasida qayta urinish bitta hisobot va ikkala faylni saqladi. Yetim fayllarni audit qilish, eski mos fayllarni cheklangan miqdorda tozalash hamda qoldiriladigan yozuvlar alohida sinovdan o‘tdi. Hardlink qilingan maintenance lock tashqi faylga yozishdan oldin rad etildi. Operator kirish/chiqishi sessiya bilan bir tranzaksiyada maxfiy qiymatlarsiz qayd etiladi.
+- [x] **M114/M115/M117.** `age` bilan shifrlangan sintetik nusxa boshqa vaqtinchalik katalogda ochildi. Baza schema 27, ikki hamyon, uch jurnal yozuvi, yarashtirish muvaffaqiyatli. Noto‘g‘ri kalit, xesh, muhit va buzilgan shifrlangan fayl rad etildi. Amaldagi tashqi saqlash joyi va recovery kalit egasi kelishilishi kerak.
+
 ### 2026-10-31. Joriy 49 band bo‘yicha tekshiruvlar
 
 - [x] **M125 QA paketlari.** Android APK manifestidan ilova ID, versiya nomi, build raqami, minSdk va targetSdk o‘qiladi. iOS simulator paketidan bundle ID, versiya, build va minimal OS olinadi. ID yoki versiya loyiha bilan mos kelmasa artefakt saqlanmaydi. 11 ta packaging/dependency vositasi testi o‘tdi. Lokal emulyator uchun oldingi x86 APK ARM64 tekshiruvida kutilganidek rad etildi. Platforma CI o‘ziga tegishli haqiqiy binarni tekshiradi. Signing yakuniy navbatda.

@@ -18,7 +18,7 @@ def body(handler, allowed):
     return value
 
 
-def route(handler, con, user, path, environment, data_root):
+def route(handler, con, user, path, environment, data_root, *, area=None):
     if path != '/api/bookings' and not path.startswith('/api/bookings/'):
         return False
     engine.test_gate(con, environment)
@@ -69,14 +69,14 @@ def route(handler, con, user, path, environment, data_root):
         data = body(handler, ['listingId', 'petIds', 'startsAt', 'endsAt', 'instructions', 'addressId', 'petPassports'])
         result = engine.prepare_quote(con, user, data.get('listingId'), data.get('petIds'),
             data.get('startsAt'), data.get('endsAt'), policy=engine.DailyPolicy(),
-            environment=environment, now=now, instructions=data.get('instructions', ''), address=data.get('addressId'), passports=data.get('petPassports'))
+            environment=environment, now=now, instructions=data.get('instructions', ''), address=data.get('addressId'), passports=data.get('petPassports'),area=area)
         con.commit()
         handler.reply(201, result)
         return True
     if path == '/api/bookings' and handler.command == 'POST':
         data = body(handler, ['quoteId', 'requestId'])
         result = engine.request_booking(con, user, data.get('quoteId'), data.get('requestId'),
-                                         environment=environment, now=now)
+                                         environment=environment, now=now, area=area)
         result['acknowledgement'] = {
             'bookingId': result['id'], 'action': 'request',
             'requestId': data['requestId'], 'quoteId': data['quoteId'],
@@ -110,7 +110,7 @@ def route(handler, con, user, path, environment, data_root):
     if action and handler.command == 'POST':
         data = body(handler, ['revision', 'requestId', 'reason'])
         result = engine.act(con, user, identity, action, data.get('revision'), data.get('requestId'),
-                            reason=data.get('reason', ''), environment=environment, now=now)
+                            reason=data.get('reason', ''), environment=environment, now=now, area=area)
         if action in ('accept', 'reject', 'cancel'):
             # The engine verified the actor and fingerprint (also on replay).
             # A deadline crossing records expiry instead of the requested action.

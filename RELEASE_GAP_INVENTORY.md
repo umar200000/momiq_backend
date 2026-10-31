@@ -38,12 +38,12 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 
 | Band | Tekshirilgan qism yoki amaldagi dalil | Yopish uchun qolgan ish |
 | --- | --- | --- |
-| M001 | Uch xizmat va har hayvonga kunlik narx bron javobida tekshiriladi. | Tasdiqlangan Toshkent poligonini qo‘llash va ikki platformada qabul. |
+| M001 | Uch xizmat va har hayvonga kunlik narx bron javobida tekshiriladi. | Geofence mantiqi sintetik ko‘pburchak bilan tekshirildi. Haqiqiy Toshkent fayli va ikki platformada qabul ochiq. |
 | M007 | Saqlangan enaga filtrining 200 ta juft lokal o‘lchovi bor. Yuklama vositasi mavjud instansga ulanmaydi. | Tezlik, mavjudlik, RPO/RTO va infratuzilma budjetini kelishish. |
 | M008 | Muhit belgilari, bazaning muhiti hamda admin va runtime kataloglarining ajratilishi tekshirildi. | Haqiqiy staging domeni, baza, storage va muhit kalitlari. |
 | M009 | Hosted build loopback taxalluslari va .invalid namuna domenini rad etadi. Production API porti 443. | Staging konfiguratsiyasi bilan haqiqiy build va hosted qabul. |
 | M012 | Yopildi. Test bazasida uch holatdagi bron, sanalar, chat va parvarish hisoboti yaratildi. | Ikkinchi ishga tushirish yozuvlarni aynan saqladi. Mavjud bazaga o‘rnatish rad etildi. |
-| M014 | Test chek va to‘lov tasdig‘i, rad, aniqlashtirish va uzilish vaqtinchalik bazada sinaldi. | Tashqi push/provider sinov muhiti va qurilmadagi to‘liq sinov. |
+| M014 | Takror ishlatiladigan Paynet TEST bazasi, to‘lovsiz o‘qiladigan QR va offline push retry mavjud. | Tashqi push/provider sinov muhiti va qurilmadagi to‘liq sinov. |
 | M019 | Yangi konfiguratsiya production test login’ni rad etadi. Amaldagi domen testLogin=true qaytardi. | Hosted konfiguratsiyani vakolatli rolloutda almashtirish. |
 | M024 | Egasi ilovadan tasdiqlangan o‘chirish murojaati yuboradi. Takroriy jo‘natish tekshirildi. | Tashqi veb yo‘l, qayta autentifikatsiya va majburiyat/retention siyosatidan keyin haqiqiy o‘chirish. |
 | M029 | Bron narx taklifi mijoz tanlagan sana va hayvonlarga bog‘lanadi. Saqlangan manzil va tarixiy snapshot qoidalari mavjud. | Aniq shahar chegarasi bilan yaratish/tahrirlash va chegara nuqtalari qabuli. Rasmiy [Kadastr geoportali](https://open.ngis.uz/) ko‘rib chiqildi. Reliz uchun tasdiqlangan sana va foydalanish shartlari bilan geometriya fayli hali tanlanmagan. |
@@ -74,7 +74,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
 | M112 | Preview’da yettita read-only smoke va baza yaxlitligi tekshirildi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
 | M113 | Uchta deploy/bootstrap skriptining har biri Bash sintaksis tekshiruvidan o‘tkaziladi. | Hostdagi systemd/nginx, firewall, TLS yangilanishi va filesystem huquqlari. |
-| M114 | DB va media bundle tekshiriladi, yo‘naltirilgan yoki maxsus fayllar rad etiladi. | Alohida joydagi shifrlangan nusxa, kalit egasi, retention va signal. |
+| M114 | Tasdiqlangan nusxani age orqali shifrlash, buzilgan ciphertextni rad etish va offline restore sinaldi. | Alohida joydagi shifrlangan nusxa, kalit egasi, retention va signal. |
 | M115 | Vaqtinchalik katalogga tiklash, media xeshi, hamyon va jurnal solishtiruvi sinaldi. | Haqiqiy offsite nusxa bilan RPO/RTO, o‘chirilgan hisoblar va operator mashqi. |
 | M116 | Log kesimi uchun chegara ichida, oshgan va dalil yetishmaydigan holatlar CLI exit kodlari bilan ajratildi. | Monitoring manzili, alert egasi, mobil crash va real signal. |
 | M117 | Tiklash, moliyaviy uzilish, threshold va rollback amallari operatsion yo‘riqnomada. | Mas’ullar, amaliy incident mashqi, xarajat va provayder limitlari. |

@@ -3,7 +3,6 @@
 Storage is inside the instance data directory, never the public admin tree.
 Original uploads are temporary; only normalized playback/poster files persist.
 """
-from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 import os
@@ -11,7 +10,6 @@ import json
 import re
 import secrets
 import shutil
-import stat
 import tempfile
 import threading
 import time
@@ -22,6 +20,7 @@ import booking_engine as engine
 import conversations
 import notifications
 import video_media as media
+from video_media import open_derivative
 import video_policy as policy
 import video_retention
 import video_followup
@@ -104,8 +103,7 @@ def store(con, root, identity, user, data, source, clock):
     if old:
         return acknowledgement(old,identity)
     writable(con, identity, user, data, clock())
-    root = Path(root)/'care-videos'
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    root = media.private_directory(root)
     with tempfile.TemporaryDirectory(prefix='.processing-', dir=root) as temporary:
         prepared = media.prepare(source, temporary)
         destination = None
@@ -147,7 +145,9 @@ def store(con, root, identity, user, data, source, clock):
             return result
         except BaseException:
             con.rollback()
-            if destination is not None:
+            if destination is not None and not con.execute(
+                'SELECT 1 FROM booking_videos WHERE id=?', (video_id,)
+            ).fetchone():
                 # Only this call's randomly allocated private directory.
                 shutil.rmtree(destination)
             raise
@@ -168,45 +168,6 @@ def byte_range(value, size):
     if start > end or start >= size:
         raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
     return start,end,206
-
-
-@contextmanager
-def open_derivative(root, video, kind):
-    """Open one regular, privately stored derivative under the configured data root."""
-    names = {'playback': 'playback.mp4', 'poster': 'poster.jpg'}
-    if not re.fullmatch('[a-f0-9]{32}', video) or kind not in names:
-        raise media.VideoUnavailable('Video fayli hozir mavjud emas')
-    with ExitStack() as stack:
-        try:
-            root = Path(root).resolve(strict=True)
-            parts = ('care-videos', video, names[kind])
-            if os.name == 'posix':
-                directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-                directory = os.open(root, directory_flags)
-                stack.callback(os.close, directory)
-                for component in parts[:-1]:
-                    directory = os.open(component, directory_flags, dir_fd=directory)
-                    stack.callback(os.close, directory)
-                fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
-                             dir_fd=directory)
-            else:
-                path = root
-                for component in parts:
-                    path = path / component
-                    if path.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
-                        raise OSError('Unexpected reparse point')
-                fd = os.open(path, os.O_RDONLY | os.O_BINARY)
-            stack.callback(os.close, fd)
-            info = os.fstat(fd)
-            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size <= 0:
-                raise OSError('Invalid private media file')
-            if os.name != 'posix' and (path.resolve(strict=True) != path or
-                                       not os.path.samestat(info, path.stat())):
-                raise OSError('Private media path changed')
-            stream = stack.enter_context(os.fdopen(fd, 'rb', closefd=False))
-        except OSError as error:
-            raise media.VideoUnavailable('Video fayli hozir mavjud emas') from error
-        yield stream
 
 
 def download(handler, con, root, identity, user, video, kind, *, admin=False):
@@ -303,8 +264,7 @@ def receive(handler, con, user, match, query, root, clock):
     engine.begin(con)
     conversations.quota(con,user,'video-upload',6)
     con.commit()
-    upload_root = Path(root)/'care-videos'
-    upload_root.mkdir(parents=True,exist_ok=True,mode=0o700)
+    upload_root = media.private_directory(root)
     with tempfile.TemporaryDirectory(prefix='.upload-',dir=upload_root) as folder:
         source = Path(folder)/'source.mp4'
         with source.open('wb') as stream:

@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from config import Settings
+import service_area
 from migrations import migrate
 import wallet
 import request_json
@@ -475,6 +476,7 @@ class Handler(BaseHTTPRequestHandler):
                 if current != row or not operator_access.role_for(con, username):
                     raise ApiError(401,"Login yoki parol noto‘g‘ri")
                 token = self.session(con, username, "admin")
+                self.audit(con, username, 'operator-login', 'admin-session')
                 con.commit()
                 self.reply(200, {"ok":True}, "momiq_admin="+token+"; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=604800")
                 return
@@ -529,7 +531,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if wallet.route(self,con,user,path,photo,ENVIRONMENT):
                 return
-            if booking_http.route(self,con,user,path,ENVIRONMENT,DATA):
+            if booking_http.route(self,con,user,path,ENVIRONMENT,DATA,area=SETTINGS.area):
                 return
             if chat_moderation.route(self,con,user,path):
                 return
@@ -551,6 +553,8 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     token = self.headers.get('Authorization','').removeprefix('Bearer ')
                 con.execute('DELETE FROM sessions WHERE hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
+                if admin:
+                    self.audit(con, user, 'operator-logout', 'admin-session')
                 con.commit()
                 self.reply(200,{"ok":True}, "momiq_admin=; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=0" if admin else None)
                 return
@@ -589,6 +593,7 @@ class Handler(BaseHTTPRequestHandler):
                     account = validate_account(data)
                     claim_account_revision(con, user, data.get('_revision'))
                     before = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                    service_area.changed_addresses(SETTINGS.area, before, account, ENVIRONMENT)
                     # Old clients may omit archived pets or their new flag. A full
                     # profile save must not silently delete/restore those records.
                     old_pets = {p['id']:p for p in before.get('pets',[])}
@@ -615,7 +620,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/me/listings' and self.command in ['GET','PUT']:
                 if self.command == 'PUT':
                     body = self.body()
-                    result = catalog.save(con,user,validate_listings(body),body.get('_revision'))
+                    listings = validate_listings(body)
+                    for listing in listings['listings']:
+                        if listing['active'] and listing['type'] != 'homeVisit':
+                            service_area.require(SETTINGS.area, listing['location'], ENVIRONMENT)
+                    result = catalog.save(con,user,listings,body.get('_revision'))
                 else:
                     result = catalog.document(con,user)
                 self.reply(200,result)
@@ -664,6 +673,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not chat and self.command == "PUT":
                     previous=json.loads(row['account'])
                     account = validated if validated is not None else json.loads(row['account'])
+                    service_area.changed_addresses(SETTINGS.area, previous, account, ENVIRONMENT)
                     claim_account_revision(con, uid, data.get('_revision'))
                     sitter_availability.preserve_omitted(previous,account,data.get('account',account))
                     catalog.invalidate_profile(con,uid,previous,account)
@@ -725,6 +735,10 @@ class Handler(BaseHTTPRequestHandler):
         try: self.handle_request()
         except (ApiError,request_json.BodyError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError,booking_engine.BookingError) as e:
             outcome='rejected';self.reply(e.status,{'error':e.message})
+        except service_area.AreaUnavailable as e:
+            outcome='rejected';self.reply(503,{'error':str(e)})
+        except service_area.OutsideArea as e:
+            outcome='invalid_input';self.reply(400,{'error':str(e)})
         except (MediaBusy, VideoUnavailable) as e:
             outcome='media_busy';self.reply(503,{'error':str(e)})
         except (ValueError,KeyError,TypeError):

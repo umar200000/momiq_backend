@@ -513,5 +513,12 @@ class BookingEngineTests(unittest.TestCase):
         self.assertFalse(quote['snapshot']['visitTerms']['durationAffectsPrice'])
         self.assertIsNone(quote['snapshot']['visitTerms']['fixedVisitCount'])
         self.assertNotIn('PRIVATE CUSTOMER STREET',json.dumps(quote))
-        accepted = self.act(self.request(quote))
+        self.assertEqual(quote['snapshot']['addressId'],'home')
+        request = self.request(quote)
+        stale = self.quote(listing='abc:homeVisit', address='home')
+        with server.db() as con:
+            account['addresses'][0]['address'] = 'NEW TEST STREET'
+            con.execute("UPDATE users SET account=? WHERE id='customer'", (json.dumps(account),))
+        self.expect_error(409, lambda: self.request(stale))
+        accepted = self.act(request)
         self.assertEqual(accepted['snapshot']['address']['address'],'PRIVATE CUSTOMER STREET')
