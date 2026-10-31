@@ -1,0 +1,15 @@
+{
+  "scope": "isolated SQLite, 1000 TEST accounts, 100 sitters, 300 listings, proximity and interval filter, empty booking history",
+  "pairs": 20,
+  "identicalPageAndCursor": true,
+  "before": {
+    "capacitySqlReads": 600,
+    "medianMs": 119.339,
+    "p95Ms": 146.642
+  },
+  "after": {
+    "capacitySqlReads": 200,
+    "medianMs": 95.256,
+    "p95Ms": 114.588
+  }
+}

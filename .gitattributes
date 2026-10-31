@@ -1,0 +1,3 @@
+deploy/bootstrap.sh text eol=lf
+deploy/momiq-deploy text eol=lf
+deploy/momiq-deploy-entry text eol=lf

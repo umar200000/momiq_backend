@@ -1,4 +1,4 @@
-"""Momiq local API. Python 3.12+, SQLite; no third-party runtime dependencies."""
+"""Momiq API. Python 3.12, SQLite and bounded Pillow upload decoding."""
 import base64
 import hashlib
 import hmac
@@ -10,23 +10,89 @@ import secrets
 import sqlite3
 import time
 from datetime import datetime, timezone
-from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
+from config import Settings
+import service_area
+import profile_export
+from migrations import migrate
+import wallet
+import request_json
+import deployment_health
+import catalog
+import sitter_availability
+import catalog_search
+import admin_accounts
+import operator_access
+import admin_metrics
+import work_queue
+import pet_safety
+import sitter_dashboard
+import notifications
+import conversations
+import chat_moderation
+import booking_engine
+import admin_bookings
+import booking_reviews
+import support_tickets
+import booking_disputes
+import booking_http
+import booking_videos
+from video_media import VideoUnavailable
+from media_validation import validate_photo, MediaBusy
 
 ROOT = Path(__file__).resolve().parent
-DATA = Path(os.environ.get("MOMIQ_DATA_DIR", ROOT / "data"))
-ADMIN = Path(os.environ.get("MOMIQ_ADMIN_DIR", ROOT.parent / "momiq_admin_panel"))
-PRODUCTION = os.environ.get("MOMIQ_ENV") == "production"
-DEV_LOGIN = not PRODUCTION or os.environ.get("MOMIQ_ALLOW_TEST_LOGIN") == "1"
-HOST = os.environ.get("MOMIQ_HOST", "127.0.0.1")
-PORT = int(os.environ.get("MOMIQ_PORT", "8080"))
+RELEASE_SHA = deployment_health.release_sha(ROOT)
+SETTINGS = Settings.load(os.environ, ROOT)
+ENVIRONMENT = SETTINGS.environment
+DATA, ADMIN = SETTINGS.data, SETTINGS.admin
+# Hosted staging uses the same cookie/origin transport protections as production.
+PRODUCTION = ENVIRONMENT in {'staging', 'production'}
+DEV_LOGIN = SETTINGS.test_login
+HOST, PORT = SETTINGS.host, SETTINGS.port
+
+def instance_id():
+    return hashlib.sha256(str(DATA.resolve()).encode()).hexdigest()[:16]
 
 def now():
     return datetime.now(timezone.utc).isoformat()
 
 class ClosingConnection(sqlite3.Connection):
+    request_authorizer = None
+
+    def _authorize_transaction(self):
+        try:
+            self.request_authorizer(self)
+        except BaseException:
+            self.rollback()
+            raise
+
+    def execute(self, sql, parameters=()):
+        # Request SQL is fixed application code. Revalidate after acquiring the
+        # transaction, never while decoding a potentially slow request body.
+        if not self.request_authorizer:
+            return super().execute(sql, parameters)
+        verb = sql.lstrip().split(None, 1)[0].upper() if sql.strip() else ''
+        if self.request_authorizer and not self.in_transaction and verb in ('INSERT', 'UPDATE', 'DELETE', 'REPLACE'):
+            super().execute('BEGIN IMMEDIATE')
+            self._authorize_transaction()
+        cursor = super().execute(sql, parameters)
+        if self.request_authorizer and verb == 'BEGIN':
+            self._authorize_transaction()
+        return cursor
+
+    def executemany(self, sql, parameters):
+        if self.request_authorizer and not self.in_transaction:
+            super().execute('BEGIN IMMEDIATE')
+            self._authorize_transaction()
+        return super().executemany(sql, parameters)
+
+    def executescript(self, sql):
+        if self.request_authorizer:
+            raise RuntimeError('SQL scripts are not permitted in authenticated requests')
+        return super().executescript(sql)
+
     def __exit__(self, *args):
         try:
             return super().__exit__(*args)
@@ -43,8 +109,15 @@ def password_hash(value, salt):
     return hashlib.pbkdf2_hmac("sha256", value.encode(), bytes.fromhex(salt), 200000).hex()
 
 def setup():
-    DATA.mkdir(parents=True, exist_ok=True)
+    DATA.mkdir(mode=0o700,parents=True, exist_ok=True)
     with db() as con:
+        con.execute('CREATE TABLE IF NOT EXISTS runtime_metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        con.execute('BEGIN IMMEDIATE')
+        row = con.execute("SELECT value FROM runtime_metadata WHERE key='environment'").fetchone()
+        if row and row[0] != ENVIRONMENT:
+            raise ValueError('This database belongs to a different environment; use a separate data directory')
+        con.execute("INSERT OR IGNORE INTO runtime_metadata VALUES('environment',?)", (ENVIRONMENT,))
+        con.commit()
         con.executescript("""
         PRAGMA journal_mode=WAL;
         CREATE TABLE IF NOT EXISTS sitters(id TEXT PRIMARY KEY, profile TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
@@ -61,34 +134,53 @@ def setup():
         CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, actor TEXT, action TEXT, target TEXT, time TEXT);
         CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY, count INTEGER, reset REAL);
         """)
+        con.execute('BEGIN IMMEDIATE')
         for row in con.execute("SELECT id,account FROM users WHERE id NOT IN (SELECT user_id FROM user_roles)").fetchall():
             account = json.loads(row['account'])
             role = 'sitter' if account.get('sitterProfile') is not None else 'customer'
             con.execute('INSERT INTO user_roles VALUES(?,?)', (row['id'],role))
-        if not con.execute("SELECT 1 FROM admins").fetchone():
-            password = os.environ.get("MOMIQ_ADMIN_PASSWORD") or secrets.token_urlsafe(16)
+        if (not con.execute("SELECT 1 FROM admins").fetchone()
+                and not con.execute("SELECT 1 FROM sqlite_master WHERE name='schema_migrations'").fetchone()):
+            supplied = os.environ.get("MOMIQ_ADMIN_PASSWORD")
+            password = supplied or secrets.token_urlsafe(16)
+            hosted = ENVIRONMENT in ('production','staging')
+            if hosted and (not 14<=len(password)<=200 or not password.strip()):
+                raise ValueError('Initial operator password must contain 14–200 characters')
             salt = secrets.token_hex(16)
             con.execute("INSERT INTO admins VALUES(?,?,?)", ("admin", salt, password_hash(password, salt)))
-            (DATA / "admin-login.txt").write_text("Username: admin\nPassword: " + password + "\n", encoding="utf-8")
-            if os.name != "nt":
-                (DATA / "admin-login.txt").chmod(0o600)
+            if not (supplied and hosted):
+                # Exclusive creation never follows an existing link or overwrites
+                # a prior handoff. POSIX permissions apply before the first byte.
+                fd=os.open(DATA/'admin-login.txt',os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+                with os.fdopen(fd,'w',encoding='utf-8') as handoff:
+                    handoff.write("Username: admin\nPassword: " + password + "\n")
+                    handoff.flush()
+                    os.fsync(handoff.fileno())
+        con.commit()
+        migrate(con)
+
+def account_snapshot(con, row):
+    snapshot = con.execute('SELECT u.account, COALESCE(r.revision,0) revision FROM users u LEFT JOIN account_revisions r ON r.user_id=u.id WHERE u.id=?', (row['id'],)).fetchone()
+    account = json.loads(snapshot['account'])
+    account['_revision'] = snapshot['revision']
+    return account
+
+def claim_account_revision(con, uid, revision):
+    if revision is None:
+        raise ApiError(428, 'Ilovani yangilang va profilni qayta yuklang')
+    if type(revision) is not int or revision < 0:
+        raise ValueError('Profil versiyasi noto‘g‘ri')
+    con.execute('INSERT OR IGNORE INTO account_revisions(user_id) VALUES(?)', (uid,))
+    if not con.execute('UPDATE account_revisions SET revision=revision+1 WHERE user_id=? AND revision=?', (uid,revision)).rowcount:
+        raise ApiError(409, 'Profil boshqa qurilmada o‘zgargan. Qayta yuklab, o‘zgarishni takrorlang.')
 
 def sitter_profiles():
     with db() as con:
-        return [dict(json.loads(r['profile']), id=r['id']) for r in con.execute('SELECT id,profile FROM sitters WHERE active=1 ORDER BY id')]
-
-def sitter_names():
-    return {s['id']: s.get('name', '') for s in sitter_profiles()}
+        con.execute('BEGIN')
+        return catalog.profiles(con, ENVIRONMENT)
 
 def photo(value):
-    if value is None:
-        return None
-    if not isinstance(value, str) or len(value) > 4_200_000:
-        raise ValueError("Rasm 3 MB dan kichik bo‘lishi kerak")
-    raw = base64.b64decode(value, validate=True)
-    if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4] == b"RIFF" and raw[8:12] == b"WEBP")):
-        raise ValueError("PNG, JPEG yoki WebP rasm yuboring")
-    return value
+    return validate_photo(value)
 
 def string(value, limit=100):
     if not isinstance(value, str) or len(value) > limit:
@@ -100,28 +192,39 @@ def default_account():
             "addresses": [], "notifications": {"orders": True, "chat": True, "video": True}, "language": "uz", "pets": [], "support": [], "sitterProfile": None}
 
 def validate_account(data):
+    if not isinstance(data,dict): raise ValueError('Hisob noto‘g‘ri')
     result = default_account()
     p = data.get("profile", {})
+    if not isinstance(p,dict): raise ValueError('Profil noto‘g‘ri')
     result["profile"] = {"first": string(p.get("first", "")), "last": string(p.get("last", "")), "photo": photo(p.get("photo"))}
     if not result["profile"]["first"] or not result["profile"]["last"]:
         raise ValueError("Ism va familiya majburiy")
     fav = data.get("favorites", [])
-    if not isinstance(fav, list) or any(x not in sitter_names() for x in fav):
+    if not isinstance(fav, list) or any(not isinstance(x, str) for x in fav):
         raise ValueError("Enaga noto‘g‘ri")
+    if fav:
+        with db() as con:
+            if not catalog.contacts_exist(con, fav):
+                raise ValueError("Enaga noto‘g‘ri")
     result["favorites"] = list(dict.fromkeys(fav))
     addresses = data.get("addresses", [])
     if not isinstance(addresses, list) or len(addresses) > 30:
         raise ValueError("Manzillar soni noto‘g‘ri")
+    normalized_addresses, address_ids = [], set()
     for item in addresses:
         if not isinstance(item, dict):
             raise ValueError("Manzil noto‘g‘ri")
-        for key in ["id", "label", "address", "apartment"]:
-            string(item.get(key, ""), 500)
+        normalized = {key:string('' if item.get(key) is None else item[key],500) for key in ["id", "label", "address", "apartment"]}
+        if not normalized['id'] or normalized['id'] in address_ids or not normalized['address']: raise ValueError('Manzil ID yoki matni noto‘g‘ri')
+        address_ids.add(normalized['id'])
         lat, lon = item.get("lat"), item.get("lon")
-        if not isinstance(lat, (int,float)) or not isinstance(lon, (int,float)) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
+        if type(lat) not in (int,float) or type(lon) not in (int,float) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
             raise ValueError("Manzil koordinatalari noto‘g‘ri")
-    result["addresses"] = addresses
-    result["notifications"] = {k: data.get("notifications", {}).get(k, True) for k in ["orders", "chat", "video"]}
+        normalized_addresses.append(dict(normalized,lat=lat,lon=lon))
+    result["addresses"] = normalized_addresses
+    notifications = data.get('notifications', {})
+    if not isinstance(notifications,dict): raise ValueError('Sozlamalar noto‘g‘ri')
+    result["notifications"] = {k: notifications.get(k, True) for k in ["orders", "chat", "video"]}
     if any(type(v) is not bool for v in result["notifications"].values()):
         raise ValueError("Sozlama noto‘g‘ri")
     result["language"] = data.get("language", "uz")
@@ -129,33 +232,56 @@ def validate_account(data):
         raise ValueError("Til noto‘g‘ri")
     pets = data.get('pets', [])
     if not isinstance(pets, list) or len(pets) > 30: raise ValueError('Hayvonlar soni noto‘g‘ri')
+    normalized_pets = []
+    pet_ids = set()
     for pet in pets:
         if not isinstance(pet, dict) or pet.get('type') not in ['It','Mushuk','Boshqa']: raise ValueError('Hayvon turi noto‘g‘ri')
         if not photo(pet.get('photo')): raise ValueError('Hayvon rasmi majburiy')
-        for key in ['id','name','age','sex','breed','notes','otherType']:
-            string(pet.get(key,''),2000)
-        if pet['type'] == 'Boshqa' and not pet.get('otherType','').strip(): raise ValueError('Hayvon turini yozing')
-    result['pets'] = pets
+        item = {key:string('' if pet.get(key) is None else pet[key],100 if key=='id' else 2000) for key in ['id','name','age','sex','breed','notes','otherType']}
+        item.update(pet_safety.validate(pet))
+        if not item['id'] or item['id'] in pet_ids: raise ValueError('Hayvon ID takrorlangan yoki bo‘sh')
+        pet_ids.add(item['id'])
+        if item['age'] and (not item['age'].isascii() or not item['age'].isdigit() or not 0<=int(item['age'])<=100): raise ValueError('Hayvon yoshi noto‘g‘ri')
+        if item['sex'] not in ['', 'Erkak', 'Urg‘ochi']: raise ValueError('Jins noto‘g‘ri')
+        if pet['type'] == 'Boshqa' and not item['otherType']: raise ValueError('Hayvon turini yozing')
+        archived = pet.get('archived', False)
+        if type(archived) is not bool: raise ValueError('Hayvon arxiv holati noto‘g‘ri')
+        normalized_pets.append(dict(item,type=pet['type'],photo=pet['photo'],archived=archived))
+    result['pets'] = normalized_pets
     support = data.get('support', [])
     if not isinstance(support,list) or len(support)>100: raise ValueError('Murojaatlar soni noto‘g‘ri')
+    normalized_support, support_ids = [], set()
     for item in support:
-        string(item['id'],100)
-        string(item['text'],4000)
+        if not isinstance(item,dict): raise ValueError('Murojaat noto‘g‘ri')
+        identity, body = string(item.get('id'),100), string(item.get('text'),4000)
+        if not identity or not body or identity in support_ids: raise ValueError('Murojaat ID yoki matni noto‘g‘ri')
+        support_ids.add(identity)
+        normalized_support.append({'id':identity,'text':body})
     sitter = data.get('sitterProfile')
     if sitter is not None:
         if not isinstance(sitter, dict): raise ValueError('Enaga profili noto‘g‘ri')
         years = sitter.get('years')
         if years is not None and (type(years) is not int or not 0 <= years <= 80): raise ValueError('Tajriba noto‘g‘ri')
         homes = sitter.get('homePhotos', [])
-        if not isinstance(homes, list) or len(homes) > 9: raise ValueError('Rasmlar soni noto‘g‘ri')
+        if not isinstance(homes, list) or len(homes) > 9 or any(v is None for v in homes): raise ValueError('Rasmlar soni noto‘g‘ri')
         housing = sitter.get('housing', 'apartment')
         if housing not in ['apartment','house']: raise ValueError('Uy turi noto‘g‘ri')
         result['sitterProfile'] = {'years': years, 'about': string(sitter.get('about',''),4000),
                                   'homePhotos': [photo(v) for v in homes], 'housing': housing}
-    result['support'] = support
+        schedule = sitter.get('schedule')
+        if 'closedDates' in sitter:
+            result['sitterProfile']['closedDates'] = sitter_availability.closed_dates(sitter['closedDates'])
+        if schedule is not None:
+            if not isinstance(schedule,dict): raise ValueError('Jadval noto‘g‘ri')
+            days, start, end = schedule.get('days'), schedule.get('start'), schedule.get('end')
+            if not isinstance(days,list) or len(days)!=7 or any(type(v) is not bool for v in days): raise ValueError('Hafta kunlari noto‘g‘ri')
+            if type(start) is not int or type(end) is not int or not 0<=start<end<1440: raise ValueError('Ish vaqti noto‘g‘ri')
+            result['sitterProfile']['schedule'] = {'days':days,'start':start,'end':end,'timezone':'Asia/Tashkent'}
+    result['support'] = normalized_support
     return result
 
 def validate_listings(data):
+    if not isinstance(data,dict): raise ValueError('E’lonlar noto‘g‘ri')
     housing = data.get('housing')
     items = data.get('listings')
     if housing not in ['apartment','house'] or not isinstance(items,list) or len(items)>3:
@@ -195,11 +321,26 @@ class ApiError(Exception):
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "MomiqLocal/1"
+    def send_response(self, code, message=None):
+        self._dispatch_status = code
+        super().send_response(code, message)
     def log_message(self, fmt, *args):
-        # Never log request bodies, credentials or tokens.
-        print(self.address_string(), fmt % args)
+        # BaseHTTPRequestHandler diagnostics can contain the raw request line.
+        print('http diagnostic')
+    def log_request(self, code='-', size='-'):
+        if getattr(self, '_dispatch_logging', False):
+            self._dispatch_status = code
+            return
+        from request_logging import access_record
+        print(access_record(getattr(self,'command',''),getattr(self,'path',''),code))
     def reply(self, status, body, cookie=None):
-        raw = json.dumps(body, ensure_ascii=False).encode()
+        serialized = json.dumps(body, ensure_ascii=False)
+        try:
+            raw = serialized.encode()
+        except UnicodeEncodeError:
+            # Legacy stored text can contain an unpaired JSON escape. Render a
+            # replacement character in the response without changing storage.
+            raw = request_json.surrogates.sub('\ufffd', serialized).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
@@ -210,28 +351,54 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
     def body(self):
-        size = int(self.headers.get("Content-Length", "0"))
-        if size <= 0 or size > 32_000_000:
-            raise ApiError(413, "So‘rov hajmi noto‘g‘ri")
-        if not self.headers.get("Content-Type", "").startswith("application/json"):
-            raise ApiError(415, "JSON yuboring")
-        obj = json.loads(self.rfile.read(size))
-        if not isinstance(obj, dict):
-            raise ValueError("JSON obyekt yuboring")
-        return obj
-    def auth(self, con, role="client"):
-        token = self.headers.get("Authorization", "").removeprefix("Bearer ")
+        try:
+            return request_json.read(self)
+        except (request_json.BodyError,ValueError):
+            # Never reuse an HTTP connection with unread/ambiguous request bytes.
+            self.close_connection=True
+            raise
+    def session_token(self, role):
+        # Both transports must choose one credential, including during logout.
         if role == "admin":
-            cookie = SimpleCookie(self.headers.get("Cookie", ""))
-            token = cookie["momiq_admin"].value if "momiq_admin" in cookie else ""
+            values = []
+            for header in self.headers.get_all('Cookie', []):
+                if ',' in header:
+                    raise ApiError(401,"Qayta kiring")
+                for pair in header.split(';'):
+                    name, sep, value = pair.strip().partition('=')
+                    if sep and name.strip() == 'momiq_admin':
+                        values.append(value.strip())
+            if len(values) == 1 and re.fullmatch(r'[A-Za-z0-9_-]{1,128}', values[0]):
+                return values[0]
+        else:
+            values = self.headers.get_all('Authorization', [])
+            if len(values) == 1:
+                match = re.fullmatch(r'Bearer +([A-Za-z0-9_-]{1,128})',values[0],re.ASCII|re.IGNORECASE)
+                if match:
+                    return match[1]
+        raise ApiError(401,"Qayta kiring")
+
+    def auth(self, con, role="client", *, bind=True):
+        token = self.session_token(role)
         digest = hashlib.sha256(token.encode()).hexdigest()
         session = con.execute("SELECT * FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
         if not session:
             raise ApiError(401, "Qayta kiring")
+        if role == "admin":
+            self.operator_role=operator_access.role_for(con,session['user_id'])
+            if not self.operator_role:raise ApiError(401, "Qayta kiring")
         if role == "client":
             user = con.execute("SELECT * FROM users WHERE id=?", (session["user_id"],)).fetchone()
             if not user or user["blocked"]:
                 raise ApiError(403, "Hisob bloklangan")
+        if bind:
+            principal = session['user_id']
+            def authorize_transaction(connection):
+                if self.auth(connection, role, bind=False) != principal:
+                    raise ApiError(401, 'Qayta kiring')
+                if role == 'admin' and not operator_access.permits(self.operator_role, self.command, urlparse(self.path).path):
+                    raise ApiError(403, 'Bu amal uchun operator huquqi yo‘q')
+            con.request_authorizer = authorize_transaction
         return session["user_id"]
     def session(self, con, user, role):
         token = secrets.token_urlsafe(40)
@@ -243,27 +410,46 @@ class Handler(BaseHTTPRequestHandler):
             return self.headers.get('X-Real-IP', self.client_address[0])
         return self.client_address[0]
     def throttle(self, con, key):
+        con.execute('BEGIN IMMEDIATE')
+        current = time.time()
         row = con.execute("SELECT * FROM attempts WHERE key=?", (key,)).fetchone()
-        count = row["count"] if row and row["reset"] > time.time() else 0
-        reset = row["reset"] if count else time.time()+60
+        count = row["count"] if row and row["reset"] > current else 0
+        reset = row["reset"] if count else current+60
         if count >= 15:
             raise ApiError(429, "Biroz kutib qayta urinib ko‘ring")
         con.execute("INSERT OR REPLACE INTO attempts VALUES(?,?,?)", (key,count+1,reset))
         con.commit()
-    def audit(self, con, action, target):
-        con.execute("INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)", ("admin",action,target,now()))
+    def audit(self, con, actor, action, target):
+        con.execute("INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)", (actor,action,target,now()))
     def messages(self, con, user):
         return [{"id": r["id"], "sitter": r["sitter"], "mine": bool(r["mine"]),
+                 "senderRole": "customer" if r["mine"] else "support",
                  "text": "Xabar o‘chirildi" if r["deleted"] else r["text"],
                  "image": None if r["deleted"] else r["image"], "time": r["time"]}
                 for r in con.execute("SELECT * FROM messages WHERE user_id=? ORDER BY time,id", (user,))]
     def handle_request(self):
         path = urlparse(self.path).path
         origin = self.headers.get("Origin")
-        if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
+        host = self.headers.get('Host', '')
+        allowed_origins = (f'https://{host}',) if PRODUCTION else (f'https://{host}', f'http://{host}')
+        if origin is not None and (not host or origin not in allowed_origins):
             raise ApiError(403, "Origin ruxsat etilmagan")
+        if path == '/api/health' and self.command == 'GET':
+            self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False,
+                             "mobileFeatures": deployment_health.MOBILE_FEATURES,
+                             "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN, 'releaseSha': RELEASE_SHA})
+            return
+        if path == '/api/ready' and self.command == 'GET':
+            try:
+                version = deployment_health.check_database(DATA, ENVIRONMENT)
+            except (OSError, ValueError, sqlite3.Error):
+                self.reply(503, {'ok': False})
+            else:
+                self.reply(200, {'ok': True, 'mode': ENVIRONMENT,
+                                 'releaseSha': RELEASE_SHA, 'schemaVersion': version})
+            return
         if self.command == "GET" and not path.startswith("/api/"):
-            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/style.css": "style.css"}.get(path)
+            name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/wallet.js": "wallet.js", "/admin/chat.js": "chat.js", "/admin/reviews.js": "reviews.js", "/admin/support.js": "support.js", "/admin/disputes.js": "disputes.js", "/admin/bookings.js": "bookings.js", "/admin/metrics.js": "metrics.js", "/admin/work_queue.js": "work_queue.js", "/admin/style.css": "style.css"}.get(path)
             if not name or not (ADMIN / name).is_file():
                 raise ApiError(404, "Topilmadi")
             raw = (ADMIN / name).read_bytes()
@@ -276,11 +462,12 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(raw)
             return
         with db() as con:
-            if path == "/api/sitters" and self.command == "GET":
-                self.reply(200, {"sitters": sitter_profiles()})
+            if booking_reviews.public_route(self,con,path,ENVIRONMENT):
                 return
-            if path == "/api/health" and self.command == "GET":
-                self.reply(200, {"ok": True, "mode": "production" if PRODUCTION else "local", "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})
+            if path == "/api/sitters" and self.command == "GET":
+                params = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+                owner = self.auth(con) if params.get('favorites') == ['1'] else None
+                self.reply(200, catalog_search.page(con, ENVIRONMENT, params, user=owner))
                 return
             if path == "/api/auth/login" and self.command == "POST":
                 if not DEV_LOGIN:
@@ -305,57 +492,194 @@ class Handler(BaseHTTPRequestHandler):
                     con.execute('INSERT OR IGNORE INTO user_roles VALUES(?,?)',(user['id'],role))
                 token = self.session(con,user["id"],"client")
                 con.commit()
-                self.reply(200, {"token": token, "userId": user["id"], "account": json.loads(user["account"])})
+                self.reply(200, {"token": token, "userId": user["id"], "account": account_snapshot(con,user)})
                 return
             if path == "/api/admin/login" and self.command == "POST":
                 data = self.body()
+                if urlparse(self.path).query or set(data) != {'username', 'password'}:
+                    raise ValueError('Unexpected operator login fields')
                 self.throttle(con, "admin:" + self.client_ip())
-                row = con.execute("SELECT * FROM admins WHERE username=?", (string(data.get("username","")),)).fetchone()
-                if not row or not hmac.compare_digest(row["hash"],password_hash(string(data.get("password",""),200),row["salt"])):
+                username = string(data['username'])
+                password = data['password']
+                if not isinstance(password,str) or len(password)>200:
+                    raise ValueError('Invalid operator credential')
+                row = con.execute("SELECT salt,hash FROM admins WHERE username=?", (username,)).fetchone()
+                usable = row and re.fullmatch(r'(?:[0-9a-fA-F]{2})+', row['salt']) and re.fullmatch(r'[0-9a-f]{64}', row['hash'])
+                # Apply the same expensive check to unknown names, without blocking database writers.
+                digest = password_hash(password, row['salt'] if usable else '0' * 32)
+                if not hmac.compare_digest(digest, row['hash'] if usable else '0' * 64) or not usable:
                     raise ApiError(401,"Login yoki parol noto‘g‘ri")
-                token = self.session(con,row["username"],"admin")
+                con.execute('BEGIN IMMEDIATE')
+                current = con.execute("SELECT salt,hash FROM admins WHERE username=?", (username,)).fetchone()
+                if current != row or not operator_access.role_for(con, username):
+                    raise ApiError(401,"Login yoki parol noto‘g‘ri")
+                token = self.session(con, username, "admin")
+                self.audit(con, username, 'operator-login', 'admin-session')
                 con.commit()
                 self.reply(200, {"ok":True}, "momiq_admin="+token+"; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=604800")
                 return
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
+            if admin:
+                if not operator_access.permits(self.operator_role,self.command,path):
+                    raise ApiError(403,'Bu amal uchun operator huquqi yo‘q')
+            if urlparse(self.path).query and (
+                    path in {'/api/me','/api/me/role','/api/me/dashboard','/api/me/listings',
+                             '/api/me/pets/archive','/api/messages','/api/admin/me',
+                             '/api/auth/logout','/api/auth/logout-all','/api/admin/logout'}
+                    or re.fullmatch(r'/api/admin/users/[a-f0-9]+(?:/messages)?',path)
+                    or re.fullmatch(r'/api/admin/messages/[a-f0-9]+',path)):
+                raise ValueError('Bu so‘rovda query maydonlari qabul qilinmaydi')
+            if admin:
+                if path=='/api/admin/me' and self.command=='GET':
+                    self.reply(200,operator_access.identity(user,self.operator_role))
+                    return
+            if path == '/api/me/role':
+                if self.command != 'POST':raise ApiError(405,'POST yuboring')
+                data = self.body()
+                if set(data)!={'role'} or data['role'] not in ('customer','sitter'):
+                    raise ValueError('Rol noto‘g‘ri')
+                con.execute('BEGIN IMMEDIATE')
+                # Enrolment is self-service, never an approval or an admin grant.
+                row=con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
+                if not row or row['blocked']:raise ApiError(403,'Hisob bloklangan')
+                changed = con.execute('INSERT OR IGNORE INTO user_roles VALUES(?,?)',(user,data['role'])).rowcount
+                if changed:
+                    con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                                (user,'role-enroll',data['role'],now()))
+                result={'userId':user,'role':data['role'],'roles':roles_for(con,user),'account':account_snapshot(con,row)}
+                con.commit()
+                self.reply(200,result)
+                return
+            if work_queue.route(self,con,user,path):
+                return
+            if admin_metrics.route(self,con,user,path):
+                return
+            if admin_accounts.route(self,con,user,path,account_snapshot,roles_for):
+                return
+            if booking_videos.admin_route(self,con,user,path,DATA):
+                return
+            if admin_bookings.route(self,con,user,path):
+                return
+            if support_tickets.route(self,con,user,path,photo,ENVIRONMENT):
+                return
+            if booking_disputes.route(self,con,user,path,photo,ENVIRONMENT):
+                return
+            if booking_reviews.admin_route(self,con,user,path,datetime.fromisoformat(now())):
+                return
+            if wallet.route(self,con,user,path,photo,ENVIRONMENT):
+                return
+            if booking_http.route(self,con,user,path,ENVIRONMENT,DATA,area=SETTINGS.area):
+                return
+            if chat_moderation.route(self,con,user,path):
+                return
+            if conversations.route(self,con,user,path,photo,ENVIRONMENT):
+                return
+            if notifications.route(self,con,user,path):
+                return
+            if path == '/api/auth/logout-all' and self.command == 'POST':
+                if self.body():raise ValueError('Chiqish uchun bo‘sh JSON yuboring')
+                con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (user,))
+                con.commit()
+                self.reply(200, {'ok':True})
+                return
             if path in ["/api/auth/logout", "/api/admin/logout"] and self.command == "POST":
-                if admin:
-                    cookie = SimpleCookie(self.headers.get('Cookie',''))
-                    token = cookie['momiq_admin'].value
-                else:
-                    token = self.headers.get('Authorization','').removeprefix('Bearer ')
+                if self.body():raise ValueError('Chiqish uchun bo‘sh JSON yuboring')
+                token = self.session_token('admin' if admin else 'client')
                 con.execute('DELETE FROM sessions WHERE hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
+                if admin:
+                    self.audit(con, user, 'operator-logout', 'admin-session')
                 con.commit()
                 self.reply(200,{"ok":True}, "momiq_admin=; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=0" if admin else None)
                 return
+            if path == '/api/me/pets/archive' and self.command == 'POST':
+                data = self.body()
+                if set(data)-{'petId','archived','_revision'}:raise ValueError('Hayvon arxiv maydonlari noto‘g‘ri')
+                if type(data.get('archived')) is not bool: raise ValueError('Arxiv holati majburiy')
+                pet_id = string(data.get('petId'),100)
+                con.execute('BEGIN IMMEDIATE')
+                revision_row = con.execute('SELECT revision FROM account_revisions WHERE user_id=?',(user,)).fetchone()
+                current_revision = revision_row[0] if revision_row else 0
+                current = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                pet = next((p for p in current.get('pets',[]) if p['id']==pet_id),None)
+                if (pet and type(data.get('_revision')) is int and data['_revision']==current_revision-1
+                        and bool(pet.get('archived',False))==data['archived']):
+                    row = con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
+                    con.commit()
+                    self.reply(200,{'account':account_snapshot(con,row)})
+                    return
+                claim_account_revision(con,user,data.get('_revision'))
+                if not pet: raise ApiError(404,'Hayvon topilmadi')
+                pet['archived'] = data['archived']
+                con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(current),user))
+                con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                            (user,'pet-archive' if data['archived'] else 'pet-restore',pet_id,now()))
+                row = con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
+                con.commit()
+                self.reply(200,{'account':account_snapshot(con,row)})
+                return
+            if path == '/api/me/dashboard' and self.command == 'GET':
+                self.reply(200,sitter_dashboard.overview(con,user,datetime.fromisoformat(now())))
+                return
+            if path == '/api/me/profile-export':
+                if self.command != 'GET':
+                    raise ApiError(405,'GET yuboring')
+                if urlparse(self.path).query:
+                    raise ValueError('Profile export accepts no query')
+                self.reply(200,profile_export.read(con,user))
+                return
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":
-                    account = validate_account(self.body())
+                    data = self.body()
+                    account = validate_account(data)
+                    claim_account_revision(con, user, data.get('_revision'))
+                    before = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                    service_area.changed_addresses(SETTINGS.area, before, account, ENVIRONMENT)
+                    # Old clients may omit archived pets or their new flag. A full
+                    # profile save must not silently delete/restore those records.
+                    old_pets = {p['id']:p for p in before.get('pets',[])}
+                    incoming_pets = {p['id'].strip():p for p in data.get('pets',[])}
+                    for pet in account['pets']:
+                        old_pet = old_pets.get(pet['id'],{})
+                        pet['archived'] = bool(old_pet.get('archived',False))
+                        # Omitted new fields from an older client are not a clear.
+                        for field in pet_safety.FIELDS:
+                            if field not in incoming_pets[pet['id']]:
+                                pet[field] = old_pet.get(field,'')
+                    retained_ids = {p['id'] for p in account['pets']}
+                    account['pets'].extend(p for key,p in old_pets.items() if key not in retained_ids)
+                    if len(account['pets'])>30: raise ValueError('Arxiv bilan birga hayvonlar soni 30 dan oshmasin')
+                    sitter_availability.preserve_omitted(before,account,data)
+                    catalog.invalidate_profile(con,user,before,account)
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
                         con.execute("INSERT OR IGNORE INTO user_roles VALUES(?,'sitter')",(user,))
                 row = con.execute("SELECT * FROM users WHERE id=?", (user,)).fetchone()
                 con.commit()
-                self.reply(200,{"userId":user,"phone":row["phone"],"account":json.loads(row["account"])})
+                self.reply(200,{"userId":user,"phone":row["phone"],"account":account_snapshot(con,row)})
                 return
             if path == '/api/me/listings' and self.command in ['GET','PUT']:
-                account = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
                 if self.command == 'PUT':
-                    if not account.get('sitterProfile'): raise ApiError(403,'Avval enaga profilini to‘ldiring')
-                    data = validate_listings(self.body())
-                    con.execute('INSERT INTO listings VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated=excluded.updated',(user,json.dumps(data),now()))
-                    con.commit()
-                row = con.execute('SELECT data FROM listings WHERE user_id=?',(user,)).fetchone()
-                self.reply(200,json.loads(row[0]) if row else {'housing':(account.get('sitterProfile') or {}).get('housing','apartment'),'listings':[]})
+                    body = self.body()
+                    listings = validate_listings(body)
+                    for listing in listings['listings']:
+                        if listing['active'] and listing['type'] != 'homeVisit':
+                            service_area.require(SETTINGS.area, listing['location'], ENVIRONMENT)
+                    result = catalog.save(con,user,listings,body.get('_revision'))
+                else:
+                    result = catalog.document(con,user)
+                self.reply(200,result)
                 return
-            if path == '/api/admin/listings' and self.command == 'GET':
-                items = []
-                for r in con.execute('SELECT l.*,u.phone,u.account,u.blocked FROM listings l JOIN users u ON u.id=l.user_id ORDER BY l.updated DESC'):
-                    data = json.loads(r['data'])
-                    for item in data['listings']:
-                        items.append(dict(item,id=r['user_id']+':'+item['type'],userId=r['user_id'],phone=r['phone'],profile=json.loads(r['account'])['profile'],blocked=bool(r['blocked']),housing=data['housing'],updated=r['updated']))
-                self.reply(200,{'listings':items})
+            match = re.fullmatch(r'/api/me/listings/(boarding|homeVisit|personal)/archive',path)
+            if match and self.command == 'POST':
+                body=self.body()
+                if set(body)-{'_revision'} or urlparse(self.path).query:raise ValueError('Unexpected archive fields')
+                self.reply(200,catalog.archive(con,user,match[1],body.get('_revision')))
+                return
+            match = re.fullmatch(r'/api/admin/listings/([a-f0-9]+)/(boarding|homeVisit|personal)/review',path)
+            if match and self.command == 'POST':
+                if urlparse(self.path).query:raise ValueError('Unexpected moderation query')
+                self.reply(200,catalog.review(con,*match.groups(),self.body(),user,ENVIRONMENT))
                 return
             if path == "/api/messages" and self.command == "GET":
                 self.reply(200,{"messages":self.messages(con,user)})
@@ -363,72 +687,139 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/messages" and self.command == "POST":
                 self.save_message(con,user,True,self.body())
                 return
-            if path == "/api/admin/users" and self.command == "GET":
-                users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"roles":roles_for(con,r["id"]),"account":json.loads(r["account"])} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
-                self.reply(200,{"users":users,"sitters":sitter_names()})
-                return
             match = re.fullmatch(r"/api/admin/users/([a-f0-9]+)(/messages)?", path)
             if match:
                 uid, chat = match.groups()
+                if not chat and self.command == 'PUT':
+                    data=self.body()
+                    reason=admin_accounts.change_reason(data)
+                    # Decode/validate potentially large photos before taking the
+                    # writer lock; the revision is rechecked inside the transaction.
+                    validated=validate_account(data['account']) if 'account' in data else None
+                    con.execute('BEGIN IMMEDIATE')
                 row = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
                 if not row:
                     raise ApiError(404,"Mijoz topilmadi")
                 if chat and self.command == "GET":
-                    self.reply(200,{"messages":self.messages(con,uid)})
+                    result={"messages":self.messages(con,uid)}
+                    self.audit(con,user,'legacy-chat-view',uid)
+                    con.commit()
+                    self.reply(200,result)
                     return
                 if chat and self.command == "POST":
                     if row['blocked']:
                         raise ApiError(409,"Hisob bloklangan")
-                    self.save_message(con,uid,False,self.body())
+                    self.save_message(con,uid,False,self.body(),operator=user)
                     return
                 if not chat and self.command == "PUT":
-                    data = self.body()
-                    if type(data.get('blocked',False)) is not bool:
-                        raise ValueError('Holat noto‘g‘ri')
-                    account = validate_account(data['account']) if 'account' in data else json.loads(row['account'])
-                    con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),int(data.get('blocked',False)),uid))
-                    self.audit(con,'update-user',uid)
+                    previous=json.loads(row['account'])
+                    account = validated if validated is not None else json.loads(row['account'])
+                    service_area.changed_addresses(SETTINGS.area, previous, account, ENVIRONMENT)
+                    claim_account_revision(con, uid, data.get('_revision'))
+                    sitter_availability.preserve_omitted(previous,account,data.get('account',account))
+                    catalog.invalidate_profile(con,uid,previous,account)
+                    blocked = int(data.get('blocked',row['blocked']))
+                    con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),blocked,uid))
+                    if blocked:
+                        con.execute("DELETE FROM sessions WHERE user_id=? AND role='client'", (uid,))
+                    detail=admin_accounts.change_record(uid,previous,account,row['blocked'],blocked,data['_revision'],reason)
+                    self.audit(con,user,'update-user',json.dumps(detail,ensure_ascii=True))
                     con.commit()
                     self.reply(200,{"ok":True})
                     return
             match = re.fullmatch(r"/api/admin/messages/([a-f0-9]+)",path)
             if match and self.command == 'DELETE':
-                changed = con.execute("UPDATE messages SET deleted=1,text='',image=NULL WHERE id=?", (match[1],)).rowcount
-                if not changed: raise ApiError(404,'Xabar topilmadi')
-                self.audit(con,'delete-message',match[1])
+                data=self.body()
+                if set(data)!={'reason'}:raise ValueError('Faqat o‘chirish sababini yuboring')
+                reason=admin_accounts.required_reason(data['reason'])
+                con.execute('BEGIN IMMEDIATE')
+                message=con.execute('SELECT * FROM messages WHERE id=?',(match[1],)).fetchone()
+                if not message:raise ApiError(404,'Xabar topilmadi')
+                if not message['deleted']:
+                    detail={'messageId':match[1],'userId':message['user_id'],'reason':reason,
+                            'before':{'deleted':False,'textSha256':hashlib.sha256((message['text'] or '').encode()).hexdigest(),
+                                      'imageSha256':hashlib.sha256(message['image'].encode()).hexdigest() if message['image'] else None},
+                            'after':{'deleted':True,'textSha256':hashlib.sha256(b'').hexdigest(),'imageSha256':None}}
+                    con.execute("UPDATE messages SET deleted=1,text='',image=NULL WHERE id=?", (match[1],))
+                    self.audit(con,user,'delete-message',json.dumps(detail,ensure_ascii=True))
                 con.commit()
                 self.reply(200,{"ok":True})
                 return
             raise ApiError(404,"Topilmadi")
-    def save_message(self,con,user,mine,data):
+    def save_message(self,con,user,mine,data,operator=None):
+        if not mine and operator is None:raise ApiError(403,'Operator sessiyasi kerak')
         sitter = data.get('sitter')
-        if sitter not in sitter_names(): raise ValueError('Enaga topilmadi')
+        if not catalog.contacts_exist(con, [sitter]): raise ValueError('Enaga topilmadi')
         text = string(data.get('text',''),4000)
         image = photo(data.get('image'))
         if not text and not image: raise ValueError('Xabar yoki rasm kiriting')
         request_id = string(data.get('requestId',secrets.token_hex(16)),100)
+        con.execute('BEGIN IMMEDIATE')
         existing = con.execute('SELECT * FROM messages WHERE user_id=? AND request_id=?',(user,request_id)).fetchone()
         if existing:
-            if bool(existing['mine']) != mine or existing['sitter'] != sitter:
+            if (bool(existing['mine']) != mine or existing['sitter'] != sitter
+                    or existing['text'] != text or existing['image'] != image):
                 raise ApiError(409,'So‘rov identifikatori takrorlangan')
         else:
+            if mine and not con.execute('SELECT 1 FROM messages WHERE user_id=? AND sitter=? LIMIT 1',(user,sitter)).fetchone():
+                if catalog.profile(con,ENVIRONMENT,sitter) is None:
+                    raise ApiError(409,'Bu enaga hozir yangi mijoz qabul qilmayapti. Katalogni yangilang.')
             con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,image,time,request_id) VALUES(?,?,?,?,?,?,?,?)',
                         (secrets.token_hex(16),user,sitter,int(mine),text,image,now(),request_id))
-            if not mine: self.audit(con,'reply',user)
+            if not mine: self.audit(con,operator,'reply',user)
         con.commit()
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):
+        from request_logging import access_record
+        started=time.monotonic();outcome='ok'
+        self._dispatch_logging=True;self._dispatch_status=0
         try: self.handle_request()
-        except ApiError as e: self.reply(e.status,{'error':e.message})
-        except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
-        except (BrokenPipeError,ConnectionResetError): pass
-        except Exception as e:
-            print(type(e).__name__)
+        except (ApiError,request_json.BodyError,wallet.WalletError,catalog.CatalogError,notifications.NotificationError,conversations.ChatError,booking_engine.BookingError) as e:
+            outcome='rejected';self.reply(e.status,{'error':e.message})
+        except service_area.AreaUnavailable as e:
+            outcome='rejected';self.reply(503,{'error':str(e)})
+        except service_area.OutsideArea as e:
+            outcome='invalid_input';self.reply(400,{'error':str(e)})
+        except (MediaBusy, VideoUnavailable) as e:
+            outcome='media_busy';self.reply(503,{'error':str(e)})
+        except (ValueError,KeyError,TypeError):
+            outcome='invalid_input';self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
+        except (BrokenPipeError,ConnectionResetError): outcome='disconnected'
+        except sqlite3.OperationalError as e:
+            if (getattr(e,'sqlite_errorcode',0)&255) in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED):
+                outcome='database_busy';self.reply(503,{'error':'Xizmat vaqtincha band. Biroz kutib qayta urining.'})
+            else:
+                outcome='server_error';self.reply(500,{'error':'Server xatosi'})
+        except Exception:
+            outcome='server_error'
             self.reply(500,{'error':'Server xatosi'})
-    do_GET = do_POST = do_PUT = do_DELETE = dispatch
+        finally:
+            status=self._dispatch_status
+            if outcome=='ok' and isinstance(status,int) and status>=400:outcome='rejected'
+            print(access_record(getattr(self,'command',''),getattr(self,'path',''),status,
+                                elapsed_seconds=time.monotonic()-started,outcome=outcome))
+            self._dispatch_logging=False
+    do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = dispatch
+
+class LocalHTTPServer(ThreadingHTTPServer):
+    # Buffer a modest connection burst while the accept loop starts handlers.
+    # Hosted deployment uses Gunicorn/Nginx, not this local preview transport.
+    request_queue_size = 128
+
 
 if __name__ == '__main__':
     setup()
     print(f'Momiq API: http://{HOST}:{PORT}/api/health')
     print(f'Admin: http://{HOST}:{PORT}/admin/ | credentials: {DATA / "admin-login.txt"}')
-    ThreadingHTTPServer((HOST,PORT),Handler).serve_forever()
+    http = LocalHTTPServer((HOST,PORT),Handler)
+    worker = None
+    if ENVIRONMENT in ('local', 'test'):
+        from booking_worker import ExpiryWorker
+        worker = ExpiryWorker(db, ENVIRONMENT, media_root=DATA)
+        worker.start()
+    try:
+        http.serve_forever()
+    finally:
+        if worker:
+            worker.stop()
+        http.server_close()

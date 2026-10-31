@@ -1,0 +1,136 @@
+{
+  "scope": "isolated Windows loopback HTTP; 60 seconds; 1000 synthetic accounts; 100 concurrent customers; one second think time; mixed reads/chat writes; zero bookings",
+  "beforeBackendHead": "1fd97d2",
+  "comparison": "same fixture and interval/proximity workload before and after candidate ranking; includes synchronized startup",
+  "pairedDatabaseBenchmark": {
+    "scope": "isolated SQLite, 1000 TEST accounts, 100 sitters, 300 listings, proximity and interval filter, empty booking history",
+    "pairs": 20,
+    "identicalPageAndCursor": true,
+    "before": {
+      "capacitySqlReads": 600,
+      "medianMs": 28.452,
+      "p95Ms": 30.17
+    },
+    "after": {
+      "capacitySqlReads": 14,
+      "medianMs": 6.537,
+      "p95Ms": 7.413
+    }
+  },
+  "before": {
+    "requests": 4560,
+    "successfulRequests": 4560,
+    "requestsPerSecond": 75.35,
+    "elapsedSeconds": 60.51,
+    "database": {
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "accounts": 1000,
+      "chats": 100,
+      "messages": 592,
+      "bookings": 0
+    },
+    "catalog": {
+      "count": 679,
+      "p50Ms": 2122.58,
+      "p95Ms": 4688.16,
+      "p99Ms": 4829.63,
+      "statuses": {
+        "200": 679
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 4525.85,
+          "p95Ms": 4829.65,
+          "p99Ms": 4842.64
+        },
+        "repeat": {
+          "count": 579,
+          "p50Ms": 1693.26,
+          "p95Ms": 3986.6,
+          "p99Ms": 4081.3
+        }
+      },
+      "handlerDuration": {
+        "count": 679,
+        "p50Ms": 2106.3,
+        "p95Ms": 4277.01,
+        "p99Ms": 4411.36
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 4236.06,
+          "p95Ms": 4419.13,
+          "p99Ms": 4478.46
+        },
+        "repeat": {
+          "count": 579,
+          "p50Ms": 1688.46,
+          "p95Ms": 3934.95,
+          "p99Ms": 4053.32
+        }
+      }
+    }
+  },
+  "after": {
+    "requests": 5867,
+    "successfulRequests": 5867,
+    "requestsPerSecond": 96.99,
+    "elapsedSeconds": 60.49,
+    "database": {
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "accounts": 1000,
+      "chats": 100,
+      "messages": 800,
+      "bookings": 0
+    },
+    "catalog": {
+      "count": 900,
+      "p50Ms": 24.43,
+      "p95Ms": 889.45,
+      "p99Ms": 984.93,
+      "statuses": {
+        "200": 900
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 874.11,
+          "p95Ms": 992.7,
+          "p99Ms": 997.71
+        },
+        "repeat": {
+          "count": 800,
+          "p50Ms": 19.97,
+          "p95Ms": 173.76,
+          "p99Ms": 239.78
+        }
+      },
+      "handlerDuration": {
+        "count": 900,
+        "p50Ms": 22.57,
+        "p95Ms": 762.04,
+        "p99Ms": 822.96
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 751.28,
+          "p95Ms": 832.35,
+          "p99Ms": 860.78
+        },
+        "repeat": {
+          "count": 800,
+          "p50Ms": 18.1,
+          "p95Ms": 162.1,
+          "p99Ms": 236.65
+        }
+      }
+    }
+  }
+}

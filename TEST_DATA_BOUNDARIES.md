@@ -1,0 +1,31 @@
+# Test ma’lumotlari va provayder chegaralari
+
+2026-10-29. M012/M014 ichki inventari. Bu jadval avtomatik test dalilini haqiqiy qurilma, bank tushumi yoki production qabuli bilan tenglashtirmaydi.
+
+| Vosita/oqim | Hozir nima mavjud | Chegara va dalil |
+| --- | --- | --- |
+| `seed_test_data.py` | Belgilangan yangi local/test katalogda 1 mijoz, 3 xizmat uchun 3 enaga, sintetik mushuk, e’lon va TEST profil. IDlar barqaror; qayta seed tahrirlangan account/listingni bosmaydi. | Hosted muhit va belgisiz to‘la katalog rad etiladi. Seed xizmatni MyID orqali tasdiqlamaydi, bron/chat/parvarish holatlari yoki real pul yaratmaydi. `test_seed.py`, `test_config.py`. |
+| Seed tozalash | Faqat marker bilan tanilgan fixture hisoblari; begonalar va ularning ma’lumotlari saqlanadi. Moliyaviy tarix, chat, bron quote yoki begona bog‘lanish bo‘lsa rad etiladi. | Yopilgan support murojaati va faol bo‘lmagan kontakt bloklari ham tarix hisoblanadi: ular mavjud bo‘lsa tozalashdan oldin tushunarli sabab bilan rad etiladi. Ikki regression barcha jadval satrlari aynan saqlanishini tekshiradi. Lokal preview’da cleanup bajarilmadi. |
+| `tool/load_test.py` | Vaqtinchalik bazada sintetik hisoblar, TEST katalogi, soxta boshlang‘ich balans va ichki sessiyalar; GETlar hamda chat yozish yuklamasi. | Mavjud URL/baza qabul qilmaydi; faqat o‘zi ochgan loopback serverga boradi, proxy ishlatmaydi, hisobot credential yoki shaxsiy matnni chiqarmaydi. Balans fixture’si real tushum isboti emas. `test_load_tool.py`: mavjud bazani saqlash, ikkala ish rejimi, integrity/FK, nol bron. 1000/100 o‘lchovlari asosiy checklistda; bu inventar yuklama sinovini qayta o‘tkazgani yo‘q. |
+| Bron/chat/parvarish/nizo/sharh | `test_booking_*`, `test_conversations.py`, `test_chat_moderation.py` va `test_support_*` alohida vaqtinchalik yoki memory bazalarda kerakli holatlarni yaratadi. | M012 uchun yangi, alohida baza ssenariysi quyida keltirilgan. M055 live bron yaratish/qabul qilish va APK install bloklangan; bu jadval ularni qayta ishga tushirish yo‘riqnomasi emas. |
+| SMS/MyID | Local test login, konfiguratsiya guardlari; TEST katalog moderatsiyasi haqiqiy MyID belgisi bermaydi. | Hech qanday tashqi SMS yoki shaxsni tekshirish chaqiruvi yo‘q. Kelishuv tugamaguncha oxiriga qoldirilgan. `test_config.py`, `test_catalog.py`, `test_listing_validation.py`. |
+| Push/bildirishnoma | Atomar in-app notice, hodisa dedupe, sahifalash, o‘qish tasdig‘i va sessiyaga bog‘langan ichki navigatsiya. | APNs/FCM, OS token, real push yoki fon deep-link sinovi emas. `test_notifications.py`, `test_notification_receipts.py`, mobil `notifications_test.dart` va `notification_lifecycle_test.dart`. |
+| QR/chek/tushum | Vaqtinchalik HTTP test bazasida TEST QR/rasm, qabul/rad/aniqlashtirish/qayta yuborish, idempotency va synthetic tushum tasdig‘i. | `test_api.py`, `test_wallet.py`, `test_wallet_corrections.py`, mobil `payment_qr_test.dart` va top-up testlari. Provayderdan pul kelganini tekshirmaydi yoki haqiqiy bank tushumi bilan solishtirmaydi. To‘lov testlari mavjud preview/production balansiga yozmaydi. |
+| Media | Sintetik PNG/JPEG/video fayllari, byte/piksel/davomiylik, ownership, kech javob, retention va qayta urinish testlari. | `test_media.py`, `test_video_media.py`, `test_booking_videos.py`, `test_video_retention.py`, mobil private image/video testlari. Native picker/kamera/audio/playback, process-death va real iPhone qabul sinovi hali alohida. |
+
+M014 haqiqiy provayder sandboxlari, real qurilma va tashqi tushumni operatsion tekshirish tugamaguncha ochiq. Test fixture’lari foydalanuvchi yoki operator uchun muvaffaqiyatli haqiqiy xizmat sifatida taqdim etilmaydi. Ushbu inventar ma’lum test yo‘llarini ko‘rsatadi; barcha mumkin bo‘lgan holatlar to‘liq qoplangan degan kafolat emas.
+
+2026-10-31. Paynet Xolis bo‘yicha sintetik tushumning aynan tasdiqlash amali vaqtinchalik bazada jarayonni uzish bilan tekshirildi. SQLite DELETE va WAL rejimlarida kredit yozilgandan keyin, commitdan oldin va commitdan keyin javob yuborilishidan oldin child jarayon to‘xtatildi. Commitgacha barcha jadval satrlari boshlang‘ich qiymatida qoldi. Commitdan keyin kredit, dalil tarixi, audit va bildirishnoma bir martadan saqlandi. Begona operator ayni qarorni o‘z tasdig‘i sifatida qaytara olmaydi. [Moliyaviy uzilish sinovlari](test_wallet_process_recovery.py).
+
+
+### M012 uchun qayta ishlatiladigan sinov bazasi
+
+Backend ildizidan `python seed_scenarios.py --data-dir .local/offline-scenario` ni ishga tushiring. Buyruq faqat yangi katalogda `test` bazasini yaratadi. Shu ssenariy uchun allaqachon tayyorlangan katalogda yana ishga tushirish ma’lumotga yozmaydi. Unga servis ulashda baza muhiti ham `test` bo‘lishi kerak. Haqiqiy preview yoki server manzili talab qilinmaydi.
+
+To‘rt TEST hisob va uch xizmatga qo‘shimcha ravishda enaganing TEST e’loni, sintetik jurnal krediti, vaqtga bog‘langan kutilayotgan/faol/rad etilgan buyurtmalar, xizmat chati va kundalik ovqatlantirish hisoboti tayyorlanadi. Kutilayotgan buyurtma oddiy ish vaqti qoidasiga ko‘ra keyin eskirishi mumkin. Yangilangan sanalar uchun boshqa yangi katalog tanlanadi. Yaratish o‘rtada uzilsa, yakuniy joyga yarim baza chiqmaydi.
+
+### Offline Paynet and push scenario
+
+Run `python seed_scenarios.py --payments --data-dir .local/test-providers` with a new directory. It builds a marked TEST database privately and publishes it only when complete. The QR decodes to `MOMIQ TEST ONLY - NO PAYMENT`. The five synthetic top-ups cover approval, rejection, clarification, resubmission and a new pending request. Replaying approval credits the fixture sitter once. Repeating the seed preserves the existing state. A basic scenario created without the payment suite must use a fresh directory for the richer fixture.
+
+For a committed fixture notification, run `python push_sandbox.py --data-dir .local/test-providers --account personal --outcome unavailable`, then use `lost-response`, then `accepted`. The local provider stores a sanitized notification and a separate consumer cursor. Replaying a lost acknowledgement deduplicates by owner and notice ID. It uses no phone numbers, device tokens, network or production credentials. Tests verify rollback invisibility and unchanged business database rows. Published QR/receipt simulation and external device/provider delivery have distinct acceptance records.

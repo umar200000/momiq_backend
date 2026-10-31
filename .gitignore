@@ -14,3 +14,7 @@ __pycache__/
 admin-login.txt
 .claude/
 .codex/
+.local/
+.venv/
+.release-sha
+ci-artifacts/

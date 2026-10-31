@@ -1,0 +1,97 @@
+"""Server-resolved public-text references; no private documents or media custody."""
+import base64
+import hashlib
+import json
+import re
+
+import booking_engine as engine
+import booking_reviews
+import catalog
+
+
+def validate(value):
+    if (not isinstance(value,dict) or set(value) not in ({'kind','id'},{'kind','id','purpose','revision'},{'kind','id','media','sha256'})
+            or value['kind'] not in ('listing','review') or not isinstance(value['id'],str)):
+        raise ValueError('Invalid support target')
+    pattern=r'[^/:\s]{1,100}:(?:boarding|homeVisit|personal)' if value['kind']=='listing' else r'[1-9][0-9]{0,17}'
+    if not re.fullmatch(pattern,value['id']):raise ValueError('Invalid support target identity')
+    if 'media' in value and (
+        value['kind'] != 'listing' or not isinstance(value['media'], str)
+        or not re.fullmatch(r'portrait|home:(?:0|[1-9][0-9]?)', value['media'])
+        or not isinstance(value['sha256'], str) or not re.fullmatch('[a-f0-9]{64}', value['sha256'])
+    ):
+        raise ValueError('Invalid public photo target')
+    if 'purpose' in value and (value['purpose']!='appeal' or not isinstance(value['revision'],str)
+            or not re.fullmatch(r'[1-9][0-9]{0,17}',value['revision'])):
+        raise ValueError('Invalid appeal revision')
+
+
+def capture(con,target,environment,user=None):
+    # Inside the ticket transaction: never accept a client-supplied snapshot.
+    validate(target)
+    identity=target['id']
+    if target.get('purpose')=='appeal':return capture_appeal(con,target,environment,user)
+    if target['kind']=='listing':
+        item=catalog.profile(con,environment,identity)
+        if not item:raise engine.BookingError(404,'E’lon topilmadi')
+        snapshot={k:item[k] for k in ('name','about','service','price','priceUnit','pets','capacity','years','testOnly')}
+        snapshot['revision']=catalog.revision(con,item['userId'])
+        if 'media' in target:
+            slot = target['media']
+            if slot == 'portrait':
+                photo = item['photo']
+            else:
+                index = int(slot.split(':')[1])
+                photos = item['homePhotos'] if item['service'] != 1 else []
+                photo = photos[index] if index < len(photos) else None
+            if not photo:
+                raise engine.BookingError(404, 'E’lon rasmi topilmadi')
+            digest = hashlib.sha256(base64.b64decode(photo, validate=True)).hexdigest()
+            if digest != target['sha256']:
+                raise engine.BookingError(409, 'E’lon rasmi o‘zgargan. Yangilang')
+            snapshot['media'] = {'slot':slot, 'sha256':digest}
+    else:
+        row=con.execute('SELECT * FROM booking_reviews WHERE id=? AND hidden=0 AND withdrawn=0',(int(identity),)).fetchone()
+        if (not row or (environment=='production' and row['test_only'])
+                or not catalog.profile(con,environment,row['sitter_id']+':'+row['service'])):
+            raise engine.BookingError(404,'Sharh topilmadi')
+        snapshot=booking_reviews.public(row)
+        snapshot['listingId']=row['sitter_id']+':'+row['service']
+    return snapshot
+
+
+def capture_appeal(con,target,environment,user):
+    identity=target['id']
+    if target['kind']=='listing':
+        owner,service=identity.rsplit(':',1)
+        if owner!=user:raise engine.BookingError(404,'E’lon topilmadi')
+        data=catalog.document(con,user)
+        state=data['moderation'].get(service,{})
+        row=con.execute('SELECT * FROM listing_moderation WHERE user_id=? AND service=?',(user,service)).fetchone()
+        if not state.get('appealTarget') or (environment=='production' and row['test_only']):
+            raise engine.BookingError(404,'Qayta ko‘rib chiqiladigan qaror topilmadi')
+        revision=data['_revision']
+        snapshot={'status':row['status'],'reason':row['reason'],'decidedAt':row['reviewed_at']}
+    else:
+        row=con.execute('SELECT * FROM booking_reviews WHERE id=? AND customer_id=?',(int(identity),user)).fetchone()
+        if not row or not row['hidden'] or (environment=='production' and row['test_only']):
+            raise engine.BookingError(404,'Sharh topilmadi')
+        decision=booking_reviews.moderation_reason(con,row)
+        if not decision:raise engine.BookingError(404,'Qaror topilmadi')
+        revision=row['revision']
+        snapshot={**booking_reviews.public(row),'decision':decision}
+    if int(target['revision'])!=revision:raise engine.BookingError(409,'Qaror yoki manba o‘zgargan. Yangilang')
+    return {**snapshot,'purpose':'appeal','sourceRevision':revision}
+
+
+def attach(con,ticket_id,target,snapshot,created):
+    con.execute('INSERT INTO support_targets VALUES(?,?,?,?,?)',
+                (ticket_id,target['kind'],target['id'],engine.encode(snapshot),created))
+
+
+def detail(con,ticket_id):
+    row=con.execute('SELECT * FROM support_targets WHERE ticket_id=?',(ticket_id,)).fetchone()
+    if not row:return None
+    snapshot=json.loads(row['snapshot'])
+    return {'kind':row['kind'],'id':row['target_id'],'snapshot':snapshot,'capturedAt':row['created'],
+            'purpose':snapshot.get('purpose','report')}
