@@ -92,6 +92,13 @@ class DeploySmokeTests(unittest.TestCase):
         with patch.object(server,'ENVIRONMENT','production'),patch.object(server,'DEV_LOGIN',False):
             with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'mobile login'):
                 deploy_smoke.check(self.url,self.url,'a'*40,'production',mobile_release=True)
+            hosted={**identity,'mode':'production','mobileFeatures':list(deploy_smoke.MOBILE_FEATURES),
+                    'testLogin':False,'sms':True,'clientLoginEnabled':False}
+            self.responses['/api/health']=(200,json.dumps(hosted).encode(),headers)
+            with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'mobile login'):
+                deploy_smoke.check(self.url,self.url,'a'*40,'production',mobile_release=True)
+            self.responses['/api/health']=(200,json.dumps({**hosted,'clientLoginEnabled':True}).encode(),headers)
+            self.assertTrue(deploy_smoke.check(self.url,self.url,'a'*40,'production',mobile_release=True)['mobileReleaseChecked'])
 
     def test_redirect_never_follows_and_protected_success_is_failure(self):
         self.responses['/api/health'] = (302, b'', {'Location': self.url + '/redirect-target'})

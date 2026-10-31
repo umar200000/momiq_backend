@@ -94,13 +94,15 @@ def check(api_url, admin_url, revision, mode, admin_dir=None, *, mobile_release=
             raise SmokeFailure(name + ': wrong release or environment')
     if type(ready.get('schemaVersion')) is not int or ready['schemaVersion']!=MIGRATIONS[-1][0]:
         raise SmokeFailure('readiness: unexpected schema version for this release')
-    if mode in ('production', 'staging') and (
-            health.get('testLogin') is not False or health.get('clientLoginEnabled') is not False):
-        raise SmokeFailure('Hosted test login must be disabled')
+    if mode in ('production', 'staging'):
+        if health.get('testLogin') is not False or (health.get('sms') is not True and
+                                                    health.get('clientLoginEnabled') is not False):
+            raise SmokeFailure('Hosted test login must be disabled')
     features=health.get('mobileFeatures')
     if not isinstance(features,list) or not all(feature in features for feature in MOBILE_FEATURES):
         raise SmokeFailure('Missing mobile API capabilities')
-    if mobile_release and (mode!='production' or health.get('sms') is not True):
+    if mobile_release and (mode!='production' or health.get('sms') is not True or
+                           health.get('clientLoginEnabled') is not True):
         raise SmokeFailure('Production mobile login is unavailable')
     for service in ('boarding', 'homeVisit', 'personal'):
         data, _ = fetch('catalog-' + service, api_url, '/api/sitters?service=' + service + '&pet=cat')

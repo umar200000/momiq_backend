@@ -1,4 +1,5 @@
 from datetime import timedelta
+from email.message import Message
 from io import BytesIO
 import secrets
 import hashlib
@@ -174,16 +175,30 @@ with server.db() as con:
         class Handler:
             command='POST'
             def reply(self,status,body):self.status,self.result=status,body
-        def send(raw, length=None):
+        def send(raw, length=None, extra_header=None, reader=None):
             h=Handler();h.path=f"/api/bookings/{b['id']}/videos?"+urlencode(data)
-            h.headers={'Content-Type':'video/mp4','Content-Length':str(len(raw) if length is None else length)}
-            h.rfile=BytesIO(raw)
+            h.headers=Message()
+            h.headers['Content-Type']='video/mp4'
+            h.headers['Content-Length']=str(len(raw) if length is None else length)
+            if extra_header: h.headers[extra_header[0]]=extra_header[1]
+            h.rfile=reader if reader is not None else BytesIO(raw)
             with server.db() as con:
                 videos.route(h,con,'abc',h.path.split('?')[0],server.DATA,lambda:self.start+timedelta(hours=1))
             return h
         self.expect_error(413,lambda:send(b'',33554433))
+        raw=source.read_bytes()
+        for header in [('Content-Length',str(len(raw))),('Content-Length','12'),('Transfer-Encoding','')]:
+            with self.assertRaises(ValueError):send(raw,extra_header=header)
+        self.expect_error(415,lambda:send(raw,extra_header=('Content-Type','video/mp4')))
+        class LateFinalChunk(BytesIO):
+            def read1(self, size):
+                clock.monotonic.return_value=61
+                return self.read(size)
+        with patch.object(videos,'time',wraps=time) as clock:
+            clock.monotonic.return_value=0
+            self.expect_error(408,lambda:send(raw,reader=LateFinalChunk(raw)))
         with self.assertRaises(ValueError):send(b'partial video',100)
-        h=send(source.read_bytes());self.assertEqual(h.status,200)
+        h=send(raw);self.assertEqual(h.status,200)
         for header in ('bytes=999-','bytes=2-1','bytes=-0','bytes=0-1,3-5','garbage'):
             self.expect_error(416,lambda:videos.byte_range(header,100))
         self.assertEqual(videos.byte_range('bytes=-10',100),(90,99,206))

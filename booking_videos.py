@@ -257,12 +257,16 @@ def receive(handler, con, user, match, query, root, clock):
     # Unknown old requests cannot bypass window/status checks or consume decoding.
     if not con.execute('SELECT 1 FROM booking_videos WHERE actor=? AND request_id=?',(user,data['requestId'])).fetchone():
         writable(con,match[1],user,data,clock())
-    if handler.headers.get('Content-Type') not in ('video/mp4','video/quicktime','application/octet-stream'):
+    types = handler.headers.get_all('Content-Type', [])
+    if len(types) != 1 or types[0] not in ('video/mp4','video/quicktime','application/octet-stream'):
         raise engine.BookingError(415,'MP4/MOV video tanlang')
-    length = handler.headers.get('Content-Length','')
-    if not re.fullmatch(r'[0-9]{1,9}',length) or not 12 <= int(length) <= policy.MAX_BYTES:
+    lengths = handler.headers.get_all('Content-Length', [])
+    if len(lengths) != 1 or not re.fullmatch(r'[0-9]{1,9}', lengths[0]):
+        raise ValueError('Invalid video Content-Length')
+    length = int(lengths[0])
+    if not 12 <= length <= policy.MAX_BYTES:
         raise engine.BookingError(413,'Video 32 MiB dan oshmasin')
-    if handler.headers.get('Transfer-Encoding'):
+    if handler.headers.get('Transfer-Encoding') is not None:
         raise ValueError('Chunked request not supported')
     engine.begin(con)
     conversations.quota(con,user,'video-upload',6)
@@ -271,17 +275,18 @@ def receive(handler, con, user, match, query, root, clock):
     with media_maintenance.workspace(upload_root,'.upload-') as folder:
         source = Path(folder)/'source.mp4'
         with source.open('wb') as stream:
-            remaining = int(length)
+            remaining = length
             deadline = time.monotonic()+60
             socket = getattr(handler,'connection',None)
             previous_timeout = socket.gettimeout() if socket else None
             try:
                 while remaining:
                     left = deadline-time.monotonic()
-                    if left <= 0: raise ValueError('Video upload timeout')
+                    if left <= 0: raise TimeoutError()
                     if socket: socket.settimeout(min(left,30))
                     read = getattr(handler.rfile,'read1',handler.rfile.read)
                     chunk = read(min(65536,remaining))
+                    if time.monotonic() > deadline: raise TimeoutError()
                     if not chunk: raise ValueError('Incomplete video upload')
                     stream.write(chunk); remaining -= len(chunk)
             except TimeoutError as error:
