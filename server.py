@@ -326,7 +326,13 @@ class Handler(BaseHTTPRequestHandler):
         from request_logging import access_record
         print(access_record(getattr(self,'command',''),getattr(self,'path',''),code))
     def reply(self, status, body, cookie=None):
-        raw = json.dumps(body, ensure_ascii=False).encode()
+        serialized = json.dumps(body, ensure_ascii=False)
+        try:
+            raw = serialized.encode()
+        except UnicodeEncodeError:
+            # Legacy stored text can contain an unpaired JSON escape. Render a
+            # replacement character in the response without changing storage.
+            raw = request_json.surrogates.sub('\ufffd', serialized).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))

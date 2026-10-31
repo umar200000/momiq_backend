@@ -39,7 +39,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | Band | Tekshirilgan qism yoki amaldagi dalil | Yopish uchun qolgan ish |
 | --- | --- | --- |
 | M001 | Uch xizmat va har hayvonga kunlik narx bron javobida tekshiriladi. | Geofence mantiqi sintetik ko‘pburchak bilan tekshirildi. Haqiqiy Toshkent fayli va ikki platformada qabul ochiq. |
-| M007 | Saqlangan enaga filtrining 200 ta juft lokal o‘lchovi bor. Yuklama vositasi mavjud instansga ulanmaydi. | Tezlik, mavjudlik, RPO/RTO va infratuzilma budjetini kelishish. |
+| M007 | Bir xil sana va masofa bilan lokal yuklamada 1 000 hisobdan 100 tasi faol bo‘lganda katalog p95 4,69 s dan 0,89 s ga tushdi. 5 867 HTTP so‘rov o‘tdi. | Hosted muhitda o‘lchash, tezlik, mavjudlik, RPO/RTO va infratuzilma budjetini kelishish. |
 | M008 | Muhit belgilari, bazaning muhiti hamda admin va runtime kataloglarining ajratilishi tekshirildi. | M008 egasi qarori bilan joriy navbatdan alohida yakuniy kutishga ko‘chirildi. Staging domeni, baza, storage va kirish usuli keyin kelishiladi. |
 | M009 | Hosted build loopback taxalluslari va .invalid namuna domenini rad etadi. Production API porti 443. | Staging konfiguratsiyasi bilan haqiqiy build va hosted qabul. |
 | M012 | Yopildi. Test bazasida uch holatdagi bron, sanalar, chat va parvarish hisoboti yaratildi. | Ikkinchi ishga tushirish yozuvlarni aynan saqladi. Mavjud bazaga o‘rnatish rad etildi. |
@@ -63,7 +63,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M100 | Tiklangan mustaqil bazaning muhiti va schema migratsiya checksumlari tekshirildi. | Eski hosted ma’lumotlar bilan migratsiya dry-run va qabul. |
 | M101 | Quote, buyurtma, asosiy qarorlar, ro‘yxat, top-up va public-photo murojaati shartnomasi kengaydi. | Support receipt va hosted mobil capability tekshirildi. Qolgan endpointlar va tarixiy versiyalarning keng moslik auditi ochiq. |
 | M102 | Eski hamyon sessiyasining kech javobi, begonaga tegishli tasdiq va source almashishi rad etiladi. | Barcha obyekt/rol kombinatsiyasi va yangi hosted build bo‘yicha qabul. |
-| M103 | Noto‘g‘ri bron query, summa/dalil tasdig‘i, maxfiy media linklari va buzilgan javoblar tekshirildi. | Qolgan endpoint/upload qamrovi va haqiqiy proxy limitlari. |
+| M103 | Noto‘g‘ri bron query, summa/dalil tasdig‘i, maxfiy media, 32 MiB oqim, umumiy JSON parserida buzilgan Unicode hamda Nginx hajm chegarasi tekshirildi. | Qolgan endpoint/upload qamrovi va reliz serveridagi limitlar. |
 | M104 | Lokal private media, lease bilan himoyalangan vaqtinchalik fayllar va yetim derivativlar haqiqiy process-exit bilan tekshirildi. | Object storage provayderi, bucket, kalitlar, migratsiya va yetim obyektlarni tozalash. |
 | M105 | Noaniq chek takrori asl dalilni saqlaydi. Kredit va tuzatish process-exitdan keyin qayta tekshirildi. | Hosted worker/service restart va tashqi xizmat uzilishi qabuli. |
 | M106 | Ochiq domenlarda anonim hisob/admin hamda begona origin o‘qishlari rad etildi. | Haqiqiy Nginx/Gunicorn va TLS bilan cookie/CSRF/rate-limit lokal Linux’da tekshirildi. Reliz domenida hosted qabul stagingdan keyin. |
@@ -72,7 +72,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Qolgan qism root deploy skriptini o‘rnatish va hosted juftlikni tasdiqlash. |
 | M110 | Draft PR va testlangan backend/admin juftligi mavjud. | Alohida stagingdan aynan sinovdan o‘tgan artefaktni productionga chiqarish. |
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
-| M112 | Preview’da yettita read-only smoke va baza yaxlitligi tekshirildi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
+| M112 | Preview’da sakkizta HTTP tekshiruvi, schema 28, tashqi kalitlar va 60 jadval mazmuni tekshirildi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
 | M113 | Uchta deploy/bootstrap skriptining har biri Bash sintaksis tekshiruvidan o‘tkaziladi. | Hostdagi systemd/nginx, firewall, TLS yangilanishi va filesystem huquqlari. |
 | M114 | Tasdiqlangan nusxani age orqali shifrlash, buzilgan ciphertextni rad etish va offline restore sinaldi. | Alohida joydagi shifrlangan nusxa, kalit egasi, retention va signal. |
 | M115 | Vaqtinchalik katalogga tiklash, media xeshi, hamyon va jurnal solishtiruvi sinaldi. | Haqiqiy offsite nusxa bilan RPO/RTO, o‘chirilgan hisoblar va operator mashqi. |

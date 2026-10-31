@@ -1,5 +1,7 @@
 # Current API contract
 
+JSON request bodies must use UTF-8 and contain Unicode scalar values. Unpaired surrogate escapes in a key or value return 400 before a mutation. Valid surrogate pairs and literal backslash text are preserved. If an older record already contains a lone surrogate, the JSON response renders U+FFFD at that position without rewriting the stored record.
+
 ## Liveness, readiness and release identity
 
 `GET /api/health` is public process liveness and does not open or create a database. It retains `ok`, `mode`, `instanceId`, `sms`, `clientLoginEnabled` and `testLogin`, and adds `releaseSha`. A development checkout returns null for the SHA; an archived deployment reads its trusted `.release-sha` once when the worker imports the application. A subsequent symlink change does not make an old worker claim the new release. Missing SMS integration remains explicit.

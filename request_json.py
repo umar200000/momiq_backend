@@ -9,6 +9,8 @@ MAX_BYTES = 32_000_000
 MAX_DEPTH = 64
 READ_SECONDS = 60
 _readers = threading.BoundedSemaphore(2)
+_escaped_surrogate = re.compile(rb'\\u[dD][89a-fA-F]')
+surrogates = re.compile(r'[\ud800-\udfff]')
 
 
 class BodyError(Exception):
@@ -34,6 +36,19 @@ def _float(value):
     return number
 
 
+def _check_unicode(value):
+    if isinstance(value,str):
+        if surrogates.search(value):
+            raise ValueError('Invalid Unicode scalar')
+    elif isinstance(value,dict):
+        for key,item in value.items():
+            _check_unicode(key)
+            _check_unicode(item)
+    elif isinstance(value,list):
+        for item in value:
+            _check_unicode(item)
+
+
 def decode(raw):
     if len(raw)>MAX_BYTES:raise BodyError(413,'So‘rov juda katta')
     # Limit nesting before the recursive JSON decoder allocates containers.
@@ -51,6 +66,10 @@ def decode(raw):
         elif byte in (93,125):depth-=1
     obj=json.loads(raw.decode('utf-8'),object_pairs_hook=_pairs,parse_constant=_constant,parse_float=_float)
     if not isinstance(obj,dict):raise ValueError('JSON object required')
+    # Strict UTF-8 already excludes literal surrogates. JSON escapes can still
+    # produce unpaired ones, even inside an array or an object key.
+    if _escaped_surrogate.search(raw):
+        _check_unicode(obj)
     return obj
 
 

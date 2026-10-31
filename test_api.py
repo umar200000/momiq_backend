@@ -54,6 +54,24 @@ class ApiTests(unittest.TestCase):
     def login(self,phone='998901111111'):
         return self.req('/api/auth/login','POST',{'phone':phone,'code':'111111'})
 
+    def test_invalid_unicode_never_commits_and_legacy_profile_stays_readable(self):
+        login=self.login('998900222803')
+        account=login['account']
+        account['profile'].update(first='Test\ud800', last='Owner')
+        self.req('/api/me','PUT',account,token=login['token'],expected=400)
+        clean=self.req('/api/me',token=login['token'])['account']
+        self.assertEqual(clean['_revision'],account['_revision'])
+        self.assertEqual(clean['profile']['first'],'')
+        with server.db() as con:
+            row=con.execute('SELECT account FROM users WHERE id=?',(login['userId'],)).fetchone()
+            legacy=json.loads(row[0])
+            legacy['profile']['first']='Old\udfff'
+            persisted=json.dumps(legacy)
+            con.execute('UPDATE users SET account=? WHERE id=?',(persisted,login['userId']))
+        self.assertEqual(self.req('/api/me',token=login['token'])['account']['profile']['first'],'Old\ufffd')
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT account FROM users WHERE id=?',(login['userId'],)).fetchone()[0],persisted)
+
     def test_profile_export_is_owner_only_and_never_serializes_private_media_or_session(self):
         first=self.login('998900222801')
         second=self.login('998900222802')

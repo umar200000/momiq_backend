@@ -21,6 +21,10 @@ class JsonBodyTests(unittest.TestCase):
         for raw in (b'{"a":1,"a":2}',b'{"a":1,"\\u0061":2}',b'{"x":{"a":0,"a":1}}',b'{"x":NaN}',b'{"x":Infinity}',b'{"x":-Infinity}',b'{"x":1e9999}',b'[]',b'null',b'{"x":"\xff"}',b'{} trailing'):
             with self.subTest(raw=raw),self.assertRaises(ValueError):body.read(self.handler(raw))
         self.assertEqual(body.read(self.handler('{"ism":"O‘tkir","x":1.5}'.encode())),{'ism':'O‘tkir','x':1.5})
+        for raw in (br'{"name":"\ud800"}',br'{"list":[{"\uDEAD":1}]}',br'{"list":["\udc00"]}'):
+            with self.subTest(raw=raw),self.assertRaises(ValueError):body.decode(raw)
+        self.assertEqual(body.decode(br'{"pet":"\ud83d\udc08","literal":"\\ud800"}'),
+                         {'pet':'\U0001f408','literal':r'\ud800'})
 
     def test_nesting_bounded_before_decode_but_escaped_strings_are_ordinary_data(self):
         valid=b'{"v":'+b'['*63+b'0'+b']'*63+b'}'
