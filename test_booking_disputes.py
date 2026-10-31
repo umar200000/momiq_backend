@@ -43,6 +43,12 @@ class DisputeTests(unittest.TestCase):
             self.assertFalse(limited['canResolve'])
             self.assertEqual(set(limited['disputeAppeal']),{'bookingId','revision','eventId'})
             money=list(con.execute('SELECT * FROM wallet_entries ORDER BY id'))
+        import work_queue
+        with server.db() as con:
+            assigned=work_queue.write(con,'test-support','support','support',identity,
+                {'revision':0,'sourceRevision':1,'assignee':'admin','dueAt':None,'reason':'TEST review request',
+                 'requestId':secrets.token_hex(16)},self.start,escalate=True)
+            self.assertEqual(assigned['assignment']['assignee'],'admin')
         reply={'action':'resolve','text':'TEST administrator response','image':None,'revision':1,'requestId':secrets.token_hex(16)}
         self.expect_error(403,lambda:write('test-support',reply,identity,True))
         self.expect_error(428,lambda:write('admin',reply,identity,True))

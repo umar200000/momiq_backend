@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-10-31. Joriy 47 band bo‘yicha davom
 
+- [x] **M109/M110/M111/M113.** Linux’dagi alohida Git mirror bilan backend deploy yo‘li sinaldi. Yangi kodning smoke tekshiruvi o‘tgach majburiy timer ishga tushmasa, avvalgi sxema mosligi tekshirildi va oldingi backendga qaytildi. Uning javobi yana tekshirildi, muvaffaqiyat SHA si eski qiymatda qoldi. Bu vaqtinchalik repo va imitatsiya qilingan systemd bilan o‘tkazilgan mashq.
+
 - [x] **M101/M102/M112.** Preview’dagi 19 mijoz va 18 operator yo‘li anonim hamda yaroqsiz credential bilan tekshirildi. Hammasi 401, `no-store`, `nosniff` va faqat xato maydonini qaytardi. 74 ta o‘qish amalga oshirildi.
 - [x] **M109/M111/M113.** Deploy timer bilan unga tegishli service unitni oldindan tekshiradi. Muddati o‘tgan sessiyalar timeri mos kod muvaffaqiyatli tekshirilgach ishga tushadi. Har bir to‘liq smoke urinishiga 40 soniyalik chegara qo‘yildi. Linux mashqida jim qolgan test jarayoni muddatda tugatildi, uchta urinishdan keyin avvalgi admin versiyasi qaytdi va HTTP tekshiruvidan o‘tdi. Yangi service/timer sintaksisi alohida `systemd-analyze verify` bilan tekshirildi.
 

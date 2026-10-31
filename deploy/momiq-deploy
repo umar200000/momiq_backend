@@ -65,7 +65,13 @@ smoke_current_pair() {
   done
   return 1
 }
-if ! smoke_current_pair; then
+activate_candidate() {
+  smoke_current_pair || return 1
+  if [[ "$kind" == backend ]]; then
+    systemctl start "${runtime_timers[@]}" || { echo 'Required maintenance timer failed to start' >&2; return 1; }
+  fi
+}
+if ! activate_candidate; then
   if [[ "$kind" == admin && -n "$old" ]]; then
     ln -s "$old" "$base/current/.rollback"; mv -Tf "$base/current/.rollback" "$base/current/admin"
   elif [[ "$kind" == backend && -n "$old" && -f "$old/deployment_health.py" ]] &&
@@ -81,9 +87,6 @@ if ! smoke_current_pair; then
     echo "Previous $kind selected but serving checks failed. Operator recovery required" >&2
   fi
   exit 1
-fi
-if [[ "$kind" == backend ]]; then
-  systemctl start "${runtime_timers[@]}"
 fi
 printf '%s\n' "$sha" > "$base/current/$kind.sha"
 echo "Deployed $kind $sha"

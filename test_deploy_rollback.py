@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,57 @@ ROOT = Path(__file__).resolve().parent
 
 @unittest.skipUnless(os.name == 'posix' and shutil.which('flock'), 'Linux deployment runner')
 class DeployRollbackTests(unittest.TestCase):
+    def test_backend_timer_failure_rolls_back_verified_code_without_publishing_success_sha(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);repo=root/'fixture-source';repo.mkdir()
+            def git(*args):
+                return subprocess.check_output(['git',*args],cwd=repo,text=True).strip()
+            git('init','-q','-b','main')
+            smoke="import os\nfrom pathlib import Path\nr=Path(os.environ['FIXTURE_BASE'])\nwith (r/'checks').open('a') as f: print(Path(__file__).resolve().parent.name,file=f)\n"
+            for name,content in {'deploy_smoke.py':smoke,'server.py':'def setup(): pass',
+                                 'session_maintenance.py':'','release_pair.py':'','requirements.txt':'',
+                                 'predeploy_backup.py':"print('{}')",
+                                 'test_fixture.py':"import unittest,server\nclass Fixture(unittest.TestCase):\n def test_setup(self): self.assertIsNone(server.setup())"}.items():
+                (repo/name).write_text(content)
+            git('add','.');git('-c','user.name=Fixture','-c','user.email=test@localhost',
+                              '-c','commit.gpgsign=false','commit','-qm','TEST')
+            sha=git('rev-parse','HEAD')
+            (root/'git').mkdir();git('clone','-q','--bare',str(repo),str(root/'git/backend.git'))
+            old=root/'previous';(old/'.venv/bin').mkdir(parents=True)
+            (old/'.venv/bin/python').symlink_to(sys.executable)
+            (old/'.release-sha').write_text('a'*40)
+            (old/'deploy_smoke.py').write_text(smoke)
+            (old/'deployment_health.py').write_text("import os\nfrom pathlib import Path\n(Path(os.environ['FIXTURE_BASE'])/'compatible').touch()")
+            current=root/'current';current.mkdir();(current/'backend').symlink_to(old,target_is_directory=True)
+            (current/'admin').mkdir();(current/'backend.sha').write_text('a'*40)
+            (root/'backend.env').write_text('MOMIQ_ENV=production\nMOMIQ_DATA_DIR="$FIXTURE_BASE/data"\n')
+            helpers=root/'bin';helpers.mkdir()
+            python=shlex.quote(sys.executable)
+            commands={'python3':f'''if [[ "$1 $2" == "-m venv" ]]; then
+                mkdir -p "$3/bin"; ln -s {python} "$3/bin/python"; ln -s /bin/true "$3/bin/pip"
+                else exec {python} "$@"; fi''',
+                      'runuser':'[[ "$1 $2 $3" == "-u momiq --" ]] || exit 9; shift 3; exec "$@"',
+                      'systemctl':'''echo "$*" >> "$FIXTURE_BASE/systemctl"
+                        if [[ "$1" == start ]]; then exit 1; fi''',
+                      'ffmpeg':'exit 0','ffprobe':'exit 0'}
+            for command,body in commands.items():
+                helper=helpers/command;helper.write_text('#!/bin/bash\nset -eu\n'+body+'\n');helper.chmod(0o700)
+            script=root/'deployer'
+            script.write_text((ROOT/'deploy/momiq-deploy').read_text().replace('base=/opt/momiq','base="$FIXTURE_BASE"')
+                              .replace('/run/lock/momiq-deploy.lock','"$FIXTURE_BASE/lock"')
+                              .replace('/etc/momiq/backend.env','"$FIXTURE_BASE/backend.env"'))
+            result=subprocess.run(['bash',script,'backend',sha],capture_output=True,text=True,timeout=30,
+                                  env={**os.environ,'FIXTURE_BASE':tmp,'PATH':str(helpers)+':'+os.environ['PATH'],
+                                       'GIT_ALLOW_PROTOCOL':'file','GIT_TERMINAL_PROMPT':'0'})
+            self.assertEqual(result.returncode,1,result.stderr)
+            self.assertIn('maintenance timer failed',result.stderr)
+            self.assertIn('restored and serving checks passed',result.stdout)
+            self.assertTrue((root/'compatible').exists())
+            self.assertEqual((current/'backend').resolve(),old)
+            self.assertEqual((current/'backend.sha').read_text(),'a'*40)
+            self.assertEqual((root/'checks').read_text().splitlines()[-1],old.name)
+            self.assertIn('momiq-session-maintenance.timer',(root/'systemctl').read_text())
+
     def exercise(self, previous_healthy, *, stall=False):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)

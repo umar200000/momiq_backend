@@ -58,11 +58,11 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M085 | O‘qish tasdig‘i asl ID, vaqt va umumiy hisobga bog‘langan. Sahifa ID lari qat’iy kamayishi tekshirildi. | Provider yetkazish natijasi, retry va haqiqiy lock-screen qabuli. |
 | M090 | Ommaviy rasm, sharh va xususiy video shikoyati manbaga bog‘langan. Yakunlangan nizo qarori bo‘yicha apellyatsiya, supportdan administratorga yo‘naltirish va aynan ko‘rilgan qarorga bog‘langan yozma javob tekshirildi. | Dalilni alohida saqlash siyosati, qarorni o‘zgartirish vakolati va haqiqiy operator navbatida qabul. |
 | M092 | Support, moliya, moderatsiya va administrator ruxsat testlari mavjud. | MFA, kirishni tiklash va haqiqiy shaxsiy operator hisoblari. |
-| M097 | To‘lov qarorining takrori asl operator bilan bog‘landi. O‘qish va yozish auditi tekshirildi. | Audit saqlash muddati, arxiv kirishi va hosted nazorati. |
+| M097 | To‘lov qarorining takrori asl operatorga bog‘landi. Apellyatsiyani yopgan javob va nizo qarori auditda mos keldi. Haqiqiy Chrome ko‘rigi vaqtinchalik TEST bazada tekshirildi. | Audit saqlash muddati, arxiv kirishi va hosted nazorati. |
 | M099 | SQLite DELETE/WAL moliya uzilishlari, qoldiq yarashtirishi va tanlangan enagalarni o‘qish tekshirildi. | Hosted parallel yuklamadan so‘ng DB tanlovini asoslash. |
 | M100 | Tiklangan mustaqil bazaning muhiti va schema migratsiya checksumlari tekshirildi. | Eski hosted ma’lumotlar bilan migratsiya dry-run va qabul. |
 | M101 | Quote, buyurtma, asosiy qarorlar, ro‘yxat, top-up va public-photo murojaati shartnomasi kengaydi. | Support receipt va hosted mobil capability tekshirildi. Qolgan endpointlar va tarixiy versiyalarning keng moslik auditi ochiq. |
-| M102 | Eski hamyon sessiyasining kech javobi, begonaga tegishli tasdiq va source almashishi rad etiladi. | Barcha obyekt/rol kombinatsiyasi va yangi hosted build bo‘yicha qabul. |
+| M102 | Noto‘g‘ri sessiya, boshqa qaror va takrorlangan credential rad etildi. 37 ta maxfiy o‘qish yo‘li sessiyasiz va yaroqsiz token bilan tekshirildi. | Hamma obyekt va rol bo‘yicha hosted qabul hamda haqiqiy qurilmada sessiya almashishi. |
 | M103 | Noto‘g‘ri bron query, summa/dalil tasdig‘i, maxfiy media, 32 MiB oqim, umumiy JSON parserida buzilgan Unicode hamda Nginx hajm chegarasi tekshirildi. | Qolgan endpoint/upload qamrovi va reliz serveridagi limitlar. |
 | M104 | Lokal private media, lease bilan himoyalangan vaqtinchalik fayllar va yetim derivativlar haqiqiy process-exit bilan tekshirildi. | Object storage provayderi, bucket, kalitlar, migratsiya va yetim obyektlarni tozalash. |
 | M105 | Noaniq chek takrori asl dalilni saqlaydi. Kredit va tuzatish process-exitdan keyin qayta tekshirildi. | Hosted worker/service restart va tashqi xizmat uzilishi qabuli. |
@@ -72,14 +72,14 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Qolgan qism root deploy skriptini o‘rnatish va hosted juftlikni tasdiqlash. |
 | M110 | Draft PR va testlangan backend/admin juftligi mavjud. | Alohida stagingdan aynan sinovdan o‘tgan artefaktni productionga chiqarish. |
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
-| M112 | Preview’da sakkizta HTTP tekshiruvi, schema 28, tashqi kalitlar va 60 jadval mazmuni tekshirildi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
+| M112 | Preview’da schema 28 va 60 jadval mazmuni tekshirildi. Release smoke bir originda 26, ajratilgan originlarda 28 GET bajaradi va aniq schema hamda mobil API imkoniyatlarini solishtiradi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
 | M113 | Uchta deploy/bootstrap skriptining har biri Bash sintaksis tekshiruvidan o‘tkaziladi. | Hostdagi systemd/nginx, firewall, TLS yangilanishi va filesystem huquqlari. |
 | M114 | Nusxani shifrlash, alohida ulangan diskka uzatish, qayta o‘qish va dublikatsiz retry sintetik ma’lumot bilan tekshirildi. | Haqiqiy offsite manzil, kalit egasi, storage retention va tashqi signal. |
 | M115 | Sinov diskidan qaytarilgan nusxada hamyonlar, tushum va bron komissiyalari yarashtirildi. Tiklashning vaqt chegarasi oshishi alohida exit kod beradi. | Haqiqiy offsite nusxa bilan RPO/RTO, o‘chirilgan hisoblar va operator mashqi. |
 | M116 | Log kesimi uchun chegara ichida, oshgan va dalil yetishmaydigan holatlar CLI exit kodlari bilan ajratildi. | Monitoring manzili, alert egasi, mobil crash va real signal. |
 | M117 | Tiklash, moliyaviy uzilish, threshold va rollback amallari operatsion yo‘riqnomada. | Mas’ullar, amaliy incident mashqi, xarajat va provayder limitlari. |
 | M122 | Store review qoralamasida hisob o‘chirish murojaati sinov yo‘li yangilandi. | Haqiqiy screenshot, support/privacy/delete URL va review kirishi. |
-| M123 | Yangi foto shikoyati va hisob so‘rovi uchun uch tilda matn bor. Rozilik izohi 320 × 640 ekranda 2× shrift bilan uch tilda accessibility daraxti va bosish orqali sinaldi. | Barcha ekranlarda real screen reader, kontrast, klaviatura va OS ruxsatlari. |
+| M123 | Foto shikoyati, rozilik izohi, katalog sanalari va filtr xatolari o‘zbek, rus va ingliz tillarida tekshirildi. Katalogda 320 × 640 ekranda 2× shrift bilan tugmalargacha aylantirish va bosish sinaldi. | Barcha ekranlarda real screen reader, kontrast, klaviatura va OS ruxsatlari. |
 | M124 | Noto‘g‘ri tasdiq yoki eskirgan sessiya chek qoralamasini muvaffaqiyat deb o‘chirmaydi. | Haqiqiy offline, fon va qurilma restartidan keyingi to‘liq oqimlar. |
 | M125 | QA paketidan o‘qilgan ID, versiya, build va minimal OS manifestga yoziladi. Android target SDK ham saqlanadi. | Release artefakti, symbol, minimal versiya va bosqichli pilot. |
 | M128 | Alohida komponentlar fixture va CI’da ishlaydi. | Ikki qurilma va admin bilan bitta yakuniy E2E oqimi. |
