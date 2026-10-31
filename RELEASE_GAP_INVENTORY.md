@@ -68,7 +68,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M105 | Noaniq chek takrori asl dalilni saqlaydi. Kredit va tuzatish process-exitdan keyin qayta tekshirildi. | Hosted worker/service restart va tashqi xizmat uzilishi qabuli. |
 | M106 | Ochiq domenlarda anonim hisob/admin hamda begona origin o‘qishlari rad etildi. | Haqiqiy Nginx/Gunicorn va TLS bilan cookie/CSRF/rate-limit lokal Linux’da tekshirildi. Reliz domenida hosted qabul stagingdan keyin. |
 | M107 | CI’da history va dependency skanlari, lock va litsenziya dalillari mavjud. | Kalit egasi va rotatsiya, provayder cheklovlari, native/asset litsenziyalari. |
-| M108 | Hisob o‘chirish murojaati va tiklangan moliyaviy ma’lumot tekshiruvi mavjud. | Eksport, haqiqiy o‘chirish, retention, rozilik va backupdan qayta ochilishni to‘sish. |
+| M108 | Hisob o‘chirish murojaati va tiklangan moliyaviy ma’lumot tekshiruvi mavjud. | Egasiga tegishli profil JSON eksporti va fayl tanlash oqimi tekshirildi. Qolgan toifadagi arxiv, haqiqiy o‘chirish, retention, rozilik va backupdan qayta ochilishni to‘sish ochiq. |
 | M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Qolgan qism root deploy skriptini o‘rnatish va hosted juftlikni tasdiqlash. |
 | M110 | Draft PR va testlangan backend/admin juftligi mavjud. | Alohida stagingdan aynan sinovdan o‘tgan artefaktni productionga chiqarish. |
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |

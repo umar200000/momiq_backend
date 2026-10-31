@@ -53,6 +53,27 @@ class ApiTests(unittest.TestCase):
             return json.loads(response.read())
     def login(self,phone='998901111111'):
         return self.req('/api/auth/login','POST',{'phone':phone,'code':'111111'})
+
+    def test_profile_export_is_owner_only_and_never_serializes_private_media_or_session(self):
+        first=self.login('998900222801')
+        second=self.login('998900222802')
+        with server.db() as con:
+            row=con.execute('SELECT account FROM users WHERE id=?',(first['userId'],)).fetchone()
+            record=json.loads(row[0])
+            record['profile'].update(first='OWNER',last='TEST',photo='SECRET media',unknown='SECRET ignored')
+            record['pets']=[{'id':'pet','name':'TEST CAT','photo':'SECRET pet photo'}]
+            record['support']=[{'text':'SECRET private conversation'}]
+            con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(record),first['userId']))
+        path='/api/me/profile-export'
+        self.req(path,expected=401)
+        self.req(path+'?owner='+first['userId'],token=second['token'],expected=400)
+        self.req(path,'POST',{},token=first['token'],expected=405)
+        own=self.req(path,token=first['token'])
+        self.assertEqual((own['format'],own['ownerId'],own['profile']['first']),('momiq-profile-v1',first['userId'],'OWNER'))
+        self.assertEqual(own['pets'],[{'id':'pet','name':'TEST CAT'}])
+        self.assertNotIn('SECRET',json.dumps(own))
+        self.assertNotIn(first['token'],json.dumps(own))
+        self.assertNotIn('OWNER',json.dumps(self.req(path,token=second['token'])))
     def test_notifications_are_owner_scoped_paginated_and_read_idempotently(self):
         import notifications
         a=self.login('998900000011');b=self.login('998900000012')

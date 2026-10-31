@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from config import Settings
 import service_area
+import profile_export
 from migrations import migrate
 import wallet
 import request_json
@@ -589,6 +590,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == '/api/me/dashboard' and self.command == 'GET':
                 self.reply(200,sitter_dashboard.overview(con,user,datetime.fromisoformat(now())))
+                return
+            if path == '/api/me/profile-export':
+                if self.command != 'GET':
+                    raise ApiError(405,'GET yuboring')
+                if urlparse(self.path).query:
+                    raise ValueError('Profile export accepts no query')
+                self.reply(200,profile_export.read(con,user))
                 return
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":
