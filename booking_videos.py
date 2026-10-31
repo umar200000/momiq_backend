@@ -193,6 +193,9 @@ def download(handler, con, root, identity, user, video, kind, *, admin=False):
         if status == 206:
             handler.send_header('Content-Range',f'bytes {start}-{end}/{size}')
         handler.end_headers()
+        if hasattr(handler,'send_file_range'):
+            handler.send_file_range(stream,start,end-start+1)
+            return
         stream.seek(start); remaining = end-start+1
         while remaining:
             chunk = stream.read(min(65536,remaining))

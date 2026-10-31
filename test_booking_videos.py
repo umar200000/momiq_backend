@@ -199,10 +199,10 @@ with server.db() as con:
                     (hashlib.sha256(('TEST-'+user).encode()).hexdigest(),user,'client',time.time()+60))
             con.execute('INSERT INTO sessions VALUES(?,?,?,?)',
                 (hashlib.sha256(b'TEST-admin').hexdigest(),'admin','admin',time.time()+60))
-        def call(method,path,query='',raw=b'',user=None,byte_range=None,admin=False):
+        def call(method,path,query='',raw=b'',user=None,byte_range=None,admin=False,content_type='video/mp4'):
             env={};setup_testing_defaults(env)
             env.update(REQUEST_METHOD=method,PATH_INFO=path,QUERY_STRING=query,
-                       CONTENT_LENGTH=str(len(raw)),CONTENT_TYPE='video/mp4')
+                       CONTENT_LENGTH=str(len(raw)),CONTENT_TYPE=content_type)
             env['wsgi.input']=BytesIO(raw)
             if user:env['HTTP_AUTHORIZATION']='Bearer TEST-'+user
             if byte_range:env['HTTP_RANGE']=byte_range
@@ -232,5 +232,24 @@ with server.db() as con:
             media=call('GET',admin_path+'/'+video+'/poster',admin=True)
             self.assertEqual(media['status'],200);self.assertEqual(media['headers']['Vary'],'Cookie')
             self.assertEqual(call('DELETE',admin_path,admin=True)['status'],405)
+            payload={'topic':'safety','subject':'TEST video','text':'TEST reason','image':None,
+                     'reportVideoId':video,'bookingId':b['id'],'revision':0,'action':'reply','requestId':'f'*32}
+            def report(user,**changes):
+                return call('POST','/api/support',raw=json.dumps(dict(payload,**changes)).encode(),user=user,content_type='application/json')
+            self.assertEqual(report('stranger')['status'],404)
+            self.assertEqual(report('customer',reportVideoId='0'*32)['status'],404)
+            self.assertEqual(report('customer',text='')['status'],400)
+            created=report('customer')
+            self.assertEqual(created['status'],200)
+            detail=json.loads(created['body'])
+            self.assertEqual(detail['videoReport'],{'id':video,'day':data['day'],'slot':data['slot']})
+            self.assertIsNone(detail['target'])
+            with patch('video_retention.status',return_value={'available':False}):
+                self.assertEqual(json.loads(report('customer')['body'])['acknowledgement'],detail['acknowledgement'])
+                self.assertEqual(report('customer',requestId='1'*32)['status'],410)
+            with server.db() as con:
+                self.assertEqual(con.execute('SELECT count(*) FROM support_video_reports').fetchone()[0],1)
+                with self.assertRaises(sqlite3.IntegrityError):
+                    con.execute('DELETE FROM support_video_reports')
             with server.db() as con:
                 self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action IN ('admin-view-booking-videos','admin-view-booking-video')").fetchone()[0],2)

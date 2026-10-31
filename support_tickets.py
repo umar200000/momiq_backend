@@ -45,11 +45,14 @@ def view(con,identity,user,admin=False,before=None):
     if before is not None:clause=' AND id<?';args.append(int(before))
     rows=con.execute('SELECT * FROM support_messages WHERE ticket_id=?'+clause+' ORDER BY id DESC LIMIT 21',args).fetchall()
     target=support_targets.detail(con,identity)
+    video = con.execute("""SELECT v.id,v.day,v.slot FROM support_video_reports r
+                           JOIN booking_videos v ON v.id=r.video_id WHERE r.ticket_id=?""",(identity,)).fetchone()
     can_resolve=bool(admin and (not target or target['purpose']!='appeal' or operator_access.role_for(con,user)=='administrator'))
     resolutions=support_resolutions.message_rows(con,identity,rows[:20],admin)
     return {'ticket':public(row),'items':[{'id':str(m['id']),'revision':m['revision'],'authorRole':m['author_role'],'action':m['action'],'text':m['text'],'hasImage':bool(m['image']),'created':m['created'],**({'resolution':resolutions[m['id']]} if m['id'] in resolutions else {})} for m in reversed(rows[:20])],
             'nextCursor':str(rows[19]['id']) if len(rows)>20 else None,
             'target':target,'canResolve':can_resolve,
+            **({'videoReport':{'id':video['id'],'day':video['day'],'slot':video['slot']}} if video else {}),
             **({'decisionContext':support_resolutions.context(con,target)} if can_resolve and target and target['purpose']=='appeal' else {})}
 
 
@@ -76,6 +79,8 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     creating=identity is None
     required={'requestId','text','image','revision','action'}|({'subject','topic','bookingId'} if creating else set())
     variants = [required, required | ({'target'} if creating else {'decisionVersion'})]
+    if creating:
+        variants.append(required | {'reportVideoId'})
     deletion_request = creating and isinstance(data, dict) and data.get('topic') == 'account_deletion'
     if deletion_request:
         variants = [required | {'confirmAccountRequest'}]
@@ -90,6 +95,10 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if action not in ('reply','resolve') or (action=='resolve' and (creating or not admin)):raise ValueError('Invalid support action')
     if 'decisionVersion' in data and (creating or not admin or action!='resolve'):raise ValueError('Decision version is only for appeal closure')
     body=text(data['text'],4000,action=='resolve')
+    if 'reportVideoId' in data and (
+            not body or data.get('topic')!='safety' or not data.get('bookingId') or
+            not isinstance(data['reportVideoId'],str) or not re.fullmatch('[a-f0-9]{32}',data['reportVideoId'])):
+        raise ValueError('A participant video report requires a booking, video ID and reason')
     if target and not body:raise ValueError('Report reason required')
     image=data['image']
     if image is not None:image=validate_photo(image)
@@ -124,10 +133,20 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if creating:
         if revision!=0:raise engine.BookingError(409,'Yangi murojaat versiyasi 0 bo‘lsin')
         if booking:engine.owned(con,booking,user)
+        if 'reportVideoId' in data:
+            import video_retention
+            engine.test_gate(con,environment)
+            video = con.execute('SELECT * FROM booking_videos WHERE booking_id=? AND id=?',(booking,data['reportVideoId'])).fetchone()
+            if not video:
+                raise engine.BookingError(404,'Video topilmadi')
+            if not video_retention.status(con,video,datetime.now(timezone.utc))['available']:
+                raise engine.BookingError(410,'Videoning saqlash muddati tugagan')
         snapshot=support_targets.capture(con,target,environment,user) if target else None
         identity=secrets.token_hex(16)
         con.execute('INSERT INTO support_tickets(id,owner_id,booking_id,subject,topic,status,revision,created,updated) VALUES(?,?,?,?,?,?,0,?,?)',(identity,user,booking,subject,topic,'open',current,current))
         if target:support_targets.attach(con,identity,target,snapshot,current)
+        if 'reportVideoId' in data:
+            con.execute('INSERT INTO support_video_reports VALUES(?,?)',(identity,data['reportVideoId']))
         row=ticket(con,identity,user)
     elif row['revision']!=revision:raise engine.BookingError(409,'Murojaat o‘zgargan. Yangilang')
     state='resolved' if action=='resolve' else ('waiting_user' if admin else 'open')

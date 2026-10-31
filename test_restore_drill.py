@@ -10,6 +10,37 @@ import wallet
 
 
 class RestoreDrillTests(unittest.TestCase):
+    def test_preupgrade_backup_migrates_only_its_disposable_restore(self):
+        import migrations
+        with TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            with patch.object(server,'DATA',root/'source'), patch.object(server,'ENVIRONMENT','test'):
+                with patch.object(migrations,'MIGRATIONS',migrations.MIGRATIONS[:-1]):
+                    server.setup()
+                backup_bundle.create(server.DATA,root/'copy')
+                original=backup_bundle.digest(root/'copy'/'momiq.sqlite3')
+                result=restore_drill.rehearse(root/'copy','test')
+                self.assertEqual(result['migrationsApplied'],[28])
+                self.assertEqual(result['schemaBefore'],27)
+                self.assertEqual(result['schema'],28)
+                self.assertEqual(original,backup_bundle.digest(root/'copy'/'momiq.sqlite3'))
+                with server.db() as con:
+                    self.assertEqual(con.execute('SELECT max(version) FROM schema_migrations').fetchone()[0],27)
+    def test_matching_total_does_not_hide_a_wrong_payment_decision(self):
+        from contextlib import closing
+        import sqlite3
+        import seed_scenarios
+        with TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            data=root/'data'
+            seed_scenarios.build(data,payments=True)
+            with closing(sqlite3.connect(data/'momiq.sqlite3')) as con:
+                with con:
+                    con.execute("UPDATE topup_requests SET status='rejected' WHERE status='approved'")
+            backup_bundle.create(data,root/'copy')
+            with self.assertRaisesRegex(ValueError,'decision and credit'):
+                restore_drill.rehearse(root/'copy','test')
+
     def test_offline_copy_checks_environment_and_wallet_reconciliation(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

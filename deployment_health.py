@@ -40,6 +40,7 @@ def check_database(data, environment):
             'SELECT user_id,balance_minor FROM wallet_accounts LIMIT 0',
             'SELECT id,status FROM bookings LIMIT 0',
             'SELECT message_id,ticket_id,source_version FROM support_resolutions LIMIT 0',
+            'SELECT ticket_id,video_id FROM support_video_reports LIMIT 0',
         ):
             con.execute(query)
     return max(expected)

@@ -8,6 +8,22 @@ import server
 from wsgi import application
 
 class ProductionTests(unittest.TestCase):
+    def test_private_range_is_lazy_bounded_and_closes_on_disconnect(self):
+        from tempfile import TemporaryFile
+        from wsgi import WsgiHandler
+        env={}; setup_testing_defaults(env)
+        handler=WsgiHandler(env)
+        with TemporaryFile() as source:
+            source.write(b'abc'+b'x'*131072+b'end')
+            source.flush()
+            handler.send_file_range(source,3,131072)
+        self.assertEqual(handler.wfile.getvalue(),b'')
+        output=handler.file_range
+        self.assertEqual(next(output),b'x'*65536)
+        self.assertFalse(output.stream.closed)
+        output.close()
+        self.assertEqual(list(output),[])
+        self.assertTrue(output.stream.closed)
     def test_wsgi_preserves_query_parameters(self):
         from wsgi import WsgiHandler
         env={};setup_testing_defaults(env)

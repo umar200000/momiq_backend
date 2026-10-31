@@ -229,6 +229,17 @@ MIGRATIONS = (
         "CREATE TRIGGER support_resolution_no_delete BEFORE DELETE ON support_resolutions BEGIN SELECT RAISE(ABORT,'Appeal resolution is immutable'); END",
         "CREATE TRIGGER support_resolution_no_replace BEFORE INSERT ON support_resolutions WHEN EXISTS(SELECT 1 FROM support_resolutions WHERE message_id=NEW.message_id) BEGIN SELECT RAISE(ABORT,'Appeal resolution is immutable'); END",
     )),
+    (28, 'participant reports reference immutable private video metadata', (
+        'CREATE TABLE support_video_reports(ticket_id TEXT PRIMARY KEY REFERENCES support_tickets(id),video_id TEXT NOT NULL REFERENCES booking_videos(id))',
+        """CREATE TRIGGER support_video_owner BEFORE INSERT ON support_video_reports WHEN NOT EXISTS(
+            SELECT 1 FROM support_tickets t JOIN bookings b ON b.id=t.booking_id
+            JOIN booking_videos v ON v.booking_id=b.id
+            WHERE t.id=NEW.ticket_id AND t.topic='safety' AND v.id=NEW.video_id AND t.owner_id IN (b.customer_id,b.sitter_id)
+        ) BEGIN SELECT RAISE(ABORT,'Video report requires participant and matching booking'); END""",
+        "CREATE TRIGGER support_video_no_update BEFORE UPDATE ON support_video_reports BEGIN SELECT RAISE(ABORT,'Video report source is immutable'); END",
+        "CREATE TRIGGER support_video_no_delete BEFORE DELETE ON support_video_reports BEGIN SELECT RAISE(ABORT,'Video report source is immutable'); END",
+        "CREATE TRIGGER support_video_no_replace BEFORE INSERT ON support_video_reports WHEN EXISTS(SELECT 1 FROM support_video_reports WHERE ticket_id=NEW.ticket_id) BEGIN SELECT RAISE(ABORT,'Video report source is immutable'); END",
+    )),
 )
 
 

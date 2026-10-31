@@ -56,7 +56,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M083 | Serverdagi afzalliklar va tranzaksion ichki tarix izohi mobil testlarda. | OS ruxsatlari va push sozlamalari birga sinalishi kerak. |
 | M084 | Ichki xabardan manbaga o‘tish va sessiya invalidatsiyasi testlangan. | OS orqali fon/yopiq holatdan kirish, o‘chgan obyekt va login qabuli. |
 | M085 | Ichki tarix, o‘qish tasdig‘i va sahifalash testlangan. | Provider yetkazish natijasi, retry va lock-screen maxfiyligi. |
-| M090 | Ommaviy profil/uy rasmiga shikoyat ko‘rilgan rasmning slot va xeshiga bog‘landi. | Private media dalilini saqlash, qolgan apellyatsiyalar va operator navbati qabuli. |
+| M090 | Ommaviy profil/uy rasmiga shikoyat ko‘rilgan rasmning slot va xeshiga bog‘landi. | Xususiy hisobot uchun aniq video va bron bilan shikoyat hamda admin ko‘rigi ulandi. Dalil saqlash siyosati, qolgan apellyatsiyalar va haqiqiy operator navbati qabuli ochiq. |
 | M092 | Support, moliya, moderatsiya va administrator ruxsat testlari mavjud. | MFA, kirishni tiklash va haqiqiy shaxsiy operator hisoblari. |
 | M097 | To‘lov qarorining takrori asl operator bilan bog‘landi. O‘qish va yozish auditi tekshirildi. | Audit saqlash muddati, arxiv kirishi va hosted nazorati. |
 | M099 | SQLite DELETE/WAL moliya uzilishlari, qoldiq yarashtirishi va tanlangan enagalarni o‘qish tekshirildi. | Hosted parallel yuklamadan so‘ng DB tanlovini asoslash. |

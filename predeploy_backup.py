@@ -13,6 +13,19 @@ import backup_bundle
 from migrations import MIGRATIONS
 
 
+def known_schema(con, mode):
+    if mode not in ('local','test','staging','production'):
+        raise ValueError('Explicit valid environment required')
+    if con.execute("SELECT value FROM runtime_metadata WHERE key='environment'").fetchone() != (mode,):
+        raise ValueError('Existing database environment mismatch')
+    applied = dict(con.execute('SELECT version,checksum FROM schema_migrations'))
+    expected = {version: hashlib.sha256('\n'.join(statements).encode()).hexdigest()
+                for version, _, statements in MIGRATIONS[:len(applied)]}
+    if not applied or applied != expected:
+        raise ValueError('Existing migration history is not a known contiguous prefix')
+    return max(applied)
+
+
 def create(data, backup_root, revision, mode):
     if not isinstance(revision, str) or not re.fullmatch(r'[a-f0-9]{40}', revision):
         raise ValueError('A full release revision is required')
@@ -25,18 +38,12 @@ def create(data, backup_root, revision, mode):
         raise ValueError('Explicit valid environment required')
     with closing(sqlite3.connect((data / 'momiq.sqlite3').as_uri() + '?mode=ro', uri=True, timeout=2)) as con:
         con.execute('BEGIN')
-        if con.execute("SELECT value FROM runtime_metadata WHERE key='environment'").fetchone() != (mode,):
-            raise ValueError('Existing database environment mismatch')
-        applied = dict(con.execute('SELECT version,checksum FROM schema_migrations'))
-        expected = {version: hashlib.sha256('\n'.join(statements).encode()).hexdigest()
-                    for version, _, statements in MIGRATIONS[:len(applied)]}
-        if not applied or applied != expected:
-            raise ValueError('Existing migration history is not a known contiguous prefix')
+        version = known_schema(con,mode)
     # Same name/manifest format as the normal retention-aware backup rotation.
     name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + secrets.token_hex(4)
     target = backup_root / name
     verified = backup_bundle.create(data, target)
-    return {'releaseSha': revision, 'backupName': name, 'schemaBefore': max(applied), 'verified': verified}
+    return {'releaseSha': revision, 'backupName': name, 'schemaBefore': version, 'verified': verified}
 
 
 def main():
