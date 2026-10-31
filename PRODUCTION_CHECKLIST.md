@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-10-31. Joriy 47 band bo‘yicha davom
 
+- [x] **M092/M100/M102/M107.** Bitta yangi DB uchun turli muhitda bir vaqtda ishga tushgan ikki jarayondan faqat bittasi bazani oldi. Hosted muhitda alohida berilgan birinchi operator paroli ochiq faylga yozilmaydi. Generatsiya qilingan parol fayli eksklyuziv yaratiladi. Boshqa faylga hard link bo‘lganda bootstrap rad etildi, u faylning mazmuni saqlandi. Keyingi oddiy restart avvalgi credentialni almashtirmadi. Alohida staging provayderi yoki domeni kerak bo‘lmadi.
+
 - [x] **M090/M097/M101/M102/M105.** Mijoz va enaga yakunlangan nizo sahifasidan ko‘rgan qarorini qayta ko‘rib chiqish uchun murojaat ochishi mumkin. Asl bron va qaror versiyasi bog‘lanadi. Support qisqa havolani ko‘radi va ishni yo‘naltiradi. Faqat administrator ko‘rgan qaror hodisasini tasdiqlab, sabab yozib yopadi. Murojaat auditda qayd etiladi. Yopish bron va pulga ta’sir qilmasligi, begona hisob, ochiq nizo, eskirgan versiya, yetishmayotgan va boshqa qaror tasdig‘i hamda yopilgandan keyingi retry tekshirildi. Asl qarorni moliyaviy qayta hisoblash bo‘yicha yangi qoida joriy qilinmadi.
 
 - [x] **M101/M123/M124.** Katalogdagi sana, filtrlash, hudud, hayvon, kunlik narx, MyID filtri va xato matnlari uch tilda tekshirildi. Ism va enaganing izohi asl matnda ko‘rsatiladi. 320×640 ekran, 2× shrift bilan sana xatosi va filtr tugmalari sinaldi. Flutter sinovida dastlab ko‘rinishdan tashqaridagi tugma hali yaratilmagan edi. Test haqiqiy aylantirish bilan bajarildi. API sahifasida xizmat/ID, narx, hayvon, jadval, koordinata yoki cursor yaroqsiz bo‘lsa oldingi sahifa va retry saqlanadi. Uchta lokal preview javobini mobil parser ochdi (1, 0 va 0 ta e’lon).

@@ -15,7 +15,7 @@ Secrets per repository: `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`. Keys cannot open
 
 - `/opt/momiq/current/backend`, `/opt/momiq/current/admin`: active release symlinks.
 - `/opt/momiq/releases/`: previous releases retained for manual recovery.
-- `/var/lib/momiq/`: SQLite and initial `admin-login.txt`; accessible to the service user/root only.
+- `/var/lib/momiq/` holds the SQLite database. On first hosted startup, supply a unique 14–200 character `MOMIQ_ADMIN_PASSWORD` through the service secret store. Only its salted hash is persisted. Without a supplied secret, the bootstrap generates a password and creates a one-time `admin-login.txt` with private permissions. An existing file or link is never overwritten. If an interrupted initial setup left a handoff file before the account was committed, keep it private and use its password via the service secret store when retrying. Restrict the directory to the service user and root.
 - `/etc/momiq/backend.env`: runtime settings, mode 600.
 - `momiq.service`: Gunicorn on 127.0.0.1:8080, behind Nginx.
 - `/etc/nginx/sites-available/momiq`: domains and HTTPS routing.

@@ -109,13 +109,15 @@ def password_hash(value, salt):
     return hashlib.pbkdf2_hmac("sha256", value.encode(), bytes.fromhex(salt), 200000).hex()
 
 def setup():
-    DATA.mkdir(parents=True, exist_ok=True)
+    DATA.mkdir(mode=0o700,parents=True, exist_ok=True)
     with db() as con:
         con.execute('CREATE TABLE IF NOT EXISTS runtime_metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        con.execute('BEGIN IMMEDIATE')
         row = con.execute("SELECT value FROM runtime_metadata WHERE key='environment'").fetchone()
         if row and row[0] != ENVIRONMENT:
             raise ValueError('This database belongs to a different environment; use a separate data directory')
         con.execute("INSERT OR IGNORE INTO runtime_metadata VALUES('environment',?)", (ENVIRONMENT,))
+        con.commit()
         con.executescript("""
         PRAGMA journal_mode=WAL;
         CREATE TABLE IF NOT EXISTS sitters(id TEXT PRIMARY KEY, profile TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
@@ -132,18 +134,28 @@ def setup():
         CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, actor TEXT, action TEXT, target TEXT, time TEXT);
         CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY, count INTEGER, reset REAL);
         """)
+        con.execute('BEGIN IMMEDIATE')
         for row in con.execute("SELECT id,account FROM users WHERE id NOT IN (SELECT user_id FROM user_roles)").fetchall():
             account = json.loads(row['account'])
             role = 'sitter' if account.get('sitterProfile') is not None else 'customer'
             con.execute('INSERT INTO user_roles VALUES(?,?)', (row['id'],role))
         if (not con.execute("SELECT 1 FROM admins").fetchone()
                 and not con.execute("SELECT 1 FROM sqlite_master WHERE name='schema_migrations'").fetchone()):
-            password = os.environ.get("MOMIQ_ADMIN_PASSWORD") or secrets.token_urlsafe(16)
+            supplied = os.environ.get("MOMIQ_ADMIN_PASSWORD")
+            password = supplied or secrets.token_urlsafe(16)
+            hosted = ENVIRONMENT in ('production','staging')
+            if hosted and (not 14<=len(password)<=200 or not password.strip()):
+                raise ValueError('Initial operator password must contain 14–200 characters')
             salt = secrets.token_hex(16)
             con.execute("INSERT INTO admins VALUES(?,?,?)", ("admin", salt, password_hash(password, salt)))
-            (DATA / "admin-login.txt").write_text("Username: admin\nPassword: " + password + "\n", encoding="utf-8")
-            if os.name != "nt":
-                (DATA / "admin-login.txt").chmod(0o600)
+            if not (supplied and hosted):
+                # Exclusive creation never follows an existing link or overwrites
+                # a prior handoff. POSIX permissions apply before the first byte.
+                fd=os.open(DATA/'admin-login.txt',os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+                with os.fdopen(fd,'w',encoding='utf-8') as handoff:
+                    handoff.write("Username: admin\nPassword: " + password + "\n")
+                    handoff.flush()
+                    os.fsync(handoff.fileno())
         con.commit()
         migrate(con)
 
