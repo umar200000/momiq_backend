@@ -1,0 +1,15 @@
+[Unit]
+Description=Prune expired Momiq credentials and request counters
+After=momiq.service
+[Service]
+Type=oneshot
+User=momiq
+Group=momiq
+WorkingDirectory=/opt/momiq/current/backend
+EnvironmentFile=/etc/momiq/backend.env
+ExecStart=/opt/momiq/current/backend/.venv/bin/python session_maintenance.py --apply
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/momiq

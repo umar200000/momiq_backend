@@ -130,7 +130,15 @@ For a copied encrypted bundle and an independent receipt, `python encrypted_back
 `python tool/instance_report.py --data <instance> --mode <expected-mode>` reports aggregate local disk, SQLite/WAL size, pending top-ups, open support and Linux host MemAvailable when present. Optional bounds are `--min-disk-free-bytes`, `--min-host-available-ram-bytes`, `--max-wal-bytes`, `--max-pending-topups` and `--max-open-support`. Exit 0 means the supplied bounds passed, exit 1 flags a breach, and exit 2 means the requested evidence was unavailable. Host RAM is not a container memory limit. Database lock outcomes are separately available in request diagnostics. No outbound alert or customer record is included.
 
 A recovery rehearsal validates the original snapshot as sealed, then upgrades only its disposable copy from a known contiguous migration history. It checks the resulting schema and retained media references, each wallet running balance, approved top-up credits and linked correction debits. Unknown migration histories or inconsistent payments fail the drill. The historical backup and its hash stay unchanged.
-### Shifrlangan nusxani ulangan diskka uzatish
+### Tiklashda eski sessiyalarni bekor qilish
+
+Tiklash mashqi vaqtinchalik nusxadagi eski mijoz va operator sessiyalarini bitta tranzaksiyada bekor qiladi. Natijadagi `restoredSessionsRevoked` shu nusxadan o‘chirilgan sessiyalar soni. Haqiqiy tiklashda trafikni ochishdan oldin sessiyalarni bekor qilish, operator hisoblari va backup olinganidan keyingi bloklash/o‘chirish qarorlarini tekshirish operator zimmasida.
+
+### Muddati o‘tgan sessiyalar va limit hisoblagichlari
+
+`python session_maintenance.py --data <instance> --mode <mode>` har bir jadvaldan 1 000 tagacha yozuvni o‘qib, muddati o‘tganlarini sanaydi. `--apply` aynan muddati tugagan yozuvlarni olib tashlaydi va keyingi tekshiruv o‘rnini saqlaydi. `--limit` 1 dan 10 000 gacha. Begona muhit yoki mos kelmaydigan sxemada ish rad etiladi. Hisobotda token, IP yoki hisob ID si chiqmaydi. Yangilangan bootstrap vakolatli serverda o‘rnatilgach, mos backend versiyasida `momiq-session-maintenance.timer`ni ishga tushirish va jurnalini tekshirish kerak. Timer har daqiqada bir paketni tekshiradi.
+
+### Shifrlangan nusxani ulangan diskka uzatish va tiklash
 
 SQLite snapshoti uchun `MOMIQ_SQLITE_BACKUP_SECONDS` standarti 300 soniya. Operator noldan katta va 3 600 soniyagacha qiymat tanlashi mumkin. SQLite lock yoki davomli yozuvlar bu muddatni tugatsa, qisman DB e’lon qilinmaydi. Lock bo‘shagach backupni qayta ishga tushirish mumkin. Bu vaqt chegarasi SQLite nusxalashiga tegishli.
 

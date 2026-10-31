@@ -132,9 +132,21 @@ def rehearse(bundle, mode):
                 raise ValueError('Restored booking commission disagrees with the agreement or refund decision')
             wallets = con.execute('SELECT COUNT(*) FROM wallet_accounts').fetchone()[0]
             entries = con.execute('SELECT COUNT(*) FROM wallet_entries').fetchone()[0]
+        # A snapshot can predate a logout or an operator revocation. Rehearse
+        # invalidating both credential types only on the isolated recovery copy.
+        with closing(sqlite3.connect(restored/'momiq.sqlite3')) as recovered, recovered:
+            recovered.execute('BEGIN IMMEDIATE')
+            sessions=dict(recovered.execute('SELECT role,COUNT(*) FROM sessions GROUP BY role'))
+            removed=recovered.execute('DELETE FROM sessions').rowcount
+            if removed!=sum(sessions.values()) or recovered.execute('SELECT 1 FROM sessions LIMIT 1').fetchone():
+                raise ValueError('Restored session invalidation failed')
+            if removed:
+                recovered.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                                  ('offline-recovery','recovery-session-reset',json.dumps({'removed':removed}),now.isoformat()))
     return {'schema':schema, 'schemaBefore':before, 'migrationsApplied':applied,
             'mediaFiles':result['mediaFiles'], 'walletAccounts':wallets,
             'journalEntries':entries, 'reconciled':True,
+            'restoredSessionsRevoked':removed,
             'snapshotAgeSeconds':(now-created).total_seconds(),
             'drillSeconds':time.monotonic()-started}
 

@@ -10,6 +10,27 @@ import wallet
 
 
 class RestoreDrillTests(unittest.TestCase):
+    def test_old_admin_and_client_sessions_are_invalidated_only_on_the_rehearsal_copy(self):
+        from contextlib import closing
+        import sqlite3
+        with TemporaryDirectory() as tmp:
+            root=Path(tmp);source=root/'data';bundle=root/'backup'
+            with patch.object(server,'DATA',source),patch.object(server,'ENVIRONMENT','test'):
+                server.setup()
+                with server.db() as con:
+                    con.execute("INSERT INTO users VALUES('owner','998000000011','{}',0,'TEST')")
+                    con.executemany('INSERT INTO sessions VALUES(?,?,?,?)',
+                                    [('1'*64,'owner','client',9999999999),('2'*64,'admin','admin',9999999999)])
+                backup_bundle.create(source,bundle)
+                digest=backup_bundle.digest(bundle/'momiq.sqlite3')
+                proof=restore_drill.rehearse(bundle,'test')
+                self.assertEqual(proof['restoredSessionsRevoked'],2)
+                self.assertEqual(digest,backup_bundle.digest(bundle/'momiq.sqlite3'))
+                for folder in (bundle,source):
+                    with closing(sqlite3.connect((folder/'momiq.sqlite3').as_uri()+'?mode=ro',uri=True)) as db:
+                        self.assertEqual(db.execute('SELECT COUNT(*) FROM sessions').fetchone()[0],2)
+                        self.assertEqual(db.execute("SELECT COUNT(*) FROM audit WHERE action='recovery-session-reset'").fetchone()[0],0)
+
     def test_linked_but_excessive_corrections_and_dispute_awards_are_detected(self):
         import sqlite3
         import seed_scenarios
