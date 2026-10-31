@@ -24,9 +24,13 @@ from urllib.request import Request, ProxyHandler, build_opener
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 
+def services_for(number):
+    return ('personal',) if number%3==2 else ('boarding','homeVisit')
+
 
 def seed(server,catalog,accounts,active):
     from PIL import Image
+    import wallet
     image=BytesIO();Image.new('RGB',(32,32),'blue').save(image,format='PNG')
     photo=base64.b64encode(image.getvalue()).decode()
     sitter_count=min(100,max(1,accounts//10))
@@ -39,16 +43,21 @@ def seed(server,catalog,accounts,active):
             if number<sitter_count:account['sitterProfile']={'years':1,'about':'SYNTHETIC LOAD FIXTURE','homePhotos':[photo],'housing':'house'}
             con.execute('INSERT INTO users VALUES(?,?,?,0,?)',(uid,f'998{number:09}',json.dumps(account),server.now()))
             con.execute('INSERT INTO user_roles VALUES(?,?)',(uid,'sitter' if number<sitter_count else 'customer'))
-            if number<sitter_count:con.execute('INSERT INTO wallet_accounts VALUES(?,?)',(uid,100000000))
+            if number<sitter_count:wallet.post_entry(con,uid,100000000,'topup','load-opening:'+uid,'fixture','SYNTHETIC LOAD ONLY')
             elif len(clients)<active:
                 token=secrets.token_urlsafe(40);clients.append(token)
                 con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid,'client',time.time()+3600))
     for number in range(sitter_count):
         uid=f'{number:024x}'
-        data={'housing':'house','listings':[{'type':kind,'pets':['cat','dog'],'price':50000,'capacity':1 if kind=='personal' else 5,'active':True,
-              'location':{'lat':41.31,'lon':69.24,'address':'TEST Toshkent'}} for kind in catalog.SERVICES]}
+        services=services_for(number)
+        pet='dog' if number%2 else 'cat'
+        location={'lat':41.29+.01*(number%6),'lon':69.21+.01*((number//6)%10),'address':'TEST Toshkent'}
+        data=server.validate_listings({'housing':'house','listings':[
+            {'type':kind,'pets':['cat','dog'] if kind=='homeVisit' else [pet],
+             'price':50000,'capacity':3 if kind=='boarding' else None,'active':True,'location':location}
+            for kind in services]})
         with server.db() as con:catalog.save(con,uid,data,0)
-        for service in catalog.SERVICES:
+        for service in services:
             with server.db() as con:
                 revision=catalog.document(con,uid)['_revision']
                 con.commit()
@@ -125,7 +134,8 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0,dated_catalog=False
                 request(token,'bookings','/api/bookings')
                 request(token,'inbox','/api/conversations')
                 request(token,'notifications','/api/notifications')
-                chat=request(token,'open_chat','/api/conversations',{'listingId':f'{index%sitters:024x}:boarding'})
+                owner=index%sitters
+                chat=request(token,'open_chat','/api/conversations',{'listingId':f'{owner:024x}:{services_for(owner)[0]}'})
                 if chat and chat.get('id'):
                     request(token,'send_chat','/api/conversations/'+chat['id']+'/messages',{'text':'SYNTHETIC LOAD MESSAGE','requestId':f'synthetic-load-message-{index}-{cycle}'})
                 cycle+=1
@@ -136,9 +146,9 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0,dated_catalog=False
         finally:http.shutdown();http.server_close();serving.join()
         elapsed=time.perf_counter()-started;groups=defaultdict(list)
         for row in measurements:groups[row[0]].append(row)
-        result={'createdAt':datetime.now(timezone.utc).isoformat(),'accounts':accounts,'activeCustomers':active,'sitters':sitters,'listings':sitters*3,'cycles':None if duration_seconds else cycles,'mode':'paced_duration' if duration_seconds else 'burst_cycles',
+        result={'createdAt':datetime.now(timezone.utc).isoformat(),'accounts':accounts,'activeCustomers':active,'sitters':sitters,'cycles':None if duration_seconds else cycles,'mode':'paced_duration' if duration_seconds else 'burst_cycles',
                 'durationSeconds':duration_seconds,'thinkMs':think_ms,
-                'measurementVersion':2,'catalogMode':'interval-proximity' if dated_catalog else 'boarding-cat',
+                'measurementVersion':2,'fixtureVersion':3,'catalogMode':'interval-proximity' if dated_catalog else 'boarding-cat',
                 'clientTransport':'per-customer direct loopback opener prepared before timing; no HTTP warmup',
                 'transport':'Windows/local stdlib ThreadingHTTPServer' if os.name=='nt' else 'local stdlib ThreadingHTTPServer',
                 'python':platform.python_version(),'logicalCpus':os.cpu_count(),'elapsedSeconds':round(elapsed,2),'requests':len(measurements),
@@ -152,6 +162,10 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0,dated_catalog=False
                  'handlerDuration':timings([r[1] for r in handler_measurements if r[0]==category]),
                  'handlerPhases':{phase:timings([r[1] for r in handler_measurements if r[0]==category and r[2]==phase]) for phase in ('initial','repeat')}}
         with server.db() as con:
+            result['listings']=con.execute("SELECT COUNT(*) FROM listing_moderation WHERE status='approved'").fetchone()[0]
+            if con.execute("""SELECT 1 FROM wallet_accounts w LEFT JOIN wallet_entries e ON e.user_id=w.user_id
+                    GROUP BY w.user_id,w.balance_minor HAVING w.balance_minor<>COALESCE(SUM(e.amount_minor),0) LIMIT 1""").fetchone():
+                raise ValueError('Synthetic opening balances do not reconcile')
             result['database']={'integrity':con.execute('PRAGMA integrity_check').fetchone()[0],'foreignKeyErrors':len(con.execute('PRAGMA foreign_key_check').fetchall()),
                 'accounts':con.execute('SELECT COUNT(*) FROM users').fetchone()[0],'chats':con.execute('SELECT COUNT(*) FROM conversations').fetchone()[0],
                 'messages':con.execute('SELECT COUNT(*) FROM conversation_messages').fetchone()[0],'bookings':con.execute('SELECT COUNT(*) FROM bookings').fetchone()[0]}
@@ -160,6 +174,7 @@ def run(accounts,active,cycles,duration_seconds=0,think_ms=0,dated_catalog=False
             'Synchronized customer start; no real mobile network. Throughput elapsed includes HTTP shutdown/drain.',
             'Client timings include transport/accept-queue delay; handler timings exclude them. Initial/repeat refer to each customer cycle.',
             'Version 2 prepares direct clients outside timing; old lazy ambient-proxy measurements are not like-for-like speedup evidence.',
+            'Fixture v3 validates listings through the API input rules, separates personal care, varies locations and journals opening balances. Older 300-listing loads use a different fixture.',
             'Pre-issued synthetic sessions: does not benchmark SMS, login or TLS.',
             'No booking acceptance, payment, video, reverse proxy, Gunicorn or production host traffic.',
             'This is not proof of production capacity or a service-level guarantee; temporary data is removed.']

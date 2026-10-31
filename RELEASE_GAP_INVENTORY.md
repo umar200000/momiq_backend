@@ -39,7 +39,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | Band | Tekshirilgan qism yoki amaldagi dalil | Yopish uchun qolgan ish |
 | --- | --- | --- |
 | M001 | Uch xizmat va har hayvonga kunlik narx bron javobida tekshiriladi. | Geofence mantiqi sintetik ko‘pburchak bilan tekshirildi. Haqiqiy Toshkent fayli va ikki platformada qabul ochiq. |
-| M007 | Bir xil sana va masofa bilan lokal yuklamada 1 000 hisobdan 100 tasi faol bo‘lganda katalog p95 4,69 s dan 0,89 s ga tushdi. 5 867 HTTP so‘rov o‘tdi. | Hosted muhitda o‘lchash, tezlik, mavjudlik, RPO/RTO va infratuzilma budjetini kelishish. |
+| M007 | Avvalgi juft o‘lchovda katalog p95 4,69 s dan 0,89 s ga tushdi. API qoidalariga mos yangi 167 e’lonli sinovda 1 000 hisob va 100 faol mijoz bilan p95 0,75 s, 5 829 so‘rov o‘tdi. | Hosted muhitda o‘lchash, tezlik, mavjudlik, RPO/RTO va infratuzilma budjetini kelishish. |
 | M008 | Muhit belgilari, bazaning muhiti hamda admin va runtime kataloglarining ajratilishi tekshirildi. | M008 egasi qarori bilan joriy navbatdan alohida yakuniy kutishga ko‘chirildi. Staging domeni, baza, storage va kirish usuli keyin kelishiladi. |
 | M009 | Hosted build loopback taxalluslari va .invalid namuna domenini rad etadi. Production API porti 443. | Staging konfiguratsiyasi bilan haqiqiy build va hosted qabul. |
 | M012 | Yopildi. Test bazasida uch holatdagi bron, sanalar, chat va parvarish hisoboti yaratildi. | Ikkinchi ishga tushirish yozuvlarni aynan saqladi. Mavjud bazaga o‘rnatish rad etildi. |

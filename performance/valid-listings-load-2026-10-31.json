@@ -1,0 +1,352 @@
+{
+  "createdAt": "2026-10-31T08:56:55.420457+00:00",
+  "accounts": 1000,
+  "activeCustomers": 100,
+  "sitters": 100,
+  "cycles": null,
+  "mode": "paced_duration",
+  "durationSeconds": 60,
+  "thinkMs": 1000,
+  "measurementVersion": 2,
+  "fixtureVersion": 3,
+  "catalogMode": "interval-proximity",
+  "clientTransport": "per-customer direct loopback opener prepared before timing; no HTTP warmup",
+  "transport": "Windows/local stdlib ThreadingHTTPServer",
+  "python": "3.12.10",
+  "logicalCpus": 16,
+  "elapsedSeconds": 60.51,
+  "requests": 5829,
+  "listenBacklog": 128,
+  "expectedRequests": null,
+  "requestsPerSecond": 96.33,
+  "endpoints": {
+    "catalog": {
+      "count": 900,
+      "p50Ms": 17.46,
+      "p95Ms": 752.1,
+      "p99Ms": 892.26,
+      "statuses": {
+        "200": 900
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 741.81,
+          "p95Ms": 901.12,
+          "p99Ms": 910.88
+        },
+        "repeat": {
+          "count": 800,
+          "p50Ms": 14.81,
+          "p95Ms": 261.77,
+          "p99Ms": 299.52
+        }
+      },
+      "handlerDuration": {
+        "count": 900,
+        "p50Ms": 15.82,
+        "p95Ms": 630.83,
+        "p99Ms": 681.48
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 625.73,
+          "p95Ms": 689.13,
+          "p99Ms": 693.93
+        },
+        "repeat": {
+          "count": 800,
+          "p50Ms": 13.57,
+          "p95Ms": 257.07,
+          "p99Ms": 292.28
+        }
+      }
+    },
+    "profile": {
+      "count": 898,
+      "p50Ms": 4.65,
+      "p95Ms": 22.46,
+      "p99Ms": 42.94,
+      "statuses": {
+        "200": 898
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 4.71,
+          "p95Ms": 18.34,
+          "p99Ms": 23.92
+        },
+        "repeat": {
+          "count": 798,
+          "p50Ms": 4.64,
+          "p95Ms": 23.55,
+          "p99Ms": 44.35
+        }
+      },
+      "handlerDuration": {
+        "count": 898,
+        "p50Ms": 3.83,
+        "p95Ms": 17.14,
+        "p99Ms": 31.52
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 4.03,
+          "p95Ms": 17.22,
+          "p99Ms": 22.99
+        },
+        "repeat": {
+          "count": 798,
+          "p50Ms": 3.8,
+          "p95Ms": 16.54,
+          "p99Ms": 31.61
+        }
+      }
+    },
+    "bookings": {
+      "count": 830,
+      "p50Ms": 4.81,
+      "p95Ms": 17.84,
+      "p99Ms": 26.14,
+      "statuses": {
+        "200": 830
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 5.12,
+          "p95Ms": 23.02,
+          "p99Ms": 34.14
+        },
+        "repeat": {
+          "count": 730,
+          "p50Ms": 4.78,
+          "p95Ms": 15.76,
+          "p99Ms": 24.81
+        }
+      },
+      "handlerDuration": {
+        "count": 830,
+        "p50Ms": 4.13,
+        "p95Ms": 13.37,
+        "p99Ms": 20.25
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 4.11,
+          "p95Ms": 19.66,
+          "p99Ms": 33.34
+        },
+        "repeat": {
+          "count": 730,
+          "p50Ms": 4.13,
+          "p95Ms": 12.55,
+          "p99Ms": 18.37
+        }
+      }
+    },
+    "inbox": {
+      "count": 801,
+      "p50Ms": 4.92,
+      "p95Ms": 17.57,
+      "p99Ms": 25.61,
+      "statuses": {
+        "200": 801
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 5.48,
+          "p95Ms": 18.76,
+          "p99Ms": 23.59
+        },
+        "repeat": {
+          "count": 701,
+          "p50Ms": 4.89,
+          "p95Ms": 17.56,
+          "p99Ms": 25.61
+        }
+      },
+      "handlerDuration": {
+        "count": 801,
+        "p50Ms": 4.2,
+        "p95Ms": 13.88,
+        "p99Ms": 20.2
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 4.35,
+          "p95Ms": 18.86,
+          "p99Ms": 22.1
+        },
+        "repeat": {
+          "count": 701,
+          "p50Ms": 4.18,
+          "p95Ms": 11.44,
+          "p99Ms": 19.02
+        }
+      }
+    },
+    "notifications": {
+      "count": 800,
+      "p50Ms": 4.71,
+      "p95Ms": 18.71,
+      "p99Ms": 27.45,
+      "statuses": {
+        "200": 800
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 4.94,
+          "p95Ms": 19.85,
+          "p99Ms": 27.0
+        },
+        "repeat": {
+          "count": 700,
+          "p50Ms": 4.69,
+          "p95Ms": 18.35,
+          "p99Ms": 27.45
+        }
+      },
+      "handlerDuration": {
+        "count": 800,
+        "p50Ms": 3.93,
+        "p95Ms": 14.78,
+        "p99Ms": 20.39
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 4.02,
+          "p95Ms": 16.61,
+          "p99Ms": 19.29
+        },
+        "repeat": {
+          "count": 700,
+          "p50Ms": 3.92,
+          "p95Ms": 14.61,
+          "p99Ms": 20.72
+        }
+      }
+    },
+    "open_chat": {
+      "count": 800,
+      "p50Ms": 5.41,
+      "p95Ms": 255.9,
+      "p99Ms": 864.62,
+      "statuses": {
+        "200": 800
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 68.45,
+          "p95Ms": 892.45,
+          "p99Ms": 1084.85
+        },
+        "repeat": {
+          "count": 700,
+          "p50Ms": 5.2,
+          "p95Ms": 21.8,
+          "p99Ms": 34.8
+        }
+      },
+      "handlerDuration": {
+        "count": 800,
+        "p50Ms": 4.62,
+        "p95Ms": 254.72,
+        "p99Ms": 863.06
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 67.26,
+          "p95Ms": 892.12,
+          "p99Ms": 1090.07
+        },
+        "repeat": {
+          "count": 700,
+          "p50Ms": 4.41,
+          "p95Ms": 18.2,
+          "p99Ms": 34.75
+        }
+      }
+    },
+    "send_chat": {
+      "count": 800,
+      "p50Ms": 9.17,
+      "p95Ms": 178.62,
+      "p99Ms": 882.81,
+      "statuses": {
+        "200": 800
+      },
+      "transportOrShapeErrors": {},
+      "clientPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 7.73,
+          "p95Ms": 28.08,
+          "p99Ms": 36.88
+        },
+        "repeat": {
+          "count": 700,
+          "p50Ms": 9.72,
+          "p95Ms": 196.64,
+          "p99Ms": 899.49
+        }
+      },
+      "handlerDuration": {
+        "count": 800,
+        "p50Ms": 9.38,
+        "p95Ms": 180.33,
+        "p99Ms": 881.93
+      },
+      "handlerPhases": {
+        "initial": {
+          "count": 100,
+          "p50Ms": 8.19,
+          "p95Ms": 22.2,
+          "p99Ms": 36.0
+        },
+        "repeat": {
+          "count": 700,
+          "p50Ms": 9.74,
+          "p95Ms": 200.43,
+          "p99Ms": 899.06
+        }
+      }
+    }
+  },
+  "listings": 167,
+  "database": {
+    "integrity": "ok",
+    "foreignKeyErrors": 0,
+    "accounts": 1000,
+    "chats": 100,
+    "messages": 800,
+    "bookings": 0
+  },
+  "successfulRequests": 5829,
+  "limitations": [
+    "Synthetic local paced duration, time budget checked before each request; in-flight requests may finish after the window.",
+    "Synchronized customer start; no real mobile network. Throughput elapsed includes HTTP shutdown/drain.",
+    "Client timings include transport/accept-queue delay; handler timings exclude them. Initial/repeat refer to each customer cycle.",
+    "Version 2 prepares direct clients outside timing; old lazy ambient-proxy measurements are not like-for-like speedup evidence.",
+    "Fixture v3 validates listings through the API input rules, separates personal care, varies locations and journals opening balances. Older 300-listing loads use a different fixture.",
+    "Pre-issued synthetic sessions: does not benchmark SMS, login or TLS.",
+    "No booking acceptance, payment, video, reverse proxy, Gunicorn or production host traffic.",
+    "This is not proof of production capacity or a service-level guarantee; temporary data is removed."
+  ]
+}
