@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import stat
 
 MARKER = '.momiq-test-fixtures.json'
 FIXTURE_VERSION = 1
@@ -20,11 +21,34 @@ def fixture_id(name):
     return hashlib.sha256((OWNER + ':' + name).encode()).hexdigest()[:24]
 
 
+def fixture_directory(directory):
+    path = Path(directory).absolute()
+    if '..' in path.parts:
+        raise ValueError('Fixture path must not contain parent traversal')
+    for component in (*reversed(path.parents), path):
+        if component.is_symlink() or getattr(component, 'is_junction', lambda: False)():
+            raise ValueError('Refusing redirected fixture directory')
+    return path
+
+
+def check_fixture_file(path):
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+            getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+        raise ValueError('Refusing redirected or special fixture file')
+
+
 def prepare_directory(directory, mode):
-    directory = Path(directory).resolve()
+    directory = fixture_directory(directory)
     if mode not in {'local', 'test'}:
         raise ValueError('Fixtures are only allowed in local/test, not hosted environments')
     marker = directory / MARKER
+    for name in (MARKER, 'momiq.sqlite3', 'momiq.sqlite3-wal', 'momiq.sqlite3-shm',
+                 'momiq.sqlite3-journal', 'admin-login.txt'):
+        check_fixture_file(directory / name)
     if marker.exists():
         if json.loads(marker.read_text(encoding='utf-8')) != {'owner': OWNER, 'version': FIXTURE_VERSION}:
             raise ValueError('Unknown fixture marker')
@@ -54,6 +78,11 @@ def seed(directory, mode='local', clean=False):
             '0000000b49444154789c6360000200000500017a5eab3f0000000049454e44ae426082')).decode()
         with server.db() as con:
             con.execute('BEGIN IMMEDIATE')
+            for index, uid in enumerate(ids, 1):
+                phone = f'99800000000{index}'
+                if con.execute('SELECT 1 FROM users WHERE (id=? AND phone!=?) OR (phone=? AND id!=?)',
+                               (uid, phone, phone, uid)).fetchone():
+                    raise ValueError('Fixture identity collision')
             if clean:
                 references = set(ids) | {uid+':'+service for uid in ids for service in ('boarding','homeVisit','personal')}
                 for uid in ids:
@@ -73,14 +102,15 @@ def seed(directory, mode='local', clean=False):
                 for row in con.execute('SELECT user_id,sitter FROM messages'):
                     if row['user_id'] not in ids and row['sitter'] in references:
                         raise ValueError('Unowned conversation references fixtures; cleanup refused')
+                cleaned = 0
                 for uid in ids:
                     con.execute('DELETE FROM messages WHERE user_id=?', (uid,))
                     con.execute('DELETE FROM notifications WHERE user_id=?', (uid,))
                     con.execute('DELETE FROM sessions WHERE user_id=?', (uid,))
                     con.execute('DELETE FROM wallet_accounts WHERE user_id=? AND balance_minor=0', (uid,))
-                    con.execute('DELETE FROM users WHERE id=?', (uid,))
+                    cleaned += con.execute('DELETE FROM users WHERE id=?', (uid,)).rowcount
                     con.execute('DELETE FROM sitters WHERE id=?', (uid,))
-                return {'cleaned': len(ids), 'directory': str(directory)}
+                return {'cleaned': cleaned, 'directory': str(directory)}
             for i, (name, uid) in enumerate(zip(names, ids), 1):
                 account = server.default_account()
                 account['profile'] = {'first': 'TEST', 'last': name, 'photo': None}

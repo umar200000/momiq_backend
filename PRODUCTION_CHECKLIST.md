@@ -66,7 +66,7 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Joriy bajarish navbati — 2026-10-29**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 78 bajarilgan, 61 ochiq**. Ochiq bandlarning **12 tasi yakuniy navbatga ko‘chirildi**, qolgan **49 tasi qisman bajarilgan yoki davom ettiriladigan bandlar**. Bu 49 tasining hammasi tashqi bog‘liqliksiz to‘liq yopiladi degani emas. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 79 bajarilgan, 60 ochiq**. Ochiq bandlarning **12 tasi yakuniy navbatga ko‘chirildi**, qolgan **48 tasi qisman bajarilgan yoki davom ettiriladigan bandlar**. Bu 48 tasining hammasi tashqi bog‘liqliksiz to‘liq yopiladi degani emas. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
@@ -91,6 +91,9 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 **Bajarilish jurnali — 2026-10-27**
 
 ### 2026-10-31. Joriy 49 band bo‘yicha tekshiruvlar
+
+- [x] **M012 yopildi.** Alohida yangi test bazasi uchun `seed_scenarios.py` to‘rt sintetik hisob, uch xizmat, hayvonlar, sanalar, uchta bron holati, xabar va ovqatlantirish hisobotini yaratadi. Ssenariy domen amallari bilan vaqtinchalik katalogda quriladi, faqat yaxlitligi tasdiqlangach yakuniy joyga ko‘chadi. Ikkinchi ishga tushirish barcha jadvallarni o‘zgarishsiz qoldirdi. O‘rtada uzilish, boshqa baza, hosted muhit, hard link va ID/to‘qnashgan telefonga oid tekshiruvlar o‘tdi. Mavjud preview va jonli bron oqimiga yozilmadi. 12 ta seed testi o‘tdi. Dastlabki 49 banddan 48 tasi ochiq.
+- [x] **M007/M099/M131 yuklama.** 1 000 sintetik hisob, 100 faol mijoz, 300 e’lon bilan mahalliy 5 daqiqalik sinovda 29 380 so‘rovning barchasi muvaffaqiyatli. O‘tkazish tezligi 97,77 so‘rov/s. Katalog bo‘yicha 4 216 so‘rov, p95 44,28 ms. Yakunda 4 166 chat xabari, nol bron, DB integrity OK va FK xatosi nol. [O‘lchov natijasi](performance/load-2026-10-31.json).
 
 - [x] **M001/M101/M102/M105/M124.** Ilova narx taklifini enaga, xizmat, hayvonlar, vaqt, har boshlangan 24 soat va komissiya bilan solishtiradi. Bron yaratish va qabul/rad/bekor qilish tasdig‘i asl so‘rovga bog‘landi. Keyingi qarordan so‘ng takror yuborish va buzilgan ro‘yxat sahifasida oxirgi to‘g‘ri holatni saqlash izolyatsiyada sinaldi.
 - [x] **M014/M097/M105/M130/M139.** Paynet Xolis chekini yuborish va yangilashda ilova summa, QR versiyasi, dalil xeshi va asl so‘rovni solishtiradi. Noaniq javobdan so‘ng qayta urinish o‘sha dalilni saqlaydi. Sessiya yoki QR almashsa eski oynadan dalil yuborish to‘xtaydi. SQLite DELETE va WAL rejimlarida hamyon jurnali yozilgach, commit oldida va undan keyin jarayon majburan to‘xtatildi. Asl operatorning qayta urinishi bir dona kredit bilan tugadi, boshqa operatorning takrori rad etildi.
@@ -589,7 +592,7 @@ Har yangi yozuvda yechim, tekshiruv, qolgan cheklov va odatdagi yo‘ldan chetla
 - [ ] M009 — Development/test/production build sozlamalarini joriy etish: muhit belgisi ko‘rinadi; production build localhost, umumiy OTP yoki test provider bilan chiqarilmaydi.
 - [x] M010 — Flutter/Dart, Python, Java, Gradle, SDK va NDK versiyalarini uyg‘unlashtirish: yangi kompyuter va CI bir xil lockfile bilan build qiladi; mavjud lokal sozlama o‘zgarishlari alohida ko‘rib chiqiladi.
 - [x] M011 — Mahalliy ishga tushirishni takrorlanadigan qilish: admin papka nomi, MapKit konfiguratsiyasi, emulator/telefon ulanishi hujjatlashtiriladi; yashirin qo‘lda tuzatish talab qilinmaydi.
-- [ ] M012 — Test ma’lumotlarini boshqariladigan seed orqali yaratish: mijoz, enaga, xizmatlar, sanalar, hayvonlar, buyurtma holatlari, chat va hisobotlar; qayta ishga tushirish dublikat yaratmaydi.
+- [x] M012 — Test ma’lumotlarini boshqariladigan seed orqali yaratish: mijoz, enaga, xizmatlar, sanalar, hayvonlar, buyurtma holatlari, chat va hisobotlar; qayta ishga tushirish dublikat yaratmaydi.
 - [x] M013 — Test ma’lumotlarini xavfsiz ajratish va tozalash: test identifikatori, alohida muhit yoki ko‘rinish cheklovi; tozalash faqat tegishli test yozuvlariga tegadi, real katalog/reyt­ing/hisob-kitobga ta’sir qilmaydi.
 - [ ] M014 — SMS, push, media va QR/chek oqimi uchun sinov rejimlarini qo‘shish: test QR va belgilangan test chek/tushum, tasdiq/rad/qayta yuborish; real balans, real pul yoki tasodifiy telefonlarga ta’sir qilmaydi.
 - [x] M015 — GitHub kirishi, repo huquqlari, branch va CI holatini tekshirish: foydalanuvchi login kerak bo‘lsa o‘zi bajaradi; ruxsatni tekshirish uchun main’ga sinov push qilinmaydi, tokenlar repoga/logga tushmaydi.
@@ -853,7 +856,7 @@ Bu bo‘lim foydalanuvchining 2026-10-29 ko‘rsatmasi bilan ro‘yxat oxiriga k
 
 **Davom etayotgan bandlarning tashqi qabul bosqichlari**
 
-Bu yerda yangi asosiy band yaratilmaydi; yuqoridagi 49 bandning faqat hozir ochib bo‘lmaydigan qismi sanaladi.
+Bu yerda yangi asosiy band yaratilmaydi; yuqoridagi 48 bandning faqat hozir ochib bo‘lmaydigan qismi sanaladi.
 
 - **Server va staging:** M008/M009/M019/M100/M106/M109–M113. Hozirgi CI SSH kaliti forced-deploy bilan cheklangan; root-owned Nginx/systemd/deploy script/timer/bootstrapni oddiy push o‘rnatmaydi. Legacy test-login konfiguratsiyasi yangi production runtime bilan mos emas. Mos backend/admin SHA juftligi avval nazoratli staging/promotion va imtiyozli bootstrapdan o‘tadi. Draft branch CI muvaffaqiyati production deploy tasdig‘i emas.
 - **Bloklangan native yo‘l:** M055 hamda M078/M124/M128/M129/M131/M139 qabul bosqichlari. M055 live bron testi va yangilangan APKni o‘rnatish avtomatik approval tomonidan rad etilgan; qayta urinish yoki boshqa vosita bilan chetlash yo‘q. Eski emulator buildi yangi kod ishlayapti degan dalil emas. Brauzer avtomatizatsiyasidagi `browser.user is unavailable` ham haqiqiy UI qabulining o‘rnini API testi bilan yopishga asos bo‘lmaydi.
@@ -863,4 +866,4 @@ Bu yerda yangi asosiy band yaratilmaydi; yuqoridagi 49 bandning faqat hozir ochi
 - **Operatsiya va xarajat:** M007/M092/M099/M104/M107/M114–M117. Object storage/offsite backup joyi va credential, encryption/recovery kaliti egasi, MFA recovery, SLO/RPO/RTO, alert va support mas’uli/budjet kerak. Mavjud SQLite/load natijasi bazani amalda almashtirish yoki xarajat qilish uchun avtomatik qaror emas.
 - **Store va pilot:** M119–M122/M125/M128/M131/M132. Imzolash egasi, Apple/Google hisoblari, real Android/iPhone, public support/privacy/delete URL va egasining haqiqiy oqim qabuli kerak. Signing foydalanuvchi aytganidek oxirida.
 
-Ochiq bandlar sanog‘i tekshiruvi: **78 yopiq + 49 davom etayotgan/qisman + 12 yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
+Ochiq bandlar sanog‘i tekshiruvi: **79 yopiq + 48 davom etayotgan/qisman + 12 yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.

@@ -1,4 +1,5 @@
 import json
+import os
 import base64
 import struct
 import zlib
@@ -12,6 +13,61 @@ from seed_test_data import seed, fixture_id
 
 
 class SeedTests(unittest.TestCase):
+    def test_offline_scenarios_are_complete_and_idempotent(self):
+        from seed_scenarios import build
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'scenarios'
+            self.assertEqual(build(target), 'created')
+            with sqlite3.connect(target/'momiq.sqlite3', factory=ClosingConnection) as con:
+                self.assertEqual(dict(con.execute('SELECT status,count(*) FROM bookings GROUP BY status')),
+                                 {'active': 1, 'pending': 1, 'rejected': 1})
+                self.assertEqual(con.execute('SELECT COUNT(*) FROM conversation_messages').fetchone()[0], 1)
+                self.assertEqual(con.execute("SELECT COUNT(*) FROM care_entries WHERE kind='report'").fetchone()[0], 1)
+                self.assertEqual(con.execute('SELECT SUM(amount_minor) FROM wallet_entries').fetchone(),
+                                 con.execute('SELECT SUM(balance_minor) FROM wallet_accounts').fetchone())
+                self.assertEqual(con.execute('PRAGMA foreign_key_check').fetchall(), [])
+            original = self.snapshot(target)
+            self.assertEqual(build(target), 'already-created')
+            self.assertEqual(self.snapshot(target), original)
+
+    def test_scenario_generation_is_isolated_and_never_publishes_partial_data(self):
+        from seed_scenarios import build
+        with tempfile.TemporaryDirectory() as tmp:
+            existing = Path(tmp) / 'existing'
+            seed(existing)
+            original = self.snapshot(existing)
+            with self.assertRaisesRegex(ValueError, 'new directory'):
+                build(existing)
+            self.assertEqual(original, self.snapshot(existing))
+            target = Path(tmp) / 'new'
+            with patch('seed_scenarios.populate', side_effect=RuntimeError('TEST interrupted')):
+                with self.assertRaisesRegex(RuntimeError, 'interrupted'):
+                    build(target)
+            self.assertFalse(target.exists())
+            with patch.dict(os.environ, MOMIQ_ENV='production'):
+                with self.assertRaisesRegex(ValueError, 'local/test'):
+                    build(target)
+            self.assertFalse(target.exists())
+
+    def test_fixture_refuses_linked_data_and_identity_collisions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'data'
+            seed(target)
+            link = Path(tmp) / 'other-database'
+            os.link(target / 'momiq.sqlite3', link)
+            before = link.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'fixture file'):
+                seed(target, clean=True)
+            self.assertEqual(before, link.read_bytes())
+            link.unlink()
+            with sqlite3.connect(target/'momiq.sqlite3', factory=ClosingConnection) as con:
+                con.execute("UPDATE users SET phone='998000999999' WHERE id=?", (fixture_id('customer'),))
+            original = self.snapshot(target)
+            for clean in (False, True):
+                with self.assertRaisesRegex(ValueError, 'identity collision'):
+                    seed(target, clean=clean)
+                self.assertEqual(original, self.snapshot(target))
+
     def snapshot(self, target):
         with sqlite3.connect(target / 'momiq.sqlite3', factory=ClosingConnection) as con:
             names = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
