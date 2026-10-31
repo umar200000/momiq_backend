@@ -67,6 +67,10 @@ The compare-and-increment and account mutation share a transaction. Polling does
 
 ## Upgrade compatibility
 
+Hosted mobile releases declare the API capabilities they consume in `AppEnvironment.requiredMobileFeatures`. Deploy the server implementation and verify its advertised capability before promoting a client that requires it. Keep existing field types, nullability, units, pagination order and retry semantics for supported clients. An incompatible change gets a new capability and an explicit client transition. Retain the earlier representation while a supported build still consumes it. The schema migration number and the Git SHA identify the server and do not substitute for capability negotiation.
+
+The four QA client revisions `1d2fe79`, `a3c33a5`, `36b9d69` and `42edbb2` require four through seven capabilities respectively. Each original Dart validator accepted the current local preview response. In a staging fixture with the same feature set each accepted the additional capabilities, then rejected removal of one of its own requirements and rejected a mismatched environment. This exercise covers the anonymous compatibility check. Individual routes have their own payload and replay tests below.
+
 ### Canonical account shape
 
 Release one supports dog/cat bookings only, for all three services. The sitter's chosen species further narrows that set; home visits no longer imply every species. `Boshqa` animals may remain in the private account but cannot be selected for a new quote/request or via restored mobile drafts. Existing confirmed agreements are not deleted by this rule. Listing API uses `dog`/`cat`, customer accounts/public listing projection use `It`/`Mushuk`. Booking policy exposes `supportedPetTypes`. Boarding/personal listing selects one species; home visit may select one or both. Personal booking capacity is always one. Listing location is required for residential/personal, optional for home visit, but any supplied location must validate (finite coordinates and non-empty address ≤1000 Unicode code points); mobile enforces the same limits.
