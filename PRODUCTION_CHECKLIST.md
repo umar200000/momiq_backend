@@ -92,6 +92,7 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-11-03. Audit, moderatsiya, kirish va katalog
 
+- **M009/M123, iOS qurilma sinovi ochiq.** `42bd4e4` commitida Android tekshiruvlari va imzosiz iOS simulator build muvaffaqiyatli. GitHub Mac runnerida `simctl list devices available --json` oldingi 90 soniyada ham, oxirgi sinovda 300 soniyada ham javob bermadi. Jarayon ilovani o‘rnatishdan oldin to‘xtadi. Ushbu buildning birinchi ochilishi va qayta ochilishini tekshirish uchun ishlaydigan CoreSimulator muhiti kerak. [Mobil CI](https://github.com/umar200000/momiq_app/actions/runs/41513564695)
 - [x] **M123/M124.** Mijoz chatida ma’lumot yangilanmasa, texnik xato tafsiloti o‘rniga tanlangan tildagi xabar chiqadi. Profilni yuklash, bosh sahifa va chatdagi qayta urinish tugmasi uch tilga moslashtirildi. Chat ekranidagi xabar va tugma uchala tilda tekshirildi. 24 ta maqsadli test va to‘liq Flutter to‘plamida 538 ta test o‘tdi, oldindan ixtiyoriy bitta sinov o‘tkazib yuborildi. Flutter 3.44.5 analyzer xato topmadi.
 - [x] **M103/M112.** Katalog tuzatishi bilan backend Linux CI’da 438 ta testdan o‘tdi. [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41513011373)
 - [x] **M007/M131.** 1 000 TEST hisob va 100 faol mijoz bilan bir daqiqada 5 895 so‘rovning hammasi o‘tdi. Sana va masofali katalog 900 marta ochildi. Katalog p95 umumiy 832,29 ms, takroriy so‘rovlarda 162,71 ms. DB yaxlitligi saqlandi, bron yaratilmagan. [Lokal yuklama o‘lchovi](performance/valid-listings-load-2026-11-03.json)
