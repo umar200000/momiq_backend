@@ -44,6 +44,8 @@ Daily SQLite backups use the backup API (WAL-safe), run integrity_check, and ret
 
 ## Rollback
 
+Schema 29 adds a replacement guard for platform settings history. A schema 28 worker rejects a migrated database during its readiness check. An isolated rehearsal verified this against a local preview snapshot. Keep the verified pre-upgrade snapshot and use the recovery procedure below if a rollback requires data reconciliation.
+
 Before selecting old code, run that release's `deployment_health.py --data <runtime-data-directory> --mode <runtime-mode>` with its own Python runtime. It must confirm the current database environment and exact migration checksums without writing. A missing checker, older/newer schema or failed read blocks automatic code rollback. A passing schema check is necessary but does not prove every business/data compatibility property; operator recovery and migration/backup planning remain required. Never restore a database snapshot blindly over newer data. After any approved switch/restart, repeat the full release smoke, not only `/api/health`.
 
 ## Mobile app

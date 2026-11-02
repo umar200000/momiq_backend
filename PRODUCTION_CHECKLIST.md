@@ -97,6 +97,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 - [x] **M100/M115.** Ishlayotgan lokal preview bazasining alohida olingan snapshoti vaqtinchalik joyda 28-sxemadan 29-sxemaga ko‘chirildi. Tiklangan holatda moliyaviy yarashtirish muvaffaqiyatli. Asl preview 28 da qoldi va backup faylining xeshi o‘zgarmadi.
 - [x] **M123.** Kirish formasida tarmoq uzilishi, noto‘g‘ri kod, kirish cheklovi, urinishlar limiti va xizmat vaqtincha yopiq bo‘lishi uchun mahalliylashtirilgan xabarlar qo‘shildi. Noma’lum ichki xato matni foydalanuvchiga chiqarilmaydi. 320 × 640 ekran va 2× shrift bilan dastlab sarlavha 115 pikselga sig‘madi. Brend yozuvi ajratilgan joyga moslashtirildi. O‘zbek, ingliz va rus tillarida tarmoq xatosidan qayta urinishga, so‘ng noto‘g‘ri kod xabariga o‘tish va screen reader e’lon belgisi tekshirildi. OTP va telefon formasining 14 testi o‘tdi. Haqiqiy telefonning screen reader va klaviatura qabuli ochiq.
 - [x] **M014/M082.** Oflayn push sinovida boshqa SQLite fayli provider fayli nomi bilan qo‘yilganda replay rad etildi. Fayl baytlari aynan saqlandi. Avvalgi ikki jadvalli haqiqiy simulator avtomatik tanildi, eski tasdiq kursori saqlandi. Yangi va eski simulator, uzilgan tasdiq va Paynet test oqimlarini qamragan to‘rt test o‘tdi. Tashqi push provayderi va qurilmadagi yetkazish hali ochiq.
+- [x] **M001/M029/M111.** Uch xizmatning har birida shahar markazi va Chirchiq uchun HTTP narx taklifi 201, Samarqand uchun 400 qaytardi. TEST bazada bron soni nol qoldi. Alohida tiklash sinovida avvalgi backend snapshotdagi 28-sxemani qabul qildi va migratsiyadan keyingi 29-sxemani rad etdi. 29 dan 28 ga faqat kodni almashtirib qaytish mumkin emas.
+- [x] **M101/M103.** Yangi foto yo‘li bilan birga 137 usul/yo‘lga jami 274 ta yaroqsiz GET/POST/PUT/PATCH/DELETE so‘rovi yuborildi. Baza ochilmadi. Beshta mobil commitda yetti turdagi API javobi va begona murojaat identifikatorini rad etish qayta tekshirildi.
 - **M103.** Production API 33 parametrli o‘qish so‘roviga yana 200 qaytardi. Yakuniy qabul uchun kerakli 400 javobi va mos versiyaning deploy tekshiruvi kutilmoqda.
 
 ### 2026-11-02. M101 yopildi
@@ -987,7 +989,7 @@ Bu bo‘lim foydalanuvchining 2026-10-29 ko‘rsatmasi bilan ro‘yxat oxiriga k
 
 - **2026-10-31, egasining qarori.** Alohida staging serveri/domeni va unga kirish yo‘li hozir noma’lum. M008/M009/M110 hamda shu muhitni talab qiladigan deploy, yuklama va qabul sinovlari yakunda birga hal qilinadi. Hozir alohida server olinmaydi. Bu ochiq bandlar ichidagi tashqi bog‘liqlik bo‘lib, oldingi 12 ta yakuniy band alohida hisoblanadi.
 
-Bu yerda yangi asosiy band yaratilmaydi; yuqoridagi 48 bandning faqat hozir ochib bo‘lmaydigan qismi sanaladi.
+Quyida ochiq bandlarning tashqi shart kutayotgan qismlari sanalgan.
 
 - **Server va staging:** M008/M009/M019/M100/M106/M109–M113. Hozirgi CI SSH kaliti forced-deploy bilan cheklangan; root-owned Nginx/systemd/deploy script/timer/bootstrapni oddiy push o‘rnatmaydi. Legacy test-login konfiguratsiyasi yangi production runtime bilan mos emas. Mos backend/admin SHA juftligi avval nazoratli staging/promotion va imtiyozli bootstrapdan o‘tadi. Draft branch CI muvaffaqiyati production deploy tasdig‘i emas.
 - **Bloklangan native yo‘l:** M055 hamda M078/M124/M128/M129/M131/M139 qabul bosqichlari. M055 live bron testi va yangilangan APKni o‘rnatish avtomatik approval tomonidan rad etilgan; qayta urinish yoki boshqa vosita bilan chetlash yo‘q. Eski emulator buildi yangi kod ishlayapti degan dalil emas. Brauzer avtomatizatsiyasidagi `browser.user is unavailable` ham haqiqiy UI qabulining o‘rnini API testi bilan yopishga asos bo‘lmaydi.
@@ -997,4 +999,6 @@ Bu yerda yangi asosiy band yaratilmaydi; yuqoridagi 48 bandning faqat hozir ochi
 - **Operatsiya va xarajat:** M007/M092/M099/M104/M107/M114–M117. Object storage/offsite backup joyi va credential, encryption/recovery kaliti egasi, MFA recovery, SLO/RPO/RTO, alert va support mas’uli/budjet kerak. Mavjud SQLite/load natijasi bazani amalda almashtirish yoki xarajat qilish uchun avtomatik qaror emas.
 - **Store va pilot:** M119–M122/M125/M128/M131/M132. Imzolash egasi, Apple/Google hisoblari, real Android/iPhone, public support/privacy/delete URL va egasining haqiqiy oqim qabuli kerak. Signing foydalanuvchi aytganidek oxirida.
 
-Ochiq bandlar sanog‘i tekshiruvi: **79 yopiq + 47 joriy/qisman + 1 staging kutishida + 12 avvalgi yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
+- **2026-11-03, M097.** Audit tarixini saqlash muddati va arxivni o‘qishga vakolatli rol bo‘yicha qaror egasining ko‘rsatmasiga asosan yakuniy muhokamaga qoldirildi.
+
+Ochiq bandlar sanog‘i tekshiruvi: **80 yopiq + 46 joriy/qisman + 1 staging kutishida + 12 avvalgi yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
