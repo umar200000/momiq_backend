@@ -14,6 +14,7 @@ class Settings:
     port: int
     test_login: bool
     area: list | None = None
+    area_sha256: str | None = None
 
     @classmethod
     def load(cls, env: Mapping[str, str], root: Path):
@@ -41,4 +42,5 @@ class Settings:
         admin = Path(env.get('MOMIQ_ADMIN_DIR', admin_default)).resolve()
         if data.is_relative_to(admin) or admin.is_relative_to(data):
             raise ValueError('Runtime data and public admin assets require separate directories')
-        return cls(mode, data, admin, env.get('MOMIQ_HOST', '127.0.0.1'), port, flag == '1', service_area.load(env))
+        return cls(mode, data, admin, env.get('MOMIQ_HOST', '127.0.0.1'), port, flag == '1',
+                   service_area.load(env), env.get('MOMIQ_AREA_SHA256'))

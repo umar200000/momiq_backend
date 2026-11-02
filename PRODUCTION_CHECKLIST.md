@@ -90,6 +90,18 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-02. Joriy bandlarning tekshirilgan qismlari
+
+- [x] **M102/M105/M124.** Barcha qurilmalardan chiqishda serverning aniq tasdig‘i talab qilinadi. Bo‘sh, yolg‘on va noto‘g‘ri turdagi javoblarda faol sessiya saqlandi. Eski sessiyadan kech kelgan javob boshqa hisobga ta’sir qilmasligi qayta sinaldi.
+- [x] **M101/M103/M106.** Bitta so‘rovdagi takroriy Host yoki turli Origin qiymatlari rad etildi. Sintetik operatorning sessiyasi rad etilgan logoutdan keyin ishladi. Haqiqiy HTTP va WSGI sinovlari o‘tdi.
+- [x] **M090/M101.** Murojaatlar yoki yozishmalar tarixida server keyingi sahifa maydonini tashlab ketsa, mobil parser buni tarixning oxiri deb qabul qilmaydi. Aniq null kelganda oxirgi sahifa ochiladi.
+- [x] **M123/M001/M029.** Tasdiqlangan xizmat hududi Toshkent shahri **va** Toshkent viloyatidir. Uch tildagi katalog hamda store qoralamasi yangilandi. Dastlabki to‘liq testda bitta eskirgan shahar matni topildi. Kutish tuzatilib, katalog, support va sessiyaga tegishli 48 sinov qayta o‘tdi.
+- [x] **M001/M007/M009/M019/M112.** Tarixiy OCHA UZ26 va UZ27 poligonlari faqat QA uchun qo‘shildi. Markaz, Chirchiq va Angren qabul qilindi, Samarqand va Shymkent rad etildi. Hosted ishga tushirish QA faylini va namunaviy nuqtalari mos kelmaydigan poligonni rad etadi. Mobil reliz tekshiruvida operator tasdiqlagan fayl xeshi bilan amalda yuklangan fayl xeshi mos kelishi kerak. Mobil kirish o‘chirilgan hosted sinov serveriga telefon va kod yuborilmadi. Haqiqiy reliz geometriyasi hamon kutiladi.
+- [x] **M007/M099/M131.** Lokal Linux Gunicorn muhiti ikki worker, har birida to‘rtta oqim bilan tekshirildi. 1 000 hisob, 167 e’lon va bir vaqtda 100 mijoz bilan sanali katalogga 500 so‘rov o‘tdi, p95 1 328,41 ms. Bron yaratilmagan. [O‘lchov](performance/gunicorn-catalog-burst-2026-10-31.json)
+
+- [x] **M029/M108/M078/M085.** Mahalliy HTTP sinovida Toshkent shahri va Chirchiq manzili saqlandi. Samarqandga o‘zgartirish 400 qaytardi va oxirgi manzil hamda versiya saqlandi. Profil eksportida egasining ish kunlari, ish vaqti va yopiq sanalari chiqdi. Begona hisob, yashirin media va qo‘shimcha maydonlar eksportga kirmadi. Videoga ikkita Range sarlavhasi yuborilganda 416 qaytdi. Xabarni takroran o‘qishda ikkinchi UPDATEsiz ayni tasdiq qaytdi. Bular izolyatsiyalangan sinovlarda tekshirildi.
+- [x] **M109/M133.** Ish boshlanishida uchala branch GitHub bilan teng edi. Android emulatordagi o‘rnatilgan versiya va foydalanuvchi sessiyasi bilan ishlash alohida qoldirildi. Mobil analyzer xatosiz, hosted login bo‘yicha 8, sessiya va katalogni ham qamragan qayta sinovda 48 test o‘tdi.
+
 ### 2026-10-31. Joriy 47 band bo‘yicha davom
 
 - [x] **M009/M107/M122/M125/M131.** `42edbb2` mobil commitidan Android ARM64 debug va imzolanmagan iOS simulator paketi yig‘ildi. Ikkala manifestdagi shrift litsenziyalari manbaga mos. iPhone 16 Pro (iOS 18.6) toza o‘rnatilgan ilovani ochdi, jarayon yopilib qayta ochilganda ham «Mijozman», «Enagaman» va «Davom etish» chiqdi. Oldingi OCR vaqt chegarasiga yetgani uchun aynan shu modeldagi uch yozuvning ko‘rib chiqilgan tasviri bilan solishtirildi. Har bir yozuv alohida olib tashlangan sinov tasviri rad etildi. Ikkala haqiqiy ekran ham qo‘lda ko‘rib chiqildi. [Uchta yakuniy mobil tekshiruv va tasvirlar](https://github.com/umar200000/momiq_app/actions/runs/41190049621)

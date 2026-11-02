@@ -47,11 +47,11 @@ def route(handler, con, user, path):
     if match and handler.command == 'POST':
         if urlparse(handler.path).query or handler.body():raise ValueError('Read request must be empty')
         con.execute('BEGIN IMMEDIATE')
-        row = con.execute('SELECT id FROM notifications WHERE id=? AND user_id=?', (int(match[1]), user)).fetchone()
-        if not row: raise NotificationError(404, 'Bildirishnoma topilmadi')
-        con.execute('UPDATE notifications SET read_at=COALESCE(read_at,?) WHERE id=? AND user_id=?',
+        con.execute('UPDATE notifications SET read_at=? WHERE id=? AND user_id=? AND read_at IS NULL',
                     (datetime.now(timezone.utc).isoformat(), int(match[1]), user))
-        read_at=con.execute('SELECT read_at FROM notifications WHERE id=? AND user_id=?',(int(match[1]),user)).fetchone()[0]
+        row=con.execute('SELECT read_at FROM notifications WHERE id=? AND user_id=?',(int(match[1]),user)).fetchone()
+        if not row: raise NotificationError(404, 'Bildirishnoma topilmadi')
+        read_at=row[0]
         unread=con.execute('SELECT COUNT(*) FROM notifications WHERE user_id=? AND read_at IS NULL',(user,)).fetchone()[0]
         con.commit()
         handler.reply(200, {'ok': True,'noticeId':match[1],'readAt':read_at,'unreadCount':unread})

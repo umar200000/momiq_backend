@@ -431,12 +431,15 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         origin = self.headers.get("Origin")
         host = self.headers.get('Host', '')
+        if (len(self.headers.get_all('Origin', [])) > 1 or len(self.headers.get_all('Host', [])) > 1
+                or re.search(r'[\s,/@?#\\]', host)):
+            raise ApiError(403, "Origin ruxsat etilmagan")
         allowed_origins = (f'https://{host}',) if PRODUCTION else (f'https://{host}', f'http://{host}')
         if origin is not None and (not host or origin not in allowed_origins):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if path == '/api/health' and self.command == 'GET':
             self.reply(200, {"ok": True, "mode": ENVIRONMENT, "instanceId": instance_id(), "sms": False,
-                             "mobileFeatures": deployment_health.MOBILE_FEATURES,
+                             "mobileFeatures": deployment_health.MOBILE_FEATURES, "serviceAreaSha256": SETTINGS.area_sha256,
                              "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN, 'releaseSha': RELEASE_SHA})
             return
         if path == '/api/ready' and self.command == 'GET':

@@ -19,6 +19,28 @@ def geometry(root, value):
 
 
 class AreaTests(unittest.TestCase):
+    def test_city_and_region_limits_and_hosted_configuration(self):
+        path = Path(__file__).resolve().parent/'fixtures/tashkent-city-region-qa.geojson'
+        env = {'MOMIQ_AREA_FILE':str(path),'MOMIQ_AREA_SHA256':hashlib.sha256(path.read_bytes()).hexdigest()}
+        area = service_area.load(env)
+        for lon,lat,expected in ((69.2797,41.3112,True),(69.5822,41.4689,True),(70.1436,41.0167,True),
+                                 (66.9749,39.6542,False),(69.59,42.32,False)):
+            self.assertEqual(service_area.contains(area,lon,lat),expected)
+        for mode in ('staging','production'):
+            with self.assertRaisesRegex(ValueError,'QA service area'):
+                service_area.load({**env,'MOMIQ_ENV':mode})
+        with tempfile.TemporaryDirectory() as tmp:
+            # A digest match alone does not validate the product's release scope.
+            p=Path(tmp)/'area.json'
+            for box,valid in [((69.2,41.2,69.4,41.4),False),((60,35,75,45),False),((69,40,71,42),True)]:
+                x,y,X,Y=box
+                p.write_text(json.dumps({'type':'Polygon','coordinates':[[[x,y],[X,y],[X,Y],[x,Y],[x,y]]]}))
+                settings={'MOMIQ_ENV':'production','MOMIQ_AREA_FILE':str(p),'MOMIQ_AREA_SHA256':hashlib.sha256(p.read_bytes()).hexdigest()}
+                if valid:
+                    self.assertIsNotNone(service_area.load(settings))
+                else:
+                    with self.assertRaisesRegex(ValueError,'Tashkent region'):service_area.load(settings)
+
     def test_edges_holes_islands_and_bad_configuration(self):
         square = [[0,0],[4,0],[4,4],[0,4],[0,0]]
         hole = [[1,1],[2,1],[2,2],[1,2],[1,1]]
@@ -42,6 +64,24 @@ class AreaHttpTests(unittest.TestCase):
     setUp = test_booking_http.BookingHttpTests.setUp
     save,review,stop_http,req = test_booking_http.BookingHttpTests.save,test_booking_http.BookingHttpTests.review,test_booking_http.BookingHttpTests.stop_http,test_booking_http.BookingHttpTests.req
     quote,book = test_booking_http.BookingHttpTests.quote,test_booking_http.BookingHttpTests.book
+
+    def test_preview_uses_combined_boundary_for_address_changes(self):
+        path=Path(__file__).resolve().parent/'fixtures/tashkent-city-region-qa.geojson'
+        digest=hashlib.sha256(path.read_bytes()).hexdigest()
+        settings=server.Settings.load({'MOMIQ_ENV':'test','MOMIQ_AREA_FILE':str(path),
+                                      'MOMIQ_AREA_SHA256':digest},Path(server.ROOT))
+        with patch.object(server,'SETTINGS',settings):
+            self.assertEqual(self.req('/api/health')['serviceAreaSha256'],digest)
+            account=self.req('/api/me',user='stranger')['account']
+            account['profile'].update(first='TEST',last='Owner')
+            for lon,lat in ((69.2797,41.3112),(69.5822,41.4689)):
+                account['addresses']=[{'id':'home','label':'TEST','address':'TEST','apartment':'','lat':lat,'lon':lon}]
+                account=self.req('/api/me','PUT',account,user='stranger')['account']
+            account['addresses'][0].update(lon=66.9749,lat=39.6542)
+            self.req('/api/me','PUT',account,user='stranger',status=400)
+            stored=self.req('/api/me',user='stranger')['account']
+            self.assertEqual(stored['addresses'][0]['lon'],69.5822)
+            self.assertEqual(stored['_revision'],account['_revision'])
 
     def test_area_change_blocks_only_new_obligations_and_preserves_private_history(self):
         booked = self.book()

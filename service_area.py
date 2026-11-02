@@ -25,7 +25,11 @@ def load(env):
     if len(raw) > 4*1024*1024 or hashlib.sha256(raw).hexdigest() != pin:
         raise ValueError('Service area file size or digest mismatch')
     geometry = json.loads(raw)
+    hosted = env.get('MOMIQ_ENV') in ('production','staging')
     if isinstance(geometry,dict) and geometry.get('type') == 'Feature':
+        properties = geometry.get('properties')
+        if hosted and isinstance(properties, dict) and properties.get('testOnly'):
+            raise ValueError('QA service area cannot be used on a hosted server')
         geometry = geometry.get('geometry')
     if not isinstance(geometry,dict) or geometry.get('type') not in ('Polygon','MultiPolygon'):
         raise ValueError('Expected a Polygon or MultiPolygon')
@@ -53,6 +57,13 @@ def load(env):
             xs,ys = zip(*ring)
             rings.append(((min(xs),min(ys),max(xs),max(ys)),edges))
         area.append(rings)
+    if hosted:
+        # Catch city-only, province-only, and country-wide files before workers start.
+        for lon, lat, expected in ((69.2797,41.3112,True), (69.5822,41.4689,True),
+                                   (70.1436,41.0167,True), (66.9749,39.6542,False),
+                                   (69.59,42.32,False)):
+            if contains(area, lon, lat) != expected:
+                raise ValueError('Expected a boundary for Tashkent city and Tashkent region')
     return area
 
 
@@ -70,16 +81,18 @@ def ring_position(ring, x, y):
     return 1 if inside else -1
 
 
+def contains(area, x, y):
+    return any(ring_position(outer,x,y)>=0 and not any(ring_position(h,x,y)>0 for h in holes)
+               for outer,*holes in area)
+
+
 def require(area, location, environment):
     if area is None:
         if environment in ('production','staging'):
             raise AreaUnavailable('Xizmat hududi hali sozlanmagan')
         return
-    x,y = location['lon'],location['lat']
-    for outer,*holes in area:
-        if ring_position(outer,x,y)>=0 and not any(ring_position(h,x,y)>0 for h in holes):
-            return
-    raise OutsideArea('Manzil Toshkent xizmat hududidan tashqarida')
+    if not contains(area, location['lon'], location['lat']):
+        raise OutsideArea('Manzil Toshkent shahri va Toshkent viloyatidan tashqarida')
 
 
 def changed_addresses(area, previous, account, environment):

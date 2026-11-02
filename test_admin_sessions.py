@@ -36,6 +36,10 @@ class AdminSessionTests(unittest.TestCase):
                        (cookie+'; extra=x, momiq_admin=invalid',)):
             send('/api/admin/logout',[('Cookie',v) for v in values],401)
             self.admin('/api/admin/me')
+        for ambiguous in ([('Origin','http://'+host),('Origin','https://other.invalid')],
+                          [('Host',host)], [('Origin','http://'+host+', https://other.invalid')]):
+            send('/api/admin/logout',[('Cookie',cookie),*ambiguous],403)
+            self.admin('/api/admin/me')
         send('/api/auth/logout',[('Authorization','bearer '+self.tokens['customer'])],200)
         self.req('/api/me',status=401)
         send('/api/admin/logout',[('Cookie','unrelated=1; '+cookie)],200)

@@ -81,6 +81,8 @@ class ApiTests(unittest.TestCase):
             record['profile'].update(first='OWNER',last='TEST',photo='SECRET media',unknown='SECRET ignored')
             record['pets']=[{'id':'pet','name':'TEST CAT','photo':'SECRET pet photo'}]
             record['support']=[{'text':'SECRET private conversation'}]
+            schedule={'days':[True]*7,'start':540,'end':1080}
+            record['sitterProfile']={'schedule':{**schedule,'unknown':'SECRET'},'closedDates':['2026-11-05'],'homePhotos':['SECRET']}
             con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(record),first['userId']))
         path='/api/me/profile-export'
         self.req(path,expected=401)
@@ -89,6 +91,7 @@ class ApiTests(unittest.TestCase):
         own=self.req(path,token=first['token'])
         self.assertEqual((own['format'],own['ownerId'],own['profile']['first']),('momiq-profile-v1',first['userId'],'OWNER'))
         self.assertEqual(own['pets'],[{'id':'pet','name':'TEST CAT'}])
+        self.assertEqual(own['sitterProfile'],{'schedule':{**schedule,'timezone':'Asia/Tashkent'},'closedDates':['2026-11-05']})
         self.assertNotIn('SECRET',json.dumps(own))
         self.assertNotIn(first['token'],json.dumps(own))
         self.assertNotIn('OWNER',json.dumps(self.req(path,token=second['token'])))
@@ -109,6 +112,9 @@ class ApiTests(unittest.TestCase):
         self.req(path,'POST',{},token=b['token'],expected=404)
         receipt=self.req(path,'POST',{},token=a['token'])
         self.assertEqual(receipt['noticeId'],first['items'][0]['id'])
+        with server.db() as con:
+            con.execute("""CREATE TRIGGER reject_duplicate_read BEFORE UPDATE OF read_at ON notifications
+                        WHEN OLD.read_at IS NOT NULL BEGIN SELECT RAISE(ABORT,'read twice'); END""")
         self.assertEqual(self.req(path,'POST',{},token=a['token']),receipt)
         self.assertEqual(self.req('/api/notifications',token=a['token'])['unreadCount'],22)
         self.req('/api/notifications?before=-1',token=a['token'],expected=400)

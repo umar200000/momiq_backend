@@ -41,7 +41,7 @@ def base_url(value):
     return value.rstrip('/')
 
 
-def check(api_url, admin_url, revision, mode, admin_dir=None, *, mobile_release=False):
+def check(api_url, admin_url, revision, mode, admin_dir=None, *, mobile_release=False, area_sha256=None):
     api_url, admin_url = base_url(api_url), base_url(admin_url)
     if not re.fullmatch(r'[a-f0-9]{40}', revision):
         raise SmokeFailure('Expected full lowercase release SHA')
@@ -104,6 +104,9 @@ def check(api_url, admin_url, revision, mode, admin_dir=None, *, mobile_release=
     if mobile_release and (mode!='production' or health.get('sms') is not True or
                            health.get('clientLoginEnabled') is not True):
         raise SmokeFailure('Production mobile login is unavailable')
+    if mobile_release or area_sha256 is not None:
+        if not re.fullmatch('[0-9a-f]{64}', area_sha256 or '') or health.get('serviceAreaSha256') != area_sha256:
+            raise SmokeFailure('Loaded service area differs from the approved release boundary')
     for service in ('boarding', 'homeVisit', 'personal'):
         data, _ = fetch('catalog-' + service, api_url, '/api/sitters?service=' + service + '&pet=cat')
         if (not isinstance(data.get('sitters'), list) or 'nextCursor' not in data
@@ -145,9 +148,11 @@ def main():
     parser.add_argument('--mode', required=True, choices=('local', 'test', 'staging', 'production'))
     parser.add_argument('--admin-dir', type=Path)
     parser.add_argument('--mobile-release',action='store_true',help='Also require production mobile login readiness')
+    parser.add_argument('--area-sha256', help='Expected approved boundary digest (required with --mobile-release)')
     args = parser.parse_args()
     try:
-        result = check(args.api_url, args.admin_url, args.backend_sha, args.mode, args.admin_dir,mobile_release=args.mobile_release)
+        result = check(args.api_url, args.admin_url, args.backend_sha, args.mode, args.admin_dir,
+                       mobile_release=args.mobile_release, area_sha256=args.area_sha256)
     except (ValueError, OSError):
         # Fixed diagnostic: HTTP response bodies and configuration never enter CI logs.
         parser.exit(1, 'Release smoke failed; inspect restricted server diagnostics\n')

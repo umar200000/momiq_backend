@@ -120,7 +120,7 @@ with server.db() as con:
             self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE source_key LIKE 'care-video:%'").fetchone()[0],1)
             with self.assertRaises(sqlite3.IntegrityError):con.execute("UPDATE booking_videos SET day='2026-01-01'")
         class Handler:
-            headers={'Range':'bytes=0-15'};wfile=BytesIO();response={}
+            headers=Message();headers['Range']='bytes=0-15';wfile=BytesIO();response={}
             def send_response(self,status):self.status=status
             def send_header(self,key,value):self.response[key]=value
             def end_headers(self):pass
@@ -129,7 +129,10 @@ with server.db() as con:
             videos.download(h,con,server.DATA,b['id'],'customer',first['id'],'playback')
         self.assertEqual(h.status,206);self.assertEqual(len(h.wfile.getvalue()),16)
         self.assertEqual(h.response['Cache-Control'],'private, no-store')
+        h.headers['Range']='bytes=16-31'
         with server.db() as con:
+            self.expect_error(416,lambda:videos.download(h,con,server.DATA,b['id'],'customer',first['id'],'playback'))
+            self.assertEqual(len(h.wfile.getvalue()),16)
             self.expect_error(404,lambda:videos.download(h,con,server.DATA,b['id'],'stranger',first['id'],'playback'))
 
     def test_clock_role_pet_and_final_state_rechecked_before_commit(self):

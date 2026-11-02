@@ -179,7 +179,10 @@ def download(handler, con, root, identity, user, video, kind, *, admin=False):
         raise engine.BookingError(410, 'Videoning saqlash muddati tugagan')
     with open_derivative(root, row['id'], kind) as stream:
         size = os.fstat(stream.fileno()).st_size
-        start,end,status = byte_range(handler.headers.get('Range'),size)
+        ranges = handler.headers.get_all('Range', [])
+        if len(ranges) > 1:
+            raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
+        start,end,status = byte_range(ranges[0] if ranges else None,size)
         if admin:
             con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
                 (user,'admin-view-booking-video',engine.encode({'bookingId':identity,'videoId':video,'kind':kind}),engine.stamp(datetime.now(timezone.utc))))
