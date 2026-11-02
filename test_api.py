@@ -355,6 +355,34 @@ class ApiTests(unittest.TestCase):
         updated=self.req('/api/me','PUT',saved,token=a['token'])['account']
         self.assertEqual(updated['pets'][0]['allergies'],'TEST')
 
+    def test_settings_audit_and_response_match_the_committed_version_during_a_second_write(self):
+        from unittest.mock import patch
+        path='/api/admin/platform-settings'
+        previous=self.req(path,admin=True)
+        committed=server.ClosingConnection.commit
+        second=[]
+        def commit_then_restore(con):
+            committed(con)
+            if second:return
+            with server.db() as writer:
+                row=writer.execute("""INSERT INTO platform_settings(commission_bps,qr_image,test_only,actor,reason,created,recipient_name,payment_instructions,qr_active)
+                    SELECT commission_bps,qr_image,test_only,'TEST other','TEST subsequent version',created,recipient_name,payment_instructions,qr_active
+                    FROM platform_settings WHERE version=?""",(previous['version'],))
+                second.append(row.lastrowid)
+        reason='TEST verified update'
+        with patch.object(server.ClosingConnection,'commit',commit_then_restore):
+            saved=self.req(path,'PUT',{'version':previous['version'],'paymentInstructions':'TEST payment instructions',
+                                       'reason':reason},admin=True)
+        self.assertGreater(second[0],saved['version'])
+        self.assertEqual(saved['paymentInstructions'],'TEST payment instructions')
+        self.assertEqual(self.req(path,admin=True)['version'],second[0])
+        with server.db() as con:
+            audit=con.execute("SELECT * FROM audit WHERE action='platform-settings' ORDER BY id DESC LIMIT 1").fetchone()
+            detail=json.loads(audit['target'])
+            self.assertEqual(detail,{'previousVersion':previous['version'],'version':saved['version'],'changedFields':['paymentInstructions']})
+            version=con.execute('SELECT actor,reason,created FROM platform_settings WHERE version=?',(detail['version'],)).fetchone()
+            self.assertEqual((audit['actor'],version['actor'],version['reason'],audit['time']),('admin','admin',reason,version['created']))
+
     def test_platform_settings_history_is_private_paginated_and_immutable(self):
         login=self.login('998900000051')
         path='/api/admin/platform-settings/history'

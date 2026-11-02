@@ -249,11 +249,19 @@ def route(handler, con, uid, path, photo, environment):
             if type(active) is not bool: raise ValueError('QR holati noto‘g‘ri')
             if active and (not qr or not recipient):
                 raise WalletError(400,'Faol QR uchun rasm va oluvchi nomi majburiy')
+            created=now()
             con.execute('INSERT INTO platform_settings(commission_bps,qr_image,test_only,actor,reason,created,recipient_name,payment_instructions,qr_active) VALUES(?,?,?,?,?,?,?,?,?)',
-                        (rate,qr,int(test_only),uid,reason,now(),recipient,instructions,int(active)))
-            con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'platform-settings',reason,now()))
+                        (rate,qr,int(test_only),uid,reason,created,recipient,instructions,int(active)))
+            result=settings(con)
+            changed=[field for field in ('commissionBps','qrImage','testOnly','recipientName','paymentInstructions','qrActive')
+                     if result[field]!=current[field]]
+            # Each version retains its actor, reason and values in settings history.
+            # The audit only needs the two version references and the changed keys.
+            detail={'previousVersion':current['version'],'version':result['version'],'changedFields':changed}
+            con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                        (uid,'platform-settings',json.dumps(detail),created))
             con.commit()
-        handler.reply(200,settings(con));return True
+            handler.reply(200,result);return True
     if path == '/api/wallet' and method=='GET':
         # Balance and entries must describe one snapshot during concurrent credit.
         con.execute('BEGIN')

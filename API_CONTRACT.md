@@ -283,6 +283,8 @@ Care facts are frozen in each new booking quote and stay unchanged after profile
 
 ### Platform settings audit history
 
+A successful settings update returns the version committed by that operation. New `platform-settings` audit entries contain `previousVersion`, `version` and `changedFields`. Look up the version in the settings history for the operator’s reason. Older entries retain their original free-text target.
+
 `GET /api/admin/platform-settings/history?before=<version>` requires the existing admin session and returns at most 20 version-descending records plus `nextCursor`. Each record has `version`, `commissionBps`, `actor`, `reason`, UTC `effectiveAt`, `testOnly`, and `qrActive`; no QR image, receipt or payer details are returned. Invalid, repeated or unknown cursor parameters are rejected. Settings changes take effect immediately for new quotes; existing agreed rates remain frozen. Commission accepts integer basis points 0–10000 (0–100%, precision 0.01%), with nonempty reason and current-version CAS. Migration 12 makes historical platform settings rows immutable; changes append a new version.
 
 ### Sitter overview

@@ -101,6 +101,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 Production API va admin domenlariga faqat sarlavhalar yuborildi. Ikkalasi ham 32 MiB uchun 100, bir bayt ortig‘iga 413 qaytardi. API domenida 4 097 baytli manzil rad qilindi, lekin 33 maydonli query 200 qaytardi. Branchdagi deploy tekshiruvi endi aynan shu query uchun 400 talab qiladi. M103 yakuniy qabulida production’da mazkur himoya ishlashi qayta tekshiriladi.
 
+**M097, moliyaviy sozlamalar auditi.** Operator sozlamani saqlaganda javob va audit bitta tranzaksiyadagi versiyaga bog‘landi. Audit oldingi va yangi versiya ID lari hamda o‘zgargan maydon nomlarini yozadi. Sabab va haqiqiy qiymatlar sozlamalar tarixida saqlanadi. Birinchi commitdan keyin boshqa yozuv kiritilgan HTTP sinovida birinchi admin o‘z versiyasini oldi. Audit saqlash muddati, arxivga kirish va serverdagi nazorat M097 da ochiq.
+
 ### 2026-11-02. Joriy bandlarning tekshirilgan qismlari
 
 - [x] **M109/M131.** Backend `b4557d8` uchun Linux’da barcha 429 test o‘tdi. Windows’da 422 tasi o‘tdi, yettitasi Linux’ga tegishli. [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41491844765)
