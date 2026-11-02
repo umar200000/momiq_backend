@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-11-03. Audit, moderatsiya, kirish va katalog
 
+- [x] **M123/M124.** Mijoz chatida ma’lumot yangilanmasa, texnik xato tafsiloti o‘rniga tanlangan tildagi xabar chiqadi. Profilni yuklash, bosh sahifa va chatdagi qayta urinish tugmasi uch tilga moslashtirildi. Chat ekranidagi xabar va tugma uchala tilda tekshirildi. 24 ta maqsadli test va to‘liq Flutter to‘plamida 538 ta test o‘tdi, oldindan ixtiyoriy bitta sinov o‘tkazib yuborildi. Flutter 3.44.5 analyzer xato topmadi.
+- [x] **M103/M112.** Katalog tuzatishi bilan backend Linux CI’da 438 ta testdan o‘tdi. [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41513011373)
 - [x] **M007/M131.** 1 000 TEST hisob va 100 faol mijoz bilan bir daqiqada 5 895 so‘rovning hammasi o‘tdi. Sana va masofali katalog 900 marta ochildi. Katalog p95 umumiy 832,29 ms, takroriy so‘rovlarda 162,71 ms. DB yaxlitligi saqlandi, bron yaratilmagan. [Lokal yuklama o‘lchovi](performance/valid-listings-load-2026-11-03.json)
 - [x] **M103.** Sahifalash belgisidagi 310 xonali masofa katalogda 500 javobini takrorladi. Chegara tekshiruvi tuzatilgach juda katta son, manfiy son, cheksizlik, NaN va boolean qiymatlari HTTP 400 qaytardi. Sahifalash va boshqa katalog tekshiruvlari bilan 22 ta test o‘tdi.
 - [x] **M106/M112.** Git arxividan ko‘tarilgan vaqtinchalik backend/admin juftligi 29-sxemada 27 ta faqat o‘qish tekshiruvidan o‘tdi. Panel fayllari tekshirilgan commitga baytma-bayt mos. Lokal Linux Nginx va Gunicorn orqali HTTPS, host, ruxsat, so‘rov limiti va log maxfiyligi tekshirildi.
