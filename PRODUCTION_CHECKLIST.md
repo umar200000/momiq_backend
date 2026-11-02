@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-11-02. Joriy bandlarning tekshirilgan qismlari
 
+- [x] **M007/M131.** To‘liq Windows sinovida katalog sig‘imi bo‘yicha ikki testning oldindan belgilangan sanasi o‘tib ketgani topildi. Katalog tekshiruvi ham buyurtma fixture’ining bir xil sinov soatidan foydalanadigan qilindi. Ikki test qayta o‘tdi. Mahsulotning kelajakdagi sanani talab qilish qoidasi saqlandi.
+
 - [x] **M102/M105/M124.** Barcha qurilmalardan chiqishda serverning aniq tasdig‘i talab qilinadi. Bo‘sh, yolg‘on va noto‘g‘ri turdagi javoblarda faol sessiya saqlandi. Eski sessiyadan kech kelgan javob boshqa hisobga ta’sir qilmasligi qayta sinaldi.
 - [x] **M101/M103/M106.** Bitta so‘rovdagi takroriy Host yoki turli Origin qiymatlari rad etildi. Sintetik operatorning sessiyasi rad etilgan logoutdan keyin ishladi. Haqiqiy HTTP va WSGI sinovlari o‘tdi.
 - [x] **M090/M101.** Murojaatlar yoki yozishmalar tarixida server keyingi sahifa maydonini tashlab ketsa, mobil parser buni tarixning oxiri deb qabul qilmaydi. Aniq null kelganda oxirgi sahifa ochiladi.

@@ -2,6 +2,7 @@ import copy
 from datetime import timedelta
 import json
 import unittest
+from unittest.mock import patch
 from urllib.parse import urlencode
 
 import catalog_search
@@ -13,7 +14,6 @@ import test_booking_http as http_fixtures
 
 class SearchHttpTests(unittest.TestCase):
     def test_nearest_search_limits_full_profiles_but_fills_past_ineligible_candidates(self):
-        from unittest.mock import patch
         self.clones()
         path='/api/sitters?lat=41.3&lon=69.27'
         with patch.object(catalog,'fingerprint',wraps=catalog.fingerprint) as fingerprint:
@@ -64,7 +64,6 @@ class SearchHttpTests(unittest.TestCase):
         self.req('/api/sitters?after=W10',status=400)
 
     def test_favorite_filter_checks_only_selected_eligible_profiles(self):
-        from unittest.mock import patch
         self.clones()
         with server.db() as con:
             for ids, expected in [
@@ -160,7 +159,9 @@ class SearchCapacityTests(unittest.TestCase):
 
     def search(self, start=None,end=None,animals=1):
         params={'startsAt':[(start or self.start).isoformat()], 'endsAt':[(end or self.end).isoformat()], 'animals':[str(animals)]}
-        with server.db() as con:return catalog_search.page(con,'local',params)['sitters']
+        with patch.object(catalog_search,'datetime',wraps=catalog_search.datetime) as clock, server.db() as con:
+            clock.now.return_value=self.now
+            return catalog_search.page(con,'local',params)['sitters']
 
     def test_capacity_pending_not_reserved_accepted_peak_and_boundary(self):
         pending=self.request(self.quote(pets=['cat-a']))
@@ -185,7 +186,6 @@ class SearchCapacityTests(unittest.TestCase):
             account=json.loads(con.execute("SELECT account FROM users WHERE id='abc'").fetchone()[0])
             con.execute("UPDATE listings SET data=? WHERE user_id='abc'",(json.dumps(raw),))
             con.execute("INSERT INTO listing_moderation(user_id,service,status,approved_hash,test_only,public_media) SELECT user_id,'personal',status,?,test_only,public_media FROM listing_moderation WHERE user_id='abc' AND service='boarding'",(catalog.fingerprint(account,raw['housing'],personal),))
-        from unittest.mock import patch
         import booking_capacity
         with patch.object(booking_capacity,'occupancy',wraps=booking_capacity.occupancy) as read_usage:
             self.assertEqual([s['service'] for s in self.search()],[0])
