@@ -262,6 +262,9 @@ class DisputeHttpTests(unittest.TestCase):
             case=self.req(path,'POST',data)
             self.req(path,user='stranger',status=404)
             self.req(admin_path,status=401)
+            detail=self.admin(admin_path)
+            self.assertEqual(detail['bookingRevision'],case['bookingRevision'])
+            self.assertEqual(detail['items'][0]['text'],data['text'])
             self.assertEqual(self.req(path,user='abc')['items'],[])
             image=path+'/evidence/'+case['items'][0]['id']+'/image'
             self.req(image,user='abc',status=404)

@@ -66,14 +66,14 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Joriy bajarish navbati — 2026-10-29**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 79 bajarilgan, 60 ochiq**. Dastlabki 48 ochiq banddan **47 tasi joriy/qisman**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 80 bajarilgan, 59 ochiq**. Dastlabki 48 ochiq banddan **46 tasi joriy/qisman**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
 | Navbat | Bandlar | Hozir davom etadigan ish | Yakunda qoladigan qismi |
 | --- | --- | --- | --- |
 | 1 | M102, M105, M124 | Sessiya/rol almashishi, kech javob, parallel saqlash, offline/retry va timeout oqimlarini kod hamda izolyatsiyalangan testlarda tekshirish. | Haqiqiy qurilma/lifecycle va to‘liq hosted ruxsat sinovi. |
-| 2 | M101, M103, M097 | API shartnomasi va endpoint qamrovi, input/upload chegaralari, sabab/audit va maxfiy ma’lumot chiqishini tekshirish. | Audit retention siyosati va hosted qamrovni qabul qilish. |
+| 2 | M103, M097 (M101 yopildi) | API shartnomasi va endpoint qamrovi, input/upload chegaralari, sabab/audit va maxfiy ma’lumot chiqishini tekshirish. | Audit retention siyosati va hosted qamrovni qabul qilish. |
 | 3 | M090 | Mavjud support/moderatsiyadan foydalanib e’lon/profil/sharh/media shikoyati va apellyatsiya qamrovini tugatish; ruxsat va dalil testlari. | Operatsion mas’ul va haqiqiy navbat qabuli. |
 | 4 | M123 | Uch tildagi matn, xato holati, kattalashtirilgan shrift/kichik ekran va accessibility widget tekshiruvlari. | Android/iPhone screen reader va haqiqiy klaviatura/ruxsat tekshiruvlari. |
 | 5 | M014 (M012 yopildi) | Izolyatsiyalangan test fixture/seed va test provider chegaralarini inventarizatsiya qilish; xavfsiz takrorlash tekshiruvlari. | Live bronni yaratib/qabul qilib bloklangan sinovni aylanib o‘tish yo‘q; SMS/push haqiqiy provayderlari keyin. |
@@ -89,6 +89,11 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 **To‘liq bajarildi** belgisi kod va kerakli tekshiruvlar tugagandagina qo‘yiladi. Har ichki bosqich dalili bajarilish jurnaliga qo‘shiladi. Staging yoki providerga bog‘liq yakuniy tekshiruv qolsa band ochiq turadi; uning boshqa mustaqil qismi davom etadi.
 
 **Bajarilish jurnali — 2026-10-27**
+
+### 2026-11-02. M101 yopildi
+
+- [x] API shartnomasiga 136 ta HTTP usuli va yo‘li kiritildi. Izolyatsiyalangan HTTP/WSGI sinovlarida 131 kombinatsiya uchun muvaffaqiyatli javob va buyurtmani o‘zgartirishga tegishli qolgan beshtasi uchun shartnomadagi 409 tasdiqlandi. To‘rtta yetishmagan muvaffaqiyatli holat doimiy regressiya testlariga qo‘shildi. 429 testlik asosiy tekshiruv va yangilangan 27 ta nizo, support va video testi o‘tdi.
+- [x] To‘rtta mobil commitning asl Dart parserlari backenddan yangi olingan yetti turdagi javobni qabul qildi, so‘ralgan identifikatoriga mos kelmagan murojaatni rad etdi. Null, sahifalash, sana-vaqt, so‘m/tiyin va eski versiyalar bilan ishlash tartibi shartnomada. Tekshiruvni qayta bajarish buyrug‘i [API shartnomasi](API_CONTRACT.md#replaying-historical-clients) ichida. M101 uchun productionga chiqarish yoki bloklangan qurilma sinovi talab qilinmaydi.
 
 ### 2026-11-02. Joriy bandlarning tekshirilgan qismlari
 
@@ -830,7 +835,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 
 - [ ] M099 — Domen modeli va ma’lumot saqlash qarorini yakunlash: bog‘lanishlar, indekslar, unique cheklovlar, tranzaksiyalar; SQLite qolishi yoki PostgreSQLga ko‘chish parallel bron/yuklama natijasi bilan asoslanadi.
 - [ ] M100 — Versiyalangan migratsiya va eski ma’lumotni ko‘chirishni joriy etish: backup, dry-run, idempotency va moslik; JSON/draft/demo yozuvlari real hisoblarni yo‘qotmasdan ko‘chadi.
-- [ ] M101 — API shartnomasini hujjatlashtirish va tekshirish: request/response, status/xato kodi, null, pagination, vaqt va valyuta; eski ilova versiyasiga moslik siyosati mavjud.
+- [x] M101 — API shartnomasini hujjatlashtirish va tekshirish: request/response, status/xato kodi, null, pagination, vaqt va valyuta; eski ilova versiyasiga moslik siyosati mavjud.
 - [ ] M102 — Har obyekt va amal bo‘yicha ruxsatni tekshirish: boshqa hisob, boshqa rol, bloklangan/o‘chgan hisob, o‘zgartirilgan ID va qo‘shimcha JSON maydoni orqali huquq oshmaydi.
 - [ ] M103 — Barcha kirishlar va uploadni chegaralash: uzunlik, son, sana, koordinata, MIME/haqiqiy format, fayl/piksel/video hajmi; zararli yoki ortiqcha resurs talab qiluvchi fayl rad etiladi.
 - [ ] M104 — Rasmlar/videolarni object storage’ga ko‘chirish: bazada metadata, thumbnail, maxfiy media uchun ruxsatli URL, EXIF maxfiyligi, yetim fayl tozalash; DB javobi Base64 bilan shishmaydi.

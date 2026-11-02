@@ -648,3 +648,157 @@ Gunicorn serves video/poster ranges from the already authorized file descriptor 
 `GET /api/me/profile-export` accepts an authenticated customer/sitter session and no query parameters. The server derives the owner exclusively from the session. It returns format `momiq-profile-v1`, ownerId, UTC generatedAt, basic profile and phone, saved addresses, pet/care fields, sitter profile text and preferences. Photos, passports, chat, support, financial history and credentials are excluded from this profile-only export. Older clients continue to use `GET /api/me`.
 
 Under Help, the account owner confirms the scope before the app requests the export. A matching owner and session are required before passing bytes to the native Save dialog. Only the selected destination is reported as saved. The app cleans its own iOS picker staging file after the picker returns and removes interrupted staging files on a subsequent launch. User-saved copies are controlled by their destination. Full data-subject export, erasure, retention exceptions and backup tombstone policy remain separate release work.
+
+
+## HTTP method and route index
+
+This index enumerates the supported method and path combinations in the current dispatcher. Braces denote a single path segment. Service values are `boarding`, `homeVisit` and `personal`. The response column records the success status exercised using isolated HTTP or WSGI fixtures. Five booking amendment attempts intentionally return 409 to an authorized participant. Payload fields, authorization, error conditions and retry rules are specified in the feature sections above.
+
+| Method | Route | Exercised result |
+| --- | --- | --- |
+| GET | `/api/admin/bookings` | 200 |
+| GET | `/api/admin/bookings/{booking}` | 200 |
+| GET | `/api/admin/bookings/{booking}/care` | 200 |
+| GET | `/api/admin/bookings/{booking}/history` | 200 |
+| GET | `/api/admin/bookings/{booking}/videos` | 200 |
+| GET | `/api/admin/bookings/{booking}/videos/{video}/playback` | 206 |
+| GET | `/api/admin/bookings/{booking}/videos/{video}/poster` | 200 |
+| GET | `/api/admin/chat-reports` | 200 |
+| GET | `/api/admin/chat-reports/{report}/evidence` | 200 |
+| GET | `/api/admin/chat-reports/{report}/image` | 200 |
+| POST | `/api/admin/chat-reports/{report}/review` | 200 |
+| GET | `/api/admin/disputes` | 200 |
+| GET | `/api/admin/disputes/{booking}` | 200 |
+| GET | `/api/admin/disputes/{booking}/evidence/{event}/image` | 200 |
+| POST | `/api/admin/disputes/{booking}/resolve` | 200 |
+| GET | `/api/admin/incidents` | 200 |
+| POST | `/api/admin/incidents/{booking}/{owner}/excuse` | 200 |
+| GET | `/api/admin/incidents/{booking}/{owner}/history` | 200 |
+| GET | `/api/admin/listings` | 200 |
+| GET | `/api/admin/listings/{owner}/{service}` | 200 |
+| POST | `/api/admin/listings/{owner}/{service}/review` | 200 |
+| POST | `/api/admin/login` | 200 |
+| POST | `/api/admin/logout` | 200 |
+| GET | `/api/admin/me` | 200 |
+| DELETE | `/api/admin/messages/{message}` | 200 |
+| GET | `/api/admin/metrics` | 200 |
+| GET | `/api/admin/metrics.csv` | 200 |
+| GET | `/api/admin/platform-settings` | 200 |
+| PUT | `/api/admin/platform-settings` | 200 |
+| GET | `/api/admin/platform-settings/history` | 200 |
+| GET | `/api/admin/reviews` | 200 |
+| GET | `/api/admin/reviews/{review}/history` | 200 |
+| POST | `/api/admin/reviews/{review}/moderate` | 200 |
+| GET | `/api/admin/support` | 200 |
+| GET | `/api/admin/support/{ticket}` | 200 |
+| POST | `/api/admin/support/{ticket}` | 200 |
+| GET | `/api/admin/support/{ticket}/messages/{message}/image` | 200 |
+| GET | `/api/admin/topups` | 200 |
+| GET | `/api/admin/topups/{topup}/corrections` | 200 |
+| POST | `/api/admin/topups/{topup}/corrections` | 200 |
+| GET | `/api/admin/topups/{topup}/history` | 200 |
+| GET | `/api/admin/topups/{topup}/history/{revision}/receipt` | 200 |
+| GET | `/api/admin/topups/{topup}/receipt` | 200 |
+| POST | `/api/admin/topups/{topup}/review` | 200 |
+| GET | `/api/admin/users` | 200 |
+| GET | `/api/admin/users/{owner}` | 200 |
+| PUT | `/api/admin/users/{owner}` | 200 |
+| GET | `/api/admin/users/{owner}/messages` | 200 |
+| POST | `/api/admin/users/{owner}/messages` | 200 |
+| GET | `/api/admin/work-queue` | 200 |
+| GET | `/api/admin/work-queue/chat_report/{item}` | 200 |
+| POST | `/api/admin/work-queue/chat_report/{item}` | 200 |
+| GET | `/api/admin/work-queue/listing/{item}` | 200 |
+| POST | `/api/admin/work-queue/listing/{item}` | 200 |
+| GET | `/api/admin/work-queue/operators` | 200 |
+| GET | `/api/admin/work-queue/support/{item}` | 200 |
+| POST | `/api/admin/work-queue/support/{item}` | 200 |
+| POST | `/api/admin/work-queue/support/{item}/escalate` | 200 |
+| GET | `/api/admin/work-queue/support/{item}/escalation-operators` | 200 |
+| POST | `/api/auth/login` | 200 |
+| POST | `/api/auth/logout` | 200 |
+| POST | `/api/auth/logout-all` | 200 |
+| GET | `/api/bookings` | 200 |
+| POST | `/api/bookings` | 200 |
+| GET | `/api/bookings/policy` | 200 |
+| POST | `/api/bookings/quotes` | 201 |
+| DELETE | `/api/bookings/{booking}` | 409 (immutable booking) |
+| GET | `/api/bookings/{booking}` | 200 |
+| PATCH | `/api/bookings/{booking}` | 409 (immutable booking) |
+| PUT | `/api/bookings/{booking}` | 409 (immutable booking) |
+| POST | `/api/bookings/{booking}/accept` | 200 |
+| POST | `/api/bookings/{booking}/cancel` | 200 |
+| GET | `/api/bookings/{booking}/care` | 200 |
+| POST | `/api/bookings/{booking}/care` | 200 |
+| GET | `/api/bookings/{booking}/care/history` | 200 |
+| POST | `/api/bookings/{booking}/change` | 409 (immutable booking) |
+| POST | `/api/bookings/{booking}/complete` | 200 |
+| POST | `/api/bookings/{booking}/conversation` | 200 |
+| GET | `/api/bookings/{booking}/dispute` | 200 |
+| POST | `/api/bookings/{booking}/dispute` | 200 |
+| GET | `/api/bookings/{booking}/dispute/evidence/{event}/image` | 200 |
+| POST | `/api/bookings/{booking}/extend` | 409 (immutable booking) |
+| GET | `/api/bookings/{booking}/pets/{pet}/passport` | 200 |
+| GET | `/api/bookings/{booking}/pets/{pet}/photo` | 200 |
+| POST | `/api/bookings/{booking}/reject` | 200 |
+| GET | `/api/bookings/{booking}/review` | 200 |
+| POST | `/api/bookings/{booking}/review` | 200 |
+| POST | `/api/bookings/{booking}/start` | 200 |
+| GET | `/api/bookings/{booking}/videos` | 200 |
+| POST | `/api/bookings/{booking}/videos` | 200 |
+| POST | `/api/bookings/{booking}/videos/explanations` | 200 |
+| GET | `/api/bookings/{booking}/videos/{video}/playback` | 206 |
+| GET | `/api/bookings/{booking}/videos/{video}/poster` | 200 |
+| GET | `/api/conversations` | 200 |
+| POST | `/api/conversations` | 200 |
+| GET | `/api/conversations/{chat}` | 200 |
+| POST | `/api/conversations/{chat}/block` | 200 |
+| GET | `/api/conversations/{chat}/bookings` | 200 |
+| GET | `/api/conversations/{chat}/messages` | 200 |
+| POST | `/api/conversations/{chat}/messages` | 200 |
+| GET | `/api/conversations/{chat}/messages/{message}/image` | 200 |
+| POST | `/api/conversations/{chat}/read` | 200 |
+| POST | `/api/conversations/{chat}/received` | 200 |
+| GET | `/api/conversations/{chat}/reports` | 200 |
+| POST | `/api/conversations/{chat}/reports` | 200 |
+| GET | `/api/health` | 200 |
+| GET | `/api/me` | 200 |
+| PUT | `/api/me` | 200 |
+| GET | `/api/me/dashboard` | 200 |
+| GET | `/api/me/listings` | 200 |
+| PUT | `/api/me/listings` | 200 |
+| POST | `/api/me/listings/{service}/archive` | 200 |
+| POST | `/api/me/pets/archive` | 200 |
+| GET | `/api/me/profile-export` | 200 |
+| POST | `/api/me/role` | 200 |
+| GET | `/api/messages` | 200 |
+| POST | `/api/messages` | 200 |
+| GET | `/api/notifications` | 200 |
+| POST | `/api/notifications/{notice}/read` | 200 |
+| GET | `/api/ready` | 200 |
+| GET | `/api/sitters` | 200 |
+| GET | `/api/sitters/{listing}/reviews` | 200 |
+| GET | `/api/support` | 200 |
+| POST | `/api/support` | 200 |
+| GET | `/api/support/{ticket}` | 200 |
+| POST | `/api/support/{ticket}` | 200 |
+| GET | `/api/support/{ticket}/messages/{message}/image` | 200 |
+| GET | `/api/wallet` | 200 |
+| GET | `/api/wallet/topups` | 200 |
+| POST | `/api/wallet/topups` | 200, 201 |
+| GET | `/api/wallet/topups/{topup}` | 200 |
+| POST | `/api/wallet/topups/{topup}/amend` | 200 |
+| GET | `/api/wallet/topups/{topup}/corrections` | 200 |
+| GET | `/api/wallet/topups/{topup}/history` | 200 |
+| GET | `/api/wallet/topups/{topup}/history/{revision}/receipt` | 200 |
+| GET | `/api/wallet/topups/{topup}/receipt` | 200 |
+
+### Replaying historical clients
+
+From the backend checkout, run the following with the paired app repository and its project Dart SDK. The check uses a disposable database and a loopback server. It runs the original Dart payload validators from each named commit against fresh quote, booking index, chat inbox, message history, notification history, support index and ticket detail responses. It also requires each version to reject a ticket belonging to a different requested identity. The booking index is empty in this fixture. No booking is created by the replay.
+
+```
+python tool/verify_mobile_contracts.py --app ../momiq_app --dart <path-to-dart-executable> 1d2fe79 a3c33a5 36b9d69 3784f78
+```
+
+For new fields and version transitions, follow **Upgrade compatibility** above. Consumers preserve null and absent-field distinctions defined per endpoint. Financial ledger fields ending in `Minor` are integer tiyin (100 per so‘m). A listing's `price` is per animal in whole so‘m. Use the timestamp or local-date format of the specific endpoint and return the server-issued cursor unchanged for the same filters. The historical replay covers these seven payloads. The method index covers the larger service surface through the backend tests.

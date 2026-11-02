@@ -74,6 +74,7 @@ class SupportTests(unittest.TestCase):
         self.assertTrue(created['items'][0]['hasImage']);self.assertNotIn('image',created['items'][0])
         image_path=path+'/messages/'+created['items'][0]['id']+'/image'
         self.req(image_path,user='stranger',status=404)
+        self.assertEqual(self.req(image_path)['image'],fixture_image())
         self.assertEqual(self.admin(image_path.replace('/api/','/api/admin/'))['image'],fixture_image())
         self.assertEqual(self.req('/api/support',user='abc')['items'],[])
         self.req(path,'POST',self.reply(action='resolve'),status=400)

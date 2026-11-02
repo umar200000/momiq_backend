@@ -248,6 +248,12 @@ with server.db() as con:
             self.assertEqual(overview['status'],200,overview['body'])
             self.assertFalse(json.loads(overview['body'])['canUpload'])
             media=call('GET',admin_path+'/'+video+'/poster',admin=True)
+            poster=call('GET',path+'/'+video+'/poster',user='customer')
+            self.assertEqual((poster['status'],poster['headers']['Content-Type'],poster['body']),
+                             (200,'image/jpeg',media['body']))
+            protected=call('GET',admin_path+'/'+video+'/playback',byte_range='bytes=0-11',admin=True)
+            self.assertEqual((protected['status'],protected['headers']['Vary'],protected['body']),
+                             (206,'Cookie',response['body']))
             self.assertEqual(media['status'],200);self.assertEqual(media['headers']['Vary'],'Cookie')
             self.assertEqual(call('DELETE',admin_path,admin=True)['status'],405)
             payload={'topic':'safety','subject':'TEST video','text':'TEST reason','image':None,
@@ -270,4 +276,4 @@ with server.db() as con:
                 with self.assertRaises(sqlite3.IntegrityError):
                     con.execute('DELETE FROM support_video_reports')
             with server.db() as con:
-                self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action IN ('admin-view-booking-videos','admin-view-booking-video')").fetchone()[0],2)
+                self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action IN ('admin-view-booking-videos','admin-view-booking-video')").fetchone()[0],3)
