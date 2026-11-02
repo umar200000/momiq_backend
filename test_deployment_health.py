@@ -57,7 +57,7 @@ class DeploymentHealthTests(unittest.TestCase):
             result = self.call()
             self.assertEqual(result['status'], 200)
             self.assertEqual(result['body'], {'ok': True, 'mode': 'test', 'releaseSha': 'a' * 40,
-                                             'schemaVersion': 28})
+                                             'schemaVersion': 29})
             self.assertEqual(result['headers']['Cache-Control'], 'no-store')
             with server.db() as con:
                 self.assertEqual('\n'.join(con.iterdump()), before)
@@ -76,6 +76,22 @@ class DeploymentHealthTests(unittest.TestCase):
             with server.db() as con:
                 con.execute("INSERT INTO schema_migrations VALUES(999,'future','bad','test')")
             self.assertEqual(self.call()['status'], 503)
+
+    def test_readiness_rejects_missing_and_noop_audit_guards(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(server,'DATA',Path(tmp)):
+            server.setup()
+            for name,definition in deployment_health.AUDIT_GUARDS.items():
+                with self.subTest(name=name):
+                    with server.db() as con:
+                        con.execute('DROP TRIGGER '+name)
+                    self.assertEqual(self.call()['status'],503)
+                    with server.db() as con:
+                        con.execute(definition.split(' BEGIN ')[0]+' BEGIN SELECT 1; END')
+                    self.assertEqual(self.call()['body'],{'ok':False})
+                    with server.db() as con:
+                        con.execute('DROP TRIGGER '+name)
+                        con.execute(definition)
+                    self.assertEqual(self.call()['status'],200)
 
     def test_declared_schema_is_not_enough_if_an_essential_table_is_missing(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(server, 'DATA', Path(tmp)):

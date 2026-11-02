@@ -243,6 +243,9 @@ MIGRATIONS = (
         "CREATE TRIGGER support_video_no_delete BEFORE DELETE ON support_video_reports BEGIN SELECT RAISE(ABORT,'Video report source is immutable'); END",
         "CREATE TRIGGER support_video_no_replace BEFORE INSERT ON support_video_reports WHEN EXISTS(SELECT 1 FROM support_video_reports WHERE ticket_id=NEW.ticket_id) BEGIN SELECT RAISE(ABORT,'Video report source is immutable'); END",
     )),
+    (29, 'protect referenced payment settings versions against replacement', (
+        "CREATE TRIGGER platform_settings_no_replace BEFORE INSERT ON platform_settings WHEN EXISTS(SELECT 1 FROM platform_settings WHERE version=NEW.version) BEGIN SELECT RAISE(ABORT,'Platform settings history is immutable'); END",
+    )),
 )
 
 

@@ -8,6 +8,41 @@ import migrations
 
 
 class MigrationTests(unittest.TestCase):
+    def test_settings_versions_survive_upgrade_and_replace_on_plain_sqlite(self):
+        import server
+        with tempfile.TemporaryDirectory() as tmp, patch.object(server,'DATA',Path(tmp)):
+            with patch.object(migrations,'MIGRATIONS',migrations.MIGRATIONS[:28]):
+                server.setup()
+            with closing(sqlite3.connect(server.DATA/'momiq.sqlite3')) as con:
+                con.execute('PRAGMA recursive_triggers=OFF')
+                before=con.execute('SELECT * FROM platform_settings ORDER BY version').fetchall()
+                self.assertEqual(migrations.migrate(con),[29])
+                with self.assertRaisesRegex(sqlite3.IntegrityError,'history is immutable'), con:
+                    con.execute("""INSERT OR REPLACE INTO platform_settings(version,commission_bps,test_only,actor,reason,created)
+                        VALUES(1,999,0,'TEST','changed historical reason',CURRENT_TIMESTAMP)""")
+                self.assertEqual(con.execute('SELECT * FROM platform_settings ORDER BY version').fetchall(),before)
+                with con:
+                    con.execute("""INSERT INTO platform_settings(commission_bps,test_only,actor,reason,created)
+                        VALUES(999,0,'TEST','new version',CURRENT_TIMESTAMP)""")
+                self.assertEqual(con.execute('SELECT MAX(version) FROM platform_settings').fetchone()[0],2)
+                self.assertEqual(migrations.migrate(con),[])
+
+    def test_application_writer_rejects_ledger_replacement_through_secondary_key(self):
+        import server
+        import wallet
+        with tempfile.TemporaryDirectory() as tmp, patch.object(server,'DATA',Path(tmp)):
+            server.setup()
+            with server.db() as con:
+                con.execute("INSERT INTO users VALUES('test','998000000000','{}',0,?)",(server.now(),))
+                wallet.post_entry(con,'test',200,'topup','test-once','operator','TEST credit')
+            with server.db() as con:
+                original=tuple(con.execute('SELECT * FROM wallet_entries').fetchone())
+                with self.assertRaises(sqlite3.IntegrityError):
+                    con.execute("""INSERT OR REPLACE INTO wallet_entries
+                        SELECT 'new-id',user_id,amount_minor,balance_after,kind,source_key,'forged',reason,created FROM wallet_entries""")
+                self.assertEqual(tuple(con.execute('SELECT * FROM wallet_entries').fetchone()),original)
+                self.assertEqual(con.execute('SELECT balance_minor FROM wallet_accounts').fetchone()[0],200)
+
     def test_locked_source_times_out_without_publishing_and_can_retry(self):
         with tempfile.TemporaryDirectory() as folder:
             source=Path(folder)/'source.db';target=Path(folder)/'copy.db'
@@ -34,7 +69,7 @@ class MigrationTests(unittest.TestCase):
                 ('client','existing','client',9999999999)])
             con.commit()
             with patch.object(migrations,'MIGRATIONS',migrations.MIGRATIONS[:22]):migrations.migrate(con)
-            self.assertEqual(migrations.migrate(con),[23,24,25,26,27,28])
+            self.assertEqual(migrations.migrate(con),[23,24,25,26,27,28,29])
             self.assertEqual(con.execute('SELECT hash FROM sessions ORDER BY hash').fetchall(),[('client',),('keep',)])
             with con:con.execute("UPDATE admins SET username='renamed' WHERE username='existing'")
             self.assertEqual(con.execute('SELECT hash FROM sessions').fetchall(),[('client',)])
@@ -49,7 +84,7 @@ class MigrationTests(unittest.TestCase):
             old=con.execute('SELECT * FROM audit').fetchall()
             original=migrations.MIGRATIONS
             with patch.object(migrations,'MIGRATIONS',original[:21]):migrations.migrate(con)
-            self.assertEqual(migrations.migrate(con),[22,23,24,25,26,27,28])
+            self.assertEqual(migrations.migrate(con),[22,23,24,25,26,27,28,29])
             self.assertEqual(con.execute('SELECT * FROM audit').fetchall(),old)
             for sql in ("UPDATE audit SET actor='forged' WHERE id=7",'DELETE FROM audit WHERE id=7',"INSERT OR REPLACE INTO audit VALUES(7,'forged','TEST','TEST','TEST')"):
                 with self.assertRaises(sqlite3.IntegrityError):
@@ -82,7 +117,7 @@ class MigrationTests(unittest.TestCase):
             original=migrations.MIGRATIONS
             with patch.object(migrations,'MIGRATIONS',original[:4]): migrations.migrate(con)
             con.execute("INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created) VALUES('old','sitter',1500000,'receipt','hash',1,'v1','once','pending','2026-01-01')")
-            con.commit();self.assertEqual(migrations.migrate(con),[5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28])
+            con.commit();self.assertEqual(migrations.migrate(con),[5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29])
             self.assertEqual(con.execute('SELECT receipt,amount_minor,payer_reference,paid_at FROM topup_requests').fetchone(),('receipt',1500000,'',None))
             self.assertEqual(con.execute('SELECT receipt FROM topup_evidence_claims').fetchone()[0],'receipt')
             self.assertEqual(con.execute('SELECT event FROM topup_history').fetchone()[0],'migrated')
@@ -93,7 +128,7 @@ class MigrationTests(unittest.TestCase):
             con.execute('CREATE TABLE users(id TEXT PRIMARY KEY, account TEXT)')
             con.execute("INSERT INTO users VALUES('real', '{\"profile\":{}}')")
             con.commit()
-            self.assertEqual(migrations.migrate(con), [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28])
+            self.assertEqual(migrations.migrate(con), [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29])
             self.assertEqual(migrations.migrate(con), [])
             self.assertEqual(con.execute('SELECT * FROM users').fetchall(), [('real','{"profile":{}}')])
             self.assertEqual(con.execute('SELECT * FROM account_revisions').fetchall(), [('real',0)])
@@ -146,7 +181,7 @@ class MigrationTests(unittest.TestCase):
                 con.commit()
                 migrations.backup_database(source, backup)
                 with closing(sqlite3.connect(backup)) as copy:
-                    self.assertEqual(migrations.migrate(copy), [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28])
+                    self.assertEqual(migrations.migrate(copy), [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29])
                     self.assertEqual(copy.execute('SELECT user_id FROM account_revisions').fetchone()[0], 'persist')
                 self.assertIsNone(con.execute("SELECT name FROM sqlite_master WHERE name='schema_migrations'").fetchone())
                 with self.assertRaises(ValueError):

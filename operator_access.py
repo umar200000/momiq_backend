@@ -15,7 +15,7 @@ RULES={
         ('GET',rf'work-queue(?:/support/{HEX})?'),
         ('POST',rf'work-queue/support/{HEX}(?:/escalate)?'),
         ('GET',rf'work-queue/support/{HEX}/escalation-operators'),
-        ('GET',rf'support(?:/{HEX}(?:/messages/{NUMBER}/image)?)?'),
+        ('GET',rf'support(?:/{HEX}(?:/messages/{NUMBER}/image|/reported-photo)?)?'),
         ('POST',rf'support/{HEX}'),
     ),
     'moderation':(

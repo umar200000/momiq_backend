@@ -40,6 +40,7 @@ class OperatorAccessTests(unittest.TestCase):
             self.assertEqual(identity['role'],role)
             self.assertIn(allowed,identity['panels'])
             self.admin('/api/admin/'+allowed)
+            self.admin('/api/admin/support/'+'a'*32+'/reported-photo',status=404 if role=='support' else 403)
             for target in denied:self.admin('/api/admin/'+target,status=403)
             for target in ['users/abc','bookings/'+'a'*32+'/videos','future-sensitive-endpoint']:
                 self.admin('/api/admin/'+target,status=403)

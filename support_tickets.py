@@ -65,6 +65,7 @@ def view(con,identity,user,admin=False,before=None):
     return {'ticket':public(row),'items':[{'id':str(m['id']),'revision':m['revision'],'authorRole':m['author_role'],'action':m['action'],'text':m['text'],'hasImage':bool(m['image']),'created':m['created'],**({'resolution':resolutions[m['id']]} if m['id'] in resolutions else {})} for m in reversed(rows[:20])],
             'nextCursor':str(rows[19]['id']) if len(rows)>20 else None,
             'target':target,'canResolve':can_resolve,
+            **({'canRequestReportedPhoto':True} if admin and target and target['snapshot'].get('media') else {}),
             **({'disputeAppeal':dispute if not admin or can_resolve else
                 {k:dispute[k] for k in ('bookingId','revision','eventId')}} if dispute else {}),
             **({'videoReport':{'id':video['id'],'day':video['day'],'slot':video['slot']}} if video else {}),
@@ -194,6 +195,16 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
 
 
 def route(handler,con,user,path,validate_photo,environment='production'):
+    photo_report=re.fullmatch(r'/api/admin/support/([a-f0-9]{32})/reported-photo',path)
+    if photo_report:
+        if handler.command!='GET':raise engine.BookingError(405,'Faqat ko‘rish mumkin')
+        if urlparse(handler.path).query:raise ValueError('Unexpected reported photo query')
+        con.execute('BEGIN IMMEDIATE')
+        result=support_targets.reported_photo(con,photo_report[1],environment)
+        target=engine.encode({key:result[key] for key in ('ticketId','slot','sha256')})
+        con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                    (user,'support-reported-photo-view',target,datetime.now(timezone.utc).isoformat()))
+        con.commit();handler.reply(200,result);return True
     match=re.fullmatch(r'/api/(admin/)?support(?:/([a-f0-9]{32})(?:/messages/([1-9][0-9]{0,17})/image)?)?',path)
     if not match:return False
     admin=bool(match[1]);identity=match[2];image_id=match[3]

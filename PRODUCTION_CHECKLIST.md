@@ -90,6 +90,14 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-03. M097 va M090
+
+- [x] **M097/M100/M112.** Eski bazada REPLACE bilan komissiya tarixidagi sabab almashtirilishi takrorlandi. 29-migratsiya standart SQLite ulanishidan ham oldingi versiyani almashtirishni to‘sadi. Ilova ulanishida jurnalning boshqa unique kaliti orqali eski yozuvni o‘chirish urinishi ham rad etildi. Migratsiya eski sozlamalarni saqladi, yangi versiya qo‘shildi va ikkinchi migratsiya hech narsa o‘zgartirmadi. Readiness audit va sozlamalar jadvallaridagi oltita himoya triggerining ta’rifini tekshiradi. Ulardan bittasi yo‘q yoki soxta bo‘lsa javob 503, asl himoya qaytgach 200. **Audit saqlash muddati va arxivni kim ko‘rishi egasining 3-noyabrdagi ko‘rsatmasi bilan oxiriga qoldirildi.**
+- [x] **M090/M102.** Support va administrator shikoyatga bog‘langan e’lon rasmini alohida tugma orqali ochadi. Haqiqiy Chrome va sintetik support hisobi bilan ikki holat tekshirildi. Asl rasm ekranida 200 va bitta audit, manbadagi rasm almashtirilganda 410 va ekranda rasm yo‘q. Mijoz, moliya va moderatsiya rolidan bu maxfiy murojaat yo‘liga kirish rad etildi. Dalilni alohida arxivlash siyosati, qarorni o‘zgartirish vakolati va ish navbatining haqiqiy operator bilan qabuli ochiq.
+- [x] **M100/M115.** Ishlayotgan lokal preview bazasining alohida olingan snapshoti vaqtinchalik joyda 28-sxemadan 29-sxemaga ko‘chirildi. Tiklangan holatda moliyaviy yarashtirish muvaffaqiyatli. Asl preview 28 da qoldi va backup faylining xeshi o‘zgarmadi.
+- [x] **M123.** Kirish formasida tarmoq uzilishi, noto‘g‘ri kod, kirish cheklovi, urinishlar limiti va xizmat vaqtincha yopiq bo‘lishi uchun mahalliylashtirilgan xabarlar qo‘shildi. Noma’lum ichki xato matni foydalanuvchiga chiqarilmaydi. 320 × 640 ekran va 2× shrift bilan dastlab sarlavha 115 pikselga sig‘madi. Brend yozuvi ajratilgan joyga moslashtirildi. O‘zbek, ingliz va rus tillarida tarmoq xatosidan qayta urinishga, so‘ng noto‘g‘ri kod xabariga o‘tish va screen reader e’lon belgisi tekshirildi. OTP va telefon formasining 14 testi o‘tdi. Haqiqiy telefonning screen reader va klaviatura qabuli ochiq.
+- **M103.** Production API 33 parametrli o‘qish so‘roviga yana 200 qaytardi. Yakuniy qabul uchun kerakli 400 javobi va mos versiyaning deploy tekshiruvi kutilmoqda.
+
 ### 2026-11-02. M101 yopildi
 
 - [x] API shartnomasiga 136 ta HTTP usuli va yo‘li kiritildi. Izolyatsiyalangan HTTP/WSGI sinovlarida 131 kombinatsiya uchun muvaffaqiyatli javob va buyurtmani o‘zgartirishga tegishli qolgan beshtasi uchun shartnomadagi 409 tasdiqlandi. To‘rtta yetishmagan muvaffaqiyatli holat doimiy regressiya testlariga qo‘shildi. 429 testlik asosiy tekshiruv va yangilangan 27 ta nizo, support va video testi o‘tdi.

@@ -97,7 +97,23 @@ class SupportTargetTests(unittest.TestCase):
         saved = self.req('/api/support','POST',data)
         self.assertEqual(saved['target']['snapshot']['media'], {'slot':'home:0','sha256':digest})
         self.assertNotIn(photo,json.dumps(saved))
+        ticket=saved['ticket']['id']
+        path='/api/admin/support/'+ticket+'/reported-photo'
+        self.assertNotIn('canRequestReportedPhoto',saved)
+        self.assertTrue(self.admin('/api/admin/support/'+ticket)['canRequestReportedPhoto'])
+        self.req(path,status=401)
+        self.assertEqual(self.admin(path),{'image':photo,'ticketId':ticket,'slot':'home:0','sha256':digest})
+        self.admin(path+'?slot=portrait',status=400)
+        with server.db() as con:
+            event=con.execute("SELECT actor,target FROM audit WHERE action='support-reported-photo-view'").fetchone()
+            self.assertEqual(json.loads(event['target']),{'ticketId':ticket,'slot':'home:0','sha256':digest})
+            other=public_photo(fixture_image('blue'))
+            con.execute("UPDATE listing_moderation SET public_media=? WHERE user_id='abc' AND service='boarding'",
+                        (json.dumps({'photo':photo,'homePhotos':[other]}),))
+        changed=self.admin(path,status=410)
+        self.assertEqual(set(changed),{'error'})
         self.reject_listing()
+        self.admin(path,status=410)
         self.assertEqual(self.req('/api/support','POST',data), saved)
         self.req('/api/support','POST',self.data(target=target),status=404)
 

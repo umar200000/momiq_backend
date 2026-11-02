@@ -26,6 +26,26 @@ def validate(value):
         raise ValueError('Invalid appeal revision')
 
 
+def listing_photo(item, slot):
+    if slot == 'portrait':
+        return item['photo']
+    index = int(slot.split(':')[1])
+    photos = item['homePhotos'] if item['service'] != 1 else []
+    return photos[index] if index < len(photos) else None
+
+
+def reported_photo(con, ticket_id, environment):
+    target = detail(con, ticket_id)
+    if not target or target['kind'] != 'listing' or not target['snapshot'].get('media'):
+        raise engine.BookingError(404,'Bu murojaatda e’lon rasmi yo‘q')
+    media = target['snapshot']['media']
+    item = catalog.profile(con, environment, target['id'])
+    image = listing_photo(item, media['slot']) if item else None
+    if not image or hashlib.sha256(base64.b64decode(image, validate=True)).hexdigest()!=media['sha256']:
+        raise engine.BookingError(410,'Shikoyat qilingan rasm hozir e’londa mavjud emas')
+    return {'ticketId':ticket_id, **media, 'image':image}
+
+
 def capture(con,target,environment,user=None):
     # Inside the ticket transaction: never accept a client-supplied snapshot.
     validate(target)
@@ -38,12 +58,7 @@ def capture(con,target,environment,user=None):
         snapshot['revision']=catalog.revision(con,item['userId'])
         if 'media' in target:
             slot = target['media']
-            if slot == 'portrait':
-                photo = item['photo']
-            else:
-                index = int(slot.split(':')[1])
-                photos = item['homePhotos'] if item['service'] != 1 else []
-                photo = photos[index] if index < len(photos) else None
+            photo = listing_photo(item,slot)
             if not photo:
                 raise engine.BookingError(404, 'E’lon rasmi topilmadi')
             digest = hashlib.sha256(base64.b64decode(photo, validate=True)).hexdigest()

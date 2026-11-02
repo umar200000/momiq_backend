@@ -11,6 +11,9 @@ from migrations import MIGRATIONS
 MOBILE_FEATURES = ('booking-receipts-v1','home-visit-address-v1','wallet-receipts-v1',
                    'support-receipts-v1','private-video-report-v1','notice-read-receipts-v1','dispute-appeal-v1')
 
+AUDIT_GUARDS = {sql.split()[2]:sql for _, _, statements in MIGRATIONS for sql in statements
+                if re.match(r'CREATE TRIGGER (?:audit|platform_settings)_no_(?:update|delete|replace) ',sql)}
+
 
 def release_sha(root):
     path = Path(root) / '.release-sha'
@@ -34,6 +37,10 @@ def check_database(data, environment):
             raise ValueError('Database environment mismatch')
         if dict(con.execute('SELECT version,checksum FROM schema_migrations')) != expected:
             raise ValueError('Database migration mismatch')
+        guards = con.execute("""SELECT name,sql FROM sqlite_master WHERE type='trigger'
+                             AND tbl_name IN ('audit','platform_settings')""")
+        if {name:sql for name,sql in guards if name in AUDIT_GUARDS} != AUDIT_GUARDS:
+            raise ValueError('Database audit protections differ from the release')
         # Exercise essential reads without counts, scans or personal response data.
         for query in (
             'SELECT id,blocked FROM users LIMIT 0',

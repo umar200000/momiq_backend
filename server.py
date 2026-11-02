@@ -103,6 +103,9 @@ def db():
     con = sqlite3.connect(DATA / "momiq.sqlite3", timeout=20, factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys=ON")
+    # REPLACE deletes a conflicting row. SQLite runs that row's DELETE
+    # triggers only with recursion enabled, including our append-only guards.
+    con.execute("PRAGMA recursive_triggers=ON")
     return con
 
 def password_hash(value, salt):

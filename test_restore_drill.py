@@ -94,14 +94,14 @@ class RestoreDrillTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             root=Path(tmp)
             with patch.object(server,'DATA',root/'source'), patch.object(server,'ENVIRONMENT','test'):
-                with patch.object(migrations,'MIGRATIONS',migrations.MIGRATIONS[:-1]):
+                with patch.object(migrations,'MIGRATIONS',migrations.MIGRATIONS[:27]):
                     server.setup()
                 backup_bundle.create(server.DATA,root/'copy')
                 original=backup_bundle.digest(root/'copy'/'momiq.sqlite3')
                 result=restore_drill.rehearse(root/'copy','test')
-                self.assertEqual(result['migrationsApplied'],[28])
+                self.assertEqual(result['migrationsApplied'],[28,29])
                 self.assertEqual(result['schemaBefore'],27)
-                self.assertEqual(result['schema'],28)
+                self.assertEqual(result['schema'],29)
                 self.assertEqual(original,backup_bundle.digest(root/'copy'/'momiq.sqlite3'))
                 with server.db() as con:
                     self.assertEqual(con.execute('SELECT max(version) FROM schema_migrations').fetchone()[0],27)

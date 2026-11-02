@@ -283,6 +283,8 @@ Care facts are frozen in each new booking quote and stay unchanged after profile
 
 ### Platform settings audit history
 
+Schema 29 prevents replacement of an existing settings version even from a standard SQLite connection with recursive triggers disabled. Application connections enable recursive triggers so replacement through a secondary unique key also runs the table’s delete protections. Readiness checks the actual six append-only trigger definitions on the audit and platform settings tables.
+
 A successful settings update returns the version committed by that operation. New `platform-settings` audit entries contain `previousVersion`, `version` and `changedFields`. Look up the version in the settings history for the operator’s reason. Older entries retain their original free-text target.
 
 `GET /api/admin/platform-settings/history?before=<version>` requires the existing admin session and returns at most 20 version-descending records plus `nextCursor`. Each record has `version`, `commissionBps`, `actor`, `reason`, UTC `effectiveAt`, `testOnly`, and `qrActive`; no QR image, receipt or payer details are returned. Invalid, repeated or unknown cursor parameters are rejected. Settings changes take effect immediately for new quotes; existing agreed rates remain frozen. Commission accepts integer basis points 0–10000 (0–100%, precision 0.01%), with nonempty reason and current-version CAS. Migration 12 makes historical platform settings rows immutable; changes append a new version.
@@ -615,6 +617,8 @@ The client matches the listing, selected animals, dates, instructions and quote 
 
 ### Public photo reports and account requests
 
+Support and administrator ticket details advertise `canRequestReportedPhoto: true` for a reported public image. On explicit click, `GET /api/admin/support/{ticket}/reported-photo` checks the current discovery eligibility, saved photo slot and SHA-256 of the approved public derivative. Success returns `ticketId`, `slot`, `sha256` and `image`. A missing ticket or photo report returns 404. A removed, changed or unavailable source returns 410. The read and the audit event share a transaction. Only a successful read records the operator, ticket, slot, digest and time. No second copy of the photograph is stored.
+
 A new private support ticket may use the existing listing target plus `media` and `sha256`. The slot is `portrait` or `home:N` with a zero-based index. The digest identifies the bytes of the approved public JPEG shown in the app. The server checks current visibility and the slot before capturing the digest and slot in the immutable support snapshot. Missing media returns 404. A replaced photo returns 409. Exact retries retain the original ticket after later moderation. A reporter can attach evidence through the existing private support image field.
 
 The owner can submit a privately authenticated ticket with `topic=account_deletion`, `confirmAccountRequest=true` and `bookingId=null`. The session identifies the owner. Submission and support closure are intake actions. Actual erasure, reauthentication for irreversible action, active obligations, retention, external access and recovery reconciliation are still release gates.
@@ -697,6 +701,7 @@ This index enumerates the supported method and path combinations in the current 
 | GET | `/api/admin/support/{ticket}` | 200 |
 | POST | `/api/admin/support/{ticket}` | 200 |
 | GET | `/api/admin/support/{ticket}/messages/{message}/image` | 200 |
+| GET | `/api/admin/support/{ticket}/reported-photo` | 200 |
 | GET | `/api/admin/topups` | 200 |
 | GET | `/api/admin/topups/{topup}/corrections` | 200 |
 | POST | `/api/admin/topups/{topup}/corrections` | 200 |
