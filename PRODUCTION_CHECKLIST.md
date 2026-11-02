@@ -92,6 +92,9 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-11-02. Joriy bandlarning tekshirilgan qismlari
 
+- [x] **M109/M131.** Backend `b4557d8` uchun Linux’da barcha 429 test o‘tdi. Windows’da 422 tasi o‘tdi, yettitasi Linux’ga tegishli. [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41491844765)
+- [ ] **M131, iPhone ochilish sinovi.** Mobil `3784f78` uchun Android tekshiruvi va iOS simulator paketini yig‘ish o‘tdi. Ikki alohida urinishda macOS runneridagi `simctl list devices available --json` 90 soniyada javob bermadi. Ilova hali ishga tushmagan edi. Shu commitning birinchi ochilishi va qayta ochilishi tasdiqlanmagan. [Mobil CI](https://github.com/umar200000/momiq_app/actions/runs/41491444843)
+
 - [x] **M007/M131.** To‘liq Windows sinovida katalog sig‘imi bo‘yicha ikki testning oldindan belgilangan sanasi o‘tib ketgani topildi. Katalog tekshiruvi ham buyurtma fixture’ining bir xil sinov soatidan foydalanadigan qilindi. Ikki test qayta o‘tdi. Mahsulotning kelajakdagi sanani talab qilish qoidasi saqlandi.
 
 - [x] **M102/M105/M124.** Barcha qurilmalardan chiqishda serverning aniq tasdig‘i talab qilinadi. Bo‘sh, yolg‘on va noto‘g‘ri turdagi javoblarda faol sessiya saqlandi. Eski sessiyadan kech kelgan javob boshqa hisobga ta’sir qilmasligi qayta sinaldi.
