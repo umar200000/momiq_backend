@@ -95,6 +95,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 - [x] API shartnomasiga 136 ta HTTP usuli va yo‘li kiritildi. Izolyatsiyalangan HTTP/WSGI sinovlarida 131 kombinatsiya uchun muvaffaqiyatli javob va buyurtmani o‘zgartirishga tegishli qolgan beshtasi uchun shartnomadagi 409 tasdiqlandi. To‘rtta yetishmagan muvaffaqiyatli holat doimiy regressiya testlariga qo‘shildi. 429 testlik asosiy tekshiruv va yangilangan 27 ta nizo, support va video testi o‘tdi.
 - [x] To‘rtta mobil commitning asl Dart parserlari backenddan yangi olingan yetti turdagi javobni qabul qildi, so‘ralgan identifikatoriga mos kelmagan murojaatni rad etdi. Null, sahifalash, sana-vaqt, so‘m/tiyin va eski versiyalar bilan ishlash tartibi shartnomada. Tekshiruvni qayta bajarish buyrug‘i [API shartnomasi](API_CONTRACT.md#replaying-historical-clients) ichida. M101 uchun productionga chiqarish yoki bloklangan qurilma sinovi talab qilinmaydi.
 
+**Keyingi band — M103.** So‘rov manzili 4 096 baytdan yoki query 32 maydondan oshishi baza ochilishidan oldin rad etildi. Aynan chegaradagi va undan oshgan holatlar WSGI orqali, oshgan holatlar haqiqiy lokal Nginx/TLS/Gunicorn orqali tekshirildi. Reliz serveridagi konfiguratsiya va qolgan kirish/mediani tekshirish M103 da ochiq.
+
 ### 2026-11-02. Joriy bandlarning tekshirilgan qismlari
 
 - [x] **M109/M131.** Backend `b4557d8` uchun Linux’da barcha 429 test o‘tdi. Windows’da 422 tasi o‘tdi, yettitasi Linux’ga tegishli. [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41491844765)

@@ -95,6 +95,10 @@ def verify():
         assert call(admin,'/api/admin/me',headers={'Origin':'https://foreign.invalid'})[0]==403
         assert call(admin,'/api/admin/me',headers={'Origin':'https://'+admin+'/not-an-origin'})[0]==403
         assert call(api,'/api/me','POST',headers={'Content-Length':str(33*1024*1024)})[0]==413
+        assert call(api,'/api/health?'+'&'.join(['q=1']*33))[0]==400
+        # A longer request line may be rejected by Nginx or Gunicorn before
+        # reaching the shared application limit. Neither may serve it as valid.
+        assert call(api,'/api/health?q='+'x'*9000)[0] in (400,414)
         payload = {'username':'admin','password':password}
         status,headers,_ = call(admin,'/api/admin/login','POST',payload,{'Origin':'https://'+admin})
         assert status==200

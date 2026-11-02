@@ -428,7 +428,14 @@ class Handler(BaseHTTPRequestHandler):
                  "image": None if r["deleted"] else r["image"], "time": r["time"]}
                 for r in con.execute("SELECT * FROM messages WHERE user_id=? ORDER BY time,id", (user,))]
     def handle_request(self):
-        path = urlparse(self.path).path
+        # Apply the same ceiling to the local HTTP and WSGI entry points before
+        # any route parses individual fields or starts a database transaction.
+        if len(self.path) > 4096 or len(self.path.encode('utf-8')) > 4096:
+            raise ApiError(414, 'So‘rov manzili juda uzun')
+        target = urlparse(self.path)
+        if target.query.count('&') >= 32:
+            raise ApiError(400, 'So‘rov parametrlari juda ko‘p')
+        path = target.path
         origin = self.headers.get("Origin")
         host = self.headers.get('Host', '')
         if (len(self.headers.get_all('Origin', [])) > 1 or len(self.headers.get_all('Host', [])) > 1

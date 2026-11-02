@@ -33,7 +33,8 @@ class ProductionTests(unittest.TestCase):
     def call(self, path, method='GET', data=None, origin=None):
         env = {}; setup_testing_defaults(env)
         raw = json.dumps(data).encode() if data is not None else b''
-        env.update(QUERY_STRING='', PATH_INFO=path, REQUEST_METHOD=method, CONTENT_LENGTH=str(len(raw)), CONTENT_TYPE='application/json', HTTP_HOST='admin.momiq.net')
+        route, _, query = path.partition('?')
+        env.update(QUERY_STRING=query, PATH_INFO=route, REQUEST_METHOD=method, CONTENT_LENGTH=str(len(raw)), CONTENT_TYPE='application/json', HTTP_HOST='admin.momiq.net')
         env['wsgi.input'] = io.BytesIO(raw)
         if origin: env['HTTP_ORIGIN'] = origin
         response = {}
@@ -43,6 +44,17 @@ class ProductionTests(unittest.TestCase):
         finally:
             if hasattr(output, 'close'): output.close()
         return response
+
+    def test_request_target_limits_precede_database_and_routing(self):
+        with patch.object(server, 'db', side_effect=AssertionError('Unexpected DB access')):
+            prefix='/api/health?q='
+            self.assertEqual(self.call(prefix+'a'*(4096-len(prefix)))['status'],200)
+            self.assertEqual(self.call(prefix+'a'*(4097-len(prefix)))['status'],414)
+            self.assertEqual(self.call('/api/health?'+'&'.join(['q=1']*32))['status'],200)
+            self.assertEqual(self.call('/api/health?'+'&'.join(['q=1']*33))['status'],400)
+            result=self.call('/api/auth/login?'+'&'.join(['q=1']*33),'POST',{'phone':'TEST'})
+            self.assertEqual(result['status'],400)
+            self.assertEqual(set(json.loads(result['body'])),{'error'})
 
     def test_wsgi_static_admin(self):
         r = self.call('/admin/')
