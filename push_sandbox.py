@@ -9,6 +9,31 @@ import sqlite3
 from seed_scenarios import SCENARIO
 from seed_test_data import check_fixture_file, fixture_directory, fixture_id
 
+_PROVIDER_ID = 0x4D505348  # MPSH, the local push simulator
+_TABLES = {
+    'progress':'CREATE TABLE progress(owner TEXT PRIMARY KEY,acked INTEGER NOT NULL)',
+    'received':'''CREATE TABLE received(owner TEXT NOT NULL,notice INTEGER NOT NULL,
+                    payload TEXT NOT NULL,PRIMARY KEY(owner,notice))''',
+}
+
+
+def prepare_provider(db):
+    # Existing unmarked simulators used these exact two tables. Never add
+    # simulator tables to another database placed in the fixture directory.
+    with db:
+        db.execute('BEGIN IMMEDIATE')
+        identity=db.execute('PRAGMA application_id').fetchone()[0]
+        objects=dict(db.execute("SELECT name,sql FROM sqlite_master WHERE name NOT GLOB 'sqlite_*'"))
+        if identity not in (0,_PROVIDER_ID) or db.execute('PRAGMA user_version').fetchone()[0]!=0:
+            raise ValueError('Foreign push simulator database')
+        if not objects and identity==0 and db.execute('PRAGMA schema_version').fetchone()[0]==0:
+            for statement in _TABLES.values():
+                db.execute(statement)
+        elif objects!=_TABLES:
+            raise ValueError('Unexpected push simulator schema')
+        if identity==0:
+            db.execute(f'PRAGMA application_id={_PROVIDER_ID}')
+
 
 def replay(directory, account, outcome='accepted', limit=20):
     if (os.environ.get('MOMIQ_ENV','local') not in ('local','test') or
@@ -28,11 +53,7 @@ def replay(directory, account, outcome='accepted', limit=20):
         # Simulate the consumer cursor and the provider's independent acceptance
         # record. Never attach either to the business transaction or a real device.
         with closing(sqlite3.connect(root/'push-sandbox.sqlite3')) as db:
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS progress(owner TEXT PRIMARY KEY,acked INTEGER NOT NULL);
-                CREATE TABLE IF NOT EXISTS received(owner TEXT NOT NULL,notice INTEGER NOT NULL,
-                    payload TEXT NOT NULL,PRIMARY KEY(owner,notice));
-            """)
+            prepare_provider(db)
             cursor = db.execute('SELECT acked FROM progress WHERE owner=?',(uid,)).fetchone()
             rows = app.execute('SELECT id FROM notifications WHERE user_id=? AND id>? ORDER BY id LIMIT ?',
                                (uid, cursor[0] if cursor else 0, limit))

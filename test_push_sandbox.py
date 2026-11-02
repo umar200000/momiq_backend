@@ -13,6 +13,28 @@ from seed_test_data import fixture_id, seed
 
 
 class PushSandboxTests(unittest.TestCase):
+    def test_foreign_provider_file_is_preserved_and_an_old_simulator_keeps_its_cursor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'test'
+            seed_scenarios.build(root)
+            path=root/'push-sandbox.sqlite3'
+            with closing(sqlite3.connect(path)) as db, db:
+                db.execute('CREATE TABLE unrelated(value TEXT)')
+                db.execute("INSERT INTO unrelated VALUES('preserve')")
+            before=path.read_bytes()
+            with self.assertRaisesRegex(ValueError,'schema'):push_sandbox.replay(root,'personal')
+            self.assertEqual(path.read_bytes(),before)
+            path.unlink()
+            with closing(sqlite3.connect(path)) as db, db:
+                db.executescript("""CREATE TABLE IF NOT EXISTS progress(owner TEXT PRIMARY KEY,acked INTEGER NOT NULL);
+                    CREATE TABLE IF NOT EXISTS received(owner TEXT NOT NULL,notice INTEGER NOT NULL,
+                    payload TEXT NOT NULL,PRIMARY KEY(owner,notice));""")
+                db.execute('INSERT INTO progress VALUES(?,?)',(fixture_id('personal'),19))
+            self.assertEqual(push_sandbox.replay(root,'personal')['acknowledged'],0)
+            with closing(sqlite3.connect(path)) as db:
+                self.assertEqual(db.execute('SELECT acked FROM progress').fetchone(),(19,))
+                self.assertNotEqual(db.execute('PRAGMA application_id').fetchone(),(0,))
+
     def test_manual_test_receipts_and_finance_push_without_a_payment_network(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)/'demo'
