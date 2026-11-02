@@ -96,6 +96,8 @@ def verify():
         assert call(admin,'/api/admin/me',headers={'Origin':'https://'+admin+'/not-an-origin'})[0]==403
         assert call(api,'/api/me','POST',headers={'Content-Length':str(33*1024*1024)})[0]==413
         assert call(api,'/api/health?'+'&'.join(['q=1']*33))[0]==400
+        # Body is below 1 MiB but would allocate a large list before field validation.
+        assert call(admin,'/api/admin/login','POST',{'x':[0]*65536})[0]==413
         # A longer request line may be rejected by Nginx or Gunicorn before
         # reaching the shared application limit. Neither may serve it as valid.
         assert call(api,'/api/health?q='+'x'*9000)[0] in (400,414)

@@ -66,9 +66,13 @@ class SupportTests(unittest.TestCase):
         self.assertEqual(protected_state(),before)
 
     def test_owner_admin_boundaries_private_image_and_immutable_history(self):
+        self.req('/api/support','POST',self.data(image=fixture_image(format='GIF')),status=400)
         created=self.req('/api/support','POST',self.data(image=fixture_image()))
         identity=created['ticket']['id'];path='/api/support/'+identity
         self.req(path,user='stranger',status=404)
+        self.req(path,'POST',self.reply(image=fixture_image(format='GIF')),status=400)
+        self.admin(path.replace('/api/','/api/admin/'),self.reply(image=fixture_image(format='GIF')),status=400)
+        self.assertEqual(self.req(path)['ticket']['revision'],created['ticket']['revision'])
         self.req(path,'POST',self.reply(),user='stranger',status=404)
         self.req('/api/admin/support',status=401)
         self.assertTrue(created['items'][0]['hasImage']);self.assertNotIn('image',created['items'][0])

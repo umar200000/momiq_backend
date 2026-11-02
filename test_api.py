@@ -500,8 +500,10 @@ class ApiTests(unittest.TestCase):
         config=self.req('/api/admin/platform-settings',admin=True)
         self.assertEqual(config['commissionBps'],1000)
         png=fixture_image('green')
+        self.req('/api/admin/platform-settings','PUT',{'version':config['version'],'qrImage':fixture_image(format='GIF'),'testOnly':True,'reason':'TEST invalid QR'},admin=True,expected=400)
         config=self.req('/api/admin/platform-settings','PUT',{'version':config['version'],'qrImage':png,'testOnly':True,'reason':'TEST only QR','recipientName':'TEST recipient','qrActive':True},admin=True)
         payload={'payerReference':'TEST-PAYER-001','paidAt':'2026-10-26T10:00:00+05:00','requestId':'once','amountMinor':2_000_000,'receipt':png,'qrVersion':config['version'],'termsVersion':'balance-no-refund-v1','acceptNonRefundable':True}
+        self.req('/api/wallet/topups','POST',dict(payload,receipt=fixture_image(format='GIF')),token=a['token'],expected=400)
         self.req('/api/wallet/topups','POST',dict(payload,acceptNonRefundable=False),token=a['token'],expected=400)
         self.req('/api/wallet/topups','POST',dict(payload,payerReference='',paidAt=None),token=a['token'],expected=400)
         self.req('/api/wallet/topups','POST',dict(payload,paidAt='2099-01-01T00:00:00Z'),token=a['token'],expected=400)
@@ -622,6 +624,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual((returned['status'],returned['revision']),('needs_info',1))
         edit=dict(original,requestId='edit-once',revision=1,amountMinor=200,receipt=fixture_image('pink'),payerReference='TEST-EDIT-001')
         amend='/api/wallet/topups/'+tid+'/amend'
+        self.req(amend,'POST',dict(edit,receipt=fixture_image(format='GIF')),token=a['token'],expected=400)
         self.req(amend,'POST',edit,token=other['token'],expected=404)
         self.req(amend,'POST',dict(edit,revision=0),token=a['token'],expected=409)
         self.req(amend,'POST',dict(edit,qrVersion=config['version']+1),token=a['token'],expected=409)
@@ -809,12 +812,21 @@ class ApiTests(unittest.TestCase):
         account['favorites']=['hoji'];account['language']='ru'
         account['addresses']=[{'id':'home','lat':41.3,'lon':69.2,'address':'Toshkent','label':'Uy'}]
         account['pets']=[{'id':'cat','name':'Momi','type':'Mushuk','photo':png}]
+        bad=fixture_image(format='GIF')
+        for invalid in ({**account,'profile':{**account['profile'],'photo':bad}},
+                        {**account,'pets':[{**account['pets'][0],'photo':bad}]},
+                        {**account,'sitterProfile':{'homePhotos':[bad]}}):
+            self.req('/api/me','PUT',invalid,token=a['token'],expected=400)
+            self.req('/api/admin/users/'+a['userId'],'PUT',
+                     {'account':invalid,'_revision':account['_revision'],'reason':'TEST invalid account photo'},admin=True,expected=400)
+        self.assertEqual(self.req('/api/me',token=a['token'])['account']['_revision'],account['_revision'])
         account['support']=[{'id':'support1','text':'Yordam kerak'}]
         self.req('/api/me','PUT',account,token=a['token'])
         again=self.login('998907777777')
         self.assertEqual(again['account'],dict(server.validate_account(account),_revision=account['_revision']+1))
         with server.db() as con:
             con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,time) VALUES(?,?,?,?,?,?)',('historical-image-chat',a['userId'],'hoji',0,'Old conversation','2020-01-01'))
+        self.req('/api/admin/users/'+a['userId']+'/messages','POST',{'sitter':'hoji','image':bad},admin=True,expected=400)
         self.req('/api/messages','POST',{'sitter':'hoji','image':png},token=a['token'])
         self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][-1]['image'],png)
         self.req('/api/messages','POST',{'sitter':'hoji','image':base64.b64encode(b'html').decode()},token=a['token'],expected=400)

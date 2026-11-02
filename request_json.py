@@ -7,6 +7,9 @@ import time
 
 MAX_BYTES = 32_000_000
 MAX_DEPTH = 64
+# Opening containers and commas outside strings bound both wide and deep values
+# before json.loads allocates a Python object for each element.
+MAX_STRUCTURE = 65_536
 READ_SECONDS = 60
 _readers = threading.BoundedSemaphore(2)
 _escaped_surrogate = re.compile(rb'\\u[dD][89a-fA-F]')
@@ -53,16 +56,19 @@ def decode(raw):
     if len(raw)>MAX_BYTES:raise BodyError(413,'So‘rov juda katta')
     # Limit nesting before the recursive JSON decoder allocates containers.
     # Brackets and escaped quotes inside strings do not count as nesting.
-    depth=0;quoted=False;escaped=False
+    depth=0;structure=0;quoted=False;escaped=False
     for byte in raw:
         if quoted:
             if escaped:escaped=False
             elif byte==92:escaped=True
             elif byte==34:quoted=False
         elif byte==34:quoted=True
-        elif byte in (91,123):
-            depth+=1
-            if depth>MAX_DEPTH:raise ValueError('JSON nesting limit exceeded')
+        elif byte in (44,91,123):
+            structure+=1
+            if structure>MAX_STRUCTURE:raise BodyError(413,'JSON tarkibi juda katta')
+            if byte!=44:
+                depth+=1
+                if depth>MAX_DEPTH:raise ValueError('JSON nesting limit exceeded')
         elif byte in (93,125):depth-=1
     obj=json.loads(raw.decode('utf-8'),object_pairs_hook=_pairs,parse_constant=_constant,parse_float=_float)
     if not isinstance(obj,dict):raise ValueError('JSON object required')

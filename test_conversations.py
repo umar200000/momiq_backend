@@ -96,6 +96,7 @@ class ConversationTests(unittest.TestCase):
 
     def test_delivery_receipts_are_monotonic_private_and_do_not_mark_read(self):
         chat=self.create_chat();base='/api/conversations/'+chat['id']
+        self.send_chat(chat['id'],image=fixture_image(format='GIF'),status=400)
         a=self.send_chat(chat['id']);b=self.send_chat(chat['id'])
         self.req(base+'/received','POST',{'throughId':b['id']},user='stranger',status=404)
         self.req(base+'/received','POST',{'throughId':str(int(b['id'])+1)},user='abc',status=400)

@@ -233,6 +233,7 @@ with server.db() as con:
             clock.now.return_value=self.start+timedelta(hours=1)
             self.assertEqual(call('POST',path,urlencode(data),source.read_bytes())['status'],401)
             self.assertEqual(call('POST',path,urlencode(data),source.read_bytes(),'customer')['status'],403)
+            self.assertEqual(call('POST',path,urlencode(data),b'not a video container','abc')['status'],400)
             uploaded=call('POST',path,urlencode(data),source.read_bytes(),'abc')
             self.assertEqual(uploaded['status'],200,uploaded['body'])
             video=json.loads(uploaded['body'])['id']

@@ -35,6 +35,16 @@ class JsonBodyTests(unittest.TestCase):
         value='['*1000+'\\"'+']'*1000
         self.assertEqual(body.decode(json.dumps({'value':value}).encode()),{'value':value})
 
+    def test_flat_structure_budget_precedes_allocation_and_ignores_string_contents(self):
+        with patch.object(body,'MAX_STRUCTURE',4):
+            self.assertEqual(body.decode(b'{"list":[1,2,3]}'),{'list':[1,2,3]})
+            value = ',[{"quoted"}]'*100
+            self.assertEqual(body.decode(json.dumps({'text':value}).encode()),{'text':value})
+            with patch.object(body.json,'loads',side_effect=AssertionError('decoder must not run')):
+                for raw in (b'{"list":[1,2,3,4]}',b'{"list":[{},{},{}]}'):
+                    with self.assertRaises(body.BodyError) as caught:body.decode(raw)
+                    self.assertEqual(caught.exception.status,413)
+
     def test_framing_exact_mime_and_oversize_fail_before_read(self):
         for headers,status in (({'Content-Length':'-1'},400),({'Content-Length':'2,2'},400),({'Content-Length':'32000001'},413),({'Content-Length':'0'},413),({'Content-Type':'application/jsonp'},415),({'Transfer-Encoding':'chunked'},400)):
             h=self.handler(**headers)

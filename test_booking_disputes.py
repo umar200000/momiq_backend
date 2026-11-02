@@ -259,6 +259,7 @@ class DisputeHttpTests(unittest.TestCase):
         with patch.object(disputes,'datetime') as clock:
             clock.now.return_value=engine.parse(b['snapshot']['startsAt'])+timedelta(minutes=31)
             data={'action':'report','kind':'no_show','revision':0,'bookingRevision':b['revision'],'text':'TEST private complaint','image':fixture_image(),'requestId':secrets.token_hex(16)}
+            self.req(path,'POST',{**data,'image':fixture_image(format='GIF')},status=400)
             case=self.req(path,'POST',data)
             self.req(path,user='stranger',status=404)
             self.req(admin_path,status=401)

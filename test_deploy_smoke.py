@@ -60,7 +60,7 @@ class DeploySmokeTests(unittest.TestCase):
                                       'NO_PROXY': '', 'no_proxy': ''}):
             result = self.check(admin_dir=server.ADMIN)
         self.assertTrue(result['ok']); self.assertTrue(result['adminBytesVerified'])
-        self.assertEqual(len(result['checks']), 26)
+        self.assertEqual(len(result['checks']), 27)
         self.assertEqual(set(method for method, _ in self.requests), {'GET'})
         with server.db() as con: self.assertEqual('\n'.join(con.iterdump()), before)
         text = json.dumps(result)
@@ -107,6 +107,16 @@ class DeploySmokeTests(unittest.TestCase):
                 with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'service area'):release(invalid)
             self.assertTrue(release('c'*64)['mobileReleaseChecked'])
 
+    def test_release_smoke_rejects_an_edge_that_drops_the_query_limit(self):
+        path='/api/health?'+'&'.join(['q=1']*33)
+        headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}
+        self.responses[path]=(200,b'{"ok":true}',headers)
+        with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'excess-query-fields'):
+            self.check()
+        self.responses[path]=(400,b'{"unrelated":true}',headers)
+        with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'query limit response'):
+            self.check()
+
     def test_redirect_never_follows_and_protected_success_is_failure(self):
         self.responses['/api/health'] = (302, b'', {'Location': self.url + '/redirect-target'})
         with self.assertRaises(deploy_smoke.SmokeFailure): self.check()
@@ -149,7 +159,7 @@ class DeploySmokeTests(unittest.TestCase):
             self.boundaries[admin.server_port] = {'/api/me'}
             admin_url = 'http://127.0.0.1:' + str(admin.server_port)
             result = deploy_smoke.check(self.url, admin_url, 'a' * 40, 'test', server.ADMIN)
-            self.assertEqual(len(result['checks']), 28)
+            self.assertEqual(len(result['checks']), 29)
             self.boundaries[admin.server_port].clear()
             with self.assertRaisesRegex(deploy_smoke.SmokeFailure, 'admin-client-boundary'):
                 deploy_smoke.check(self.url, admin_url, 'a' * 40, 'test')

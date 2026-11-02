@@ -97,6 +97,10 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Keyingi band — M103.** So‘rov manzili 4 096 baytdan yoki query 32 maydondan oshishi baza ochilishidan oldin rad etildi. Aynan chegaradagi va undan oshgan holatlar WSGI orqali, oshgan holatlar haqiqiy lokal Nginx/TLS/Gunicorn orqali tekshirildi. Reliz serveridagi konfiguratsiya va qolgan kirish/mediani tekshirish M103 da ochiq.
 
+**M103, yuklash yo‘llari va server chegarasi.** 136 usul/yo‘lning har biri ikkita noto‘g‘ri so‘rov bilan loopback HTTP orqali tekshirildi. 272 ta rad javobida baza ochilmadi. Profil, uy va hayvon rasmi, mijoz/operator xabarlari, chat, murojaat, nizo dalili, QR, dastlabki va tuzatilgan chek hamda soxta video fayli bilan rad javoblari sinaldi. JSON tarkibining 65 536 chegarasi matn ichidagi vergul/qavslarga tegmaydi va haddan tashqari katta ro‘yxat parserga berilishidan oldin 413 qaytaradi. Nginx/TLS/Gunicorn orqali ham tekshirildi.
+
+Production API va admin domenlariga faqat sarlavhalar yuborildi. Ikkalasi ham 32 MiB uchun 100, bir bayt ortig‘iga 413 qaytardi. API domenida 4 097 baytli manzil rad qilindi, lekin 33 maydonli query 200 qaytardi. Branchdagi deploy tekshiruvi endi aynan shu query uchun 400 talab qiladi. M103 yakuniy qabulida production’da mazkur himoya ishlashi qayta tekshiriladi.
+
 ### 2026-11-02. Joriy bandlarning tekshirilgan qismlari
 
 - [x] **M109/M131.** Backend `b4557d8` uchun Linux’da barcha 429 test o‘tdi. Windows’da 422 tasi o‘tdi, yettitasi Linux’ga tegishli. [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41491844765)

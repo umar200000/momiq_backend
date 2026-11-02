@@ -107,6 +107,9 @@ def check(api_url, admin_url, revision, mode, admin_dir=None, *, mobile_release=
     if mobile_release or area_sha256 is not None:
         if not re.fullmatch('[0-9a-f]{64}', area_sha256 or '') or health.get('serviceAreaSha256') != area_sha256:
             raise SmokeFailure('Loaded service area differs from the approved release boundary')
+    rejected, _ = fetch('excess-query-fields', api_url, '/api/health?'+'&'.join(['q=1']*33), status=400)
+    if set(rejected) != {'error'} or not isinstance(rejected['error'],str):
+        raise SmokeFailure('Unexpected query limit response')
     for service in ('boarding', 'homeVisit', 'personal'):
         data, _ = fetch('catalog-' + service, api_url, '/api/sitters?service=' + service + '&pet=cat')
         if (not isinstance(data.get('sitters'), list) or 'nextCursor' not in data
