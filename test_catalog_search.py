@@ -1,3 +1,4 @@
+import base64
 import copy
 from datetime import timedelta
 import json
@@ -62,6 +63,17 @@ class SearchHttpTests(unittest.TestCase):
         self.req('/api/sitters?'+cursor+'&pet=dog',status=400)
         self.req('/api/sitters?after=bogus',status=400)
         self.req('/api/sitters?after=W10',status=400)
+
+    def test_distance_cursor_rejects_oversized_or_nonfinite_numbers_over_http(self):
+        params = {'lat': ['41.1'], 'lon': ['69.1']}
+        digest = catalog_search.options(params)[2]
+        for distance in (10**309, -1, float('inf'), float('nan'), True):
+            with self.subTest(distance=distance):
+                data = {'last': 'a:personal', 'distance': distance, 'query': digest}
+                payload = json.dumps(data, separators=(',', ':')).encode()
+                token = base64.urlsafe_b64encode(payload).decode().rstrip('=')
+                self.assertLessEqual(len(token), 512)
+                self.req('/api/sitters?lat=41.1&lon=69.1&after=' + token, status=400)
 
     def test_favorite_filter_checks_only_selected_eligible_profiles(self):
         self.clones()

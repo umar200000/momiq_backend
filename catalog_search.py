@@ -66,7 +66,7 @@ def options(params, user=None):
         if (not isinstance(cursor,dict) or set(cursor)!=keys or cursor['query']!=digest
                 or not isinstance(cursor['last'],str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}:(boarding|homeVisit|personal)',cursor['last'])):
             raise ValueError('Filtr o‘zgargan; qidiruvni boshidan boshlang')
-        if origin and (type(cursor['distance']) not in (int,float) or not math.isfinite(cursor['distance']) or not 0<=cursor['distance']<=21000):
+        if origin and (type(cursor['distance']) not in (int,float) or not 0<=cursor['distance']<=21000):
             raise ValueError('Sahifa masofasi noto‘g‘ri')
         after=cursor
     return normalized,interval,digest,after

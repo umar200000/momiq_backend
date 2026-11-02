@@ -90,7 +90,11 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
-### 2026-11-03. M097 va M090
+### 2026-11-03. Audit, moderatsiya, kirish va katalog
+
+- [x] **M007/M131.** 1 000 TEST hisob va 100 faol mijoz bilan bir daqiqada 5 895 so‘rovning hammasi o‘tdi. Sana va masofali katalog 900 marta ochildi. Katalog p95 umumiy 832,29 ms, takroriy so‘rovlarda 162,71 ms. DB yaxlitligi saqlandi, bron yaratilmagan. [Lokal yuklama o‘lchovi](performance/valid-listings-load-2026-11-03.json)
+- [x] **M103.** Sahifalash belgisidagi 310 xonali masofa katalogda 500 javobini takrorladi. Chegara tekshiruvi tuzatilgach juda katta son, manfiy son, cheksizlik, NaN va boolean qiymatlari HTTP 400 qaytardi. Sahifalash va boshqa katalog tekshiruvlari bilan 22 ta test o‘tdi.
+- [x] **M106/M112.** Git arxividan ko‘tarilgan vaqtinchalik backend/admin juftligi 29-sxemada 27 ta faqat o‘qish tekshiruvidan o‘tdi. Panel fayllari tekshirilgan commitga baytma-bayt mos. Lokal Linux Nginx va Gunicorn orqali HTTPS, host, ruxsat, so‘rov limiti va log maxfiyligi tekshirildi.
 
 - [x] **M097/M100/M112.** Eski bazada REPLACE bilan komissiya tarixidagi sabab almashtirilishi takrorlandi. 29-migratsiya standart SQLite ulanishidan ham oldingi versiyani almashtirishni to‘sadi. Ilova ulanishida jurnalning boshqa unique kaliti orqali eski yozuvni o‘chirish urinishi ham rad etildi. Migratsiya eski sozlamalarni saqladi, yangi versiya qo‘shildi va ikkinchi migratsiya hech narsa o‘zgartirmadi. Readiness audit va sozlamalar jadvallaridagi oltita himoya triggerining ta’rifini tekshiradi. Ulardan bittasi yo‘q yoki soxta bo‘lsa javob 503, asl himoya qaytgach 200. **Audit saqlash muddati va arxivni kim ko‘rishi egasining 3-noyabrdagi ko‘rsatmasi bilan oxiriga qoldirildi.**
 - [x] **M090/M102.** Support va administrator shikoyatga bog‘langan e’lon rasmini alohida tugma orqali ochadi. Haqiqiy Chrome va sintetik support hisobi bilan ikki holat tekshirildi. Asl rasm ekranida 200 va bitta audit, manbadagi rasm almashtirilganda 410 va ekranda rasm yo‘q. Mijoz, moliya va moderatsiya rolidan bu maxfiy murojaat yo‘liga kirish rad etildi. Dalilni alohida arxivlash siyosati, qarorni o‘zgartirish vakolati va ish navbatining haqiqiy operator bilan qabuli ochiq.
