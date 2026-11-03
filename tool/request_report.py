@@ -58,6 +58,7 @@ def _record(line):
 class _Bucket:
     def __init__(self):
         self.count = 0
+        self.failures = 0
         self.statuses = Counter()
         self.outcomes = Counter()
         self.methods = Counter()
@@ -65,6 +66,8 @@ class _Bucket:
 
     def add(self, record):
         self.count += 1
+        if record['status']==0 or record['status']>=500 or record.get('outcome')=='disconnected':
+            self.failures += 1
         self.statuses[str(record['status'])] += 1
         self.outcomes[record.get('outcome', 'unspecified')] += 1
         self.methods[record['method']] += 1
@@ -78,6 +81,7 @@ class _Bucket:
             return samples[math.ceil(count * fraction) - 1] if count else None
         return {
             'requests': self.count,
+            'failedRequests': self.failures,
             'statusCounts': dict(sorted(self.statuses.items())),
             'outcomeCounts': dict(sorted(self.outcomes.items())),
             'methodCounts': dict(sorted(self.methods.items())),
@@ -130,8 +134,7 @@ def assess(report, group, min_requests, max_failure_percent, max_p95_ms):
     duration = bucket['handlerDurationMs']
     if max_p95_ms is not None and duration['missing']:
         return {**result, 'status':'insufficient'}, 2
-    failures = sum(count for code, count in bucket['statusCounts'].items()
-                   if int(code) == 0 or 500 <= int(code) <= 599)
+    failures = bucket['failedRequests']
     count = bucket['requests']
     exceeded = []
     if max_failure_percent is not None and failures*100 > max_failure_percent*count:
@@ -153,7 +156,7 @@ def main(argv=None):
     parser.add_argument('input', help='JSON-lines log file, or - for binary stdin')
     parser.add_argument('--group', choices=sorted(GROUPS))
     parser.add_argument('--min-requests', type=int)
-    parser.add_argument('--max-failure-percent', type=float, help='Status 0 and HTTP 5xx')
+    parser.add_argument('--max-failure-percent', type=float, help='Status 0, HTTP 5xx or a recorded disconnect')
     parser.add_argument('--max-p95-ms', type=float)
     args = parser.parse_args(argv)
     checking = args.max_failure_percent is not None or args.max_p95_ms is not None

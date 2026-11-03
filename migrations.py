@@ -294,26 +294,30 @@ def backup_database(source, destination, *, timeout_seconds=None):
         timeout_seconds=float(os.environ.get('MOMIQ_SQLITE_BACKUP_SECONDS','300'))
     if not math.isfinite(timeout_seconds) or not 0 < timeout_seconds <= 3600:
         raise ValueError('Invalid SQLite snapshot deadline')
-    source, destination = Path(source).resolve(), Path(destination).resolve()
+    source, destination = Path(source).resolve(), Path(destination).absolute()
     if not source.is_file():
         raise ValueError('Source database does not exist')
-    if source == destination or destination.exists():
+    if os.path.lexists(destination):
         raise ValueError('Choose a new backup path')
-    with destination.open('xb'):
-        pass
-    try:
+    with tempfile.TemporaryDirectory(prefix='.momiq-snapshot-',dir=destination.parent) as tmp:
+        partial = Path(tmp)/'snapshot.sqlite3'
+        partial.touch(mode=0o600,exist_ok=False)
         deadline=time.monotonic()+timeout_seconds
         def check_deadline(status,remaining,total):
             if time.monotonic()>=deadline:
                 raise TimeoutError('SQLite snapshot deadline elapsed')
         with closing(sqlite3.connect(source.as_uri() + '?mode=ro', uri=True,timeout=min(1,timeout_seconds))) as src:
-            with closing(sqlite3.connect(destination)) as dst:
+            with closing(sqlite3.connect(partial)) as dst:
                 src.backup(dst,pages=256,progress=check_deadline,sleep=.05)
                 if dst.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
                     raise RuntimeError('Backup integrity check failed')
-    except BaseException:
-        destination.unlink(missing_ok=True)
-        raise
+        if any(os.path.lexists(str(destination)+suffix) for suffix in ('-wal','-shm','-journal')):
+            raise ValueError('Choose a backup path without SQLite sidecars')
+        # Publish only a closed, verified database. A competing writer keeps its file.
+        if os.name=='nt':
+            os.rename(partial,destination)  # Windows rename refuses an existing destination.
+        else:
+            os.link(partial,destination)
 
 
 def main():

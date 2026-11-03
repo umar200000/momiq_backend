@@ -2,6 +2,8 @@
 
 2026-10-29. M117/M116/M114/M115 ichki bosqichi. Bu hujjat repodagi vositalar bilan ishlash tartibi; ularning hosted serverga o‘rnatilgani yoki navbatchi/alert xizmati yoqilganini tasdiqlamaydi. Production chiqarish chegaralari [DEPLOYMENT.md](DEPLOYMENT.md) va [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) da.
 
+Migratsiya nusxasi uchun yangi fayl nomini tanlang. Uning yonida avvalgi SQLite jurnallari bo‘lsa, boshqa nom ishlating. Linux’da yakuniy nusxa bir faylga ikkinchi nom berish (`hard link`) orqali e’lon qilinadi, shuning uchun shu imkoniyatga ega disk kerak. Jarayon majburan to‘xtatilsa, `.momiq-snapshot-*` vaqtinchalik katalogi qolishi mumkin. Tiklash uchun tekshirilgan yakuniy faylni ishlating.
+
 ## Ish boshlashdan oldingi ma’lumotlar
 
 Har hodisa uchun vaqtni UTC va zarur bo‘lsa Toshkent vaqti bilan, muhitni, oxirgi muvaffaqiyatli backend/admin SHA juftligini, kuzatilgan simptomni va oxirgi o‘zgarishni yozing. Ilova versiyasi/platformasi yordam beradi. Token, cookie, OTP, parol, to‘liq telefon/manzil, chek yoki video mazmunini issue/logga ko‘chirmang. Murojaat/buyurtma identifikatori ham faqat ruxsatli ichki yozuvda qolsin.
@@ -113,7 +115,7 @@ Root deploy skripti smoke muvaffaqiyatsiz bo‘lganda avvalgi relizni tanlaydi v
 
 ### Log kesimiga operator tanlagan chegarani qo‘llash
 
-`python tool/request_report.py <json-lines> --group sitters --min-requests 100 --max-failure-percent 1 --max-p95-ms 500` buyruq shakliga misol. Bu sonlar production SLO sifatida tasdiqlanmagan. Status 0 va HTTP 5xx muvaffaqiyatsizlik hisoblanadi. Exit 0 berilgan chegaralar ichida, exit 1 chegara oshganini, exit 2 esa kirish yoki namuna yetarli emasligini bildiradi. Rad etilgan satr, yetarli so‘rov bo‘lmasligi yoki latency tekshiruvida vaqt yetishmasligi sog‘lom natija bermaydi. Oddiy jamlanma rejimi avvalgidek ishlaydi. Tashqi alert manzili va chegara qiymatlarini mas’ul operator belgilaydi.
+`python tool/request_report.py <json-lines> --group sitters --min-requests 100 --max-failure-percent 1 --max-p95-ms 500` buyruq shakliga misol. Bu sonlar production SLO sifatida tasdiqlanmagan. Status 0, HTTP 5xx yoki javob yozilayotganda qayd etilgan uzilish muvaffaqiyatsizlik hisoblanadi. Bitta so‘rov shu shartlardan ikkitasiga tushsa ham bir marta sanaladi. Exit 0 berilgan chegaralar ichida, exit 1 chegara oshganini, exit 2 esa kirish yoki namuna yetarli emasligini bildiradi. Rad etilgan satr, yetarli so‘rov bo‘lmasligi yoki latency tekshiruvida vaqt yetishmasligi sog‘lom natija bermaydi. Oddiy jamlanma rejimi avvalgidek ishlaydi. Tashqi alert manzili va chegara qiymatlarini mas’ul operator belgilaydi.
 
 ### Unpublished video files
 
@@ -127,7 +129,7 @@ On the recovery machine run `python encrypted_backup.py drill --encrypted <file.
 
 For a copied encrypted bundle and an independent receipt, `python encrypted_backup.py inspect --encrypted <copy.age> --receipt <trusted-receipt.json> --max-age-hours <limit> --min-bytes <minimum> --max-bytes <maximum>` verifies snapshot age, expiry, size and SHA-256 without decryption. Exit 0 confirms those checks and exit 1 is an alarm. Save the JSON output of `seal` as the receipt. Alert routing, storage ownership and real-host scheduling are outstanding.
 
-`python tool/instance_report.py --data <instance> --mode <expected-mode>` reports aggregate local disk, SQLite/WAL size, pending top-ups, open support and Linux host MemAvailable when present. Optional bounds are `--min-disk-free-bytes`, `--min-host-available-ram-bytes`, `--max-wal-bytes`, `--max-pending-topups` and `--max-open-support`. Exit 0 means the supplied bounds passed, exit 1 flags a breach, and exit 2 means the requested evidence was unavailable. Host RAM is not a container memory limit. Database lock outcomes are separately available in request diagnostics. No outbound alert or customer record is included.
+`python tool/instance_report.py --data <instance> --mode <expected-mode>` reports aggregate local disk, SQLite/WAL size, pending top-ups, open support and Linux host MemAvailable when present. Optional bounds are `--min-disk-free-bytes`, `--min-host-available-ram-bytes`, `--max-wal-bytes`, `--max-pending-topups` and `--max-open-support`. Exit 0 means the supplied bounds passed, exit 1 flags a breach, and exit 2 means the requested evidence was unavailable. Host RAM is not a container memory limit. `--max-expired-pending-bookings` counts pending requests whose reply deadline has arrived. `--max-overdue-open-disputes` counts open cases whose review deadline has arrived. If the first count persists across worker ticks, inspect the booking worker status and logs. For the second, review the due cases in the operator queue. The report reads both counts at one UTC instant without applying expiry, decisions or refunds. Database lock outcomes are separately available in request diagnostics. No outbound alert or customer record is included.
 
 A recovery rehearsal validates the original snapshot as sealed, then upgrades only its disposable copy from a known contiguous migration history. It checks the resulting schema and retained media references, each wallet running balance, approved top-up credits and linked correction debits. Unknown migration histories or inconsistent payments fail the drill. The historical backup and its hash stay unchanged.
 ### Tiklashda eski sessiyalarni bekor qilish

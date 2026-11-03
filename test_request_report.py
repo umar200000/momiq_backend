@@ -20,6 +20,15 @@ def record(**changes):
 
 
 class RequestReportTests(unittest.TestCase):
+    def test_disconnect_after_headers_counts_once_in_failure_threshold(self):
+        lines = b''.join(record(status=code,outcome='disconnected') for code in (200,0,503))
+        summary = report.summarize(BytesIO(lines + record()))
+        for group in (None,'bookings'):
+            for limit,expected in ((74.9,1),(75,0)):
+                assessment,code = report.assess(summary,group,4,limit,None)
+                self.assertEqual(assessment['failedRequests'],3)
+                self.assertEqual(code,expected)
+
     def test_exact_percentiles_status_zero_and_missing_metrics(self):
         data = b''.join(record(durationMs=n) for n in range(1, 101))
         data += record(group='admin/work-queue', status=503, outcome='database_busy', durationMs=None)

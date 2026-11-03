@@ -90,6 +90,12 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-03. Muddati o‘tgan navbatlar va migratsiya nusxasi
+
+- [x] **M116/M117.** Hisobot javobsiz bronlar va muddati o‘tgan ochiq nizolarni alohida sanaydi. Vaqt chegarasidan bir mikrosoniya oldin ikkala hisob nol, chegaraning o‘zida ikkalasi bir bo‘ldi. Bron va nizo yopilganda ikkala hisob nolga qaytdi. Operator chegaralari va chiqish kodlari tekshirildi. Hisobot olishdan oldin va keyin bazadagi barcha yozuvlar teng bo‘ldi.
+- [x] **M116.** Server HTTP 200 sarlavhasini chiqargach ulanish uzilsa, so‘rov xatolar hisobiga kiradi. To‘rtta sinov yozuvidan uchtasi uzilgan holatda oldin ikkita xato ko‘rsatilgan. Tuzatilgach, umumiy va bronlar hisobida ham uchtadan chiqdi. HTTP 503 bilan birga qayd etilgan uzilish bir marta sanaldi.
+- [x] **M100/M111.** Migratsiya uchun SQLite nusxasi alohida yopiq katalogda tayyorlanadi. Yakuniy nom faqat yaxlitlik tekshiruvi va ulanish yopilgandan keyin paydo bo‘ladi. Sinovda boshqa yozuvchi yakuniy nomni oldin egallaganda uning fayli saqlandi. Eski WAL, SHM va rollback jurnalining har biri bilan nashr rad etildi, asl jurnal baytlari saqlandi. Bloklangan manbada timeout va qayta urinish ham tekshirildi.
+
 ### 2026-11-03. Sana bo‘yicha katalog, e’lon versiyasi va tiklash sinovi
 
 - [x] **M007/M099/M131.** Sana bo‘yicha qidirishda bir guruhdagi 21 ta enaganing bandligi ikkita SQL so‘rovida olindi. Qabul qilingan bron, tugamagan parvarish, ikki xizmat bir vaqtga tushishi, band enagadan keyin sahifani to‘ldirish va keyingi sahifa tekshirildi. Har bir yuklama sinovida 1 000 ta test hisob va 100 ta faol mijoz ishlatildi. Barcha 23 610 so‘rov o‘tdi. Katalog p95 oldingi kodda 784,92 va 909,27 ms, yangi kodda 642,18 va 631,70 ms chiqdi. To‘rtta vaqtinchalik bazada yaxlitlik va tashqi kalitlar tekshirildi. Yuklama bron yaratmadi. Band enagali holatlar alohida funksional sinovda tekshirildi. [To‘rtta o‘lchov](performance/catalog-capacity-batches-2026-11-03.json)

@@ -1,6 +1,7 @@
 """Read local disk, host RAM, SQLite size and pending queue counts without private rows."""
 import argparse
 from contextlib import closing
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
@@ -31,12 +32,20 @@ def snapshot(data,mode):
             raise ValueError('Instance changed')
         topups=con.execute("SELECT COUNT(*) FROM topup_requests WHERE status='pending'").fetchone()[0]
         support=con.execute("SELECT COUNT(*) FROM support_tickets WHERE status='open'").fetchone()[0]
+        now = datetime.now(timezone.utc).isoformat(timespec='microseconds')
+        expired_requests = con.execute(
+            "SELECT COUNT(*) FROM bookings WHERE status='pending' AND reply_deadline<=?", (now,)
+        ).fetchone()[0]
+        overdue_disputes = con.execute(
+            "SELECT COUNT(*) FROM booking_disputes WHERE status='open' AND deadline<=?", (now,)
+        ).fetchone()[0]
         try:
             wal=(data/'momiq.sqlite3-wal').stat().st_size
         except FileNotFoundError:
             wal=0
     return {'schema':schema,'diskFreeBytes':shutil.disk_usage(data).free,'databaseBytes':database.stat().st_size,
-            'hostAvailableRamBytes':available_ram(),'walBytes':wal,'pendingTopups':topups,'openSupport':support}
+            'hostAvailableRamBytes':available_ram(),'walBytes':wal,'pendingTopups':topups,'openSupport':support,
+            'expiredPendingBookings':expired_requests,'overdueOpenDisputes':overdue_disputes}
 
 
 def main(argv=None):
@@ -44,7 +53,8 @@ def main(argv=None):
     parser.add_argument('--data',required=True)
     parser.add_argument('--mode',required=True,choices=('local','test','staging','production'))
     thresholds={'min-disk-free-bytes':'diskFreeBytes','min-host-available-ram-bytes':'hostAvailableRamBytes',
-                'max-wal-bytes':'walBytes','max-pending-topups':'pendingTopups','max-open-support':'openSupport'}
+                'max-wal-bytes':'walBytes','max-pending-topups':'pendingTopups','max-open-support':'openSupport',
+                'max-expired-pending-bookings':'expiredPendingBookings','max-overdue-open-disputes':'overdueOpenDisputes'}
     for flag in thresholds:
         parser.add_argument('--'+flag,type=int)
     args=parser.parse_args(argv)

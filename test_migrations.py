@@ -8,6 +8,36 @@ import migrations
 
 
 class MigrationTests(unittest.TestCase):
+    def test_in_progress_snapshot_never_claims_or_overwrites_final_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source,target = Path(folder)/'source.db',Path(folder)/'copy.db'
+            connect = sqlite3.connect
+            with closing(connect(source)) as con:
+                con.execute('CREATE TABLE example(value INTEGER)')
+            def competing_writer(path,*args,**kwargs):
+                if kwargs.get('uri'):
+                    self.assertFalse(target.exists())
+                    target.write_bytes(b'other export')
+                return connect(path,*args,**kwargs)
+            with patch.object(sqlite3,'connect',competing_writer),self.assertRaises(FileExistsError):
+                migrations.backup_database(source,target)
+            self.assertEqual(target.read_bytes(),b'other export')
+            self.assertEqual(set(Path(folder).iterdir()),{source,target})
+
+    def test_existing_sidecars_are_preserved_and_block_publication(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source,target = Path(folder)/'source.db',Path(folder)/'copy.db'
+            with closing(sqlite3.connect(source)) as con:
+                con.execute('CREATE TABLE example(value INTEGER)')
+            for suffix in ('-wal','-shm','-journal'):
+                sidecar = Path(str(target)+suffix)
+                sidecar.write_bytes(b'prior recovery data')
+                with self.subTest(suffix=suffix),self.assertRaisesRegex(ValueError,'sidecars'):
+                    migrations.backup_database(source,target)
+                self.assertFalse(target.exists())
+                self.assertEqual(sidecar.read_bytes(),b'prior recovery data')
+                sidecar.unlink()
+
     def test_settings_versions_survive_upgrade_and_replace_on_plain_sqlite(self):
         import server
         with tempfile.TemporaryDirectory() as tmp, patch.object(server,'DATA',Path(tmp)):
