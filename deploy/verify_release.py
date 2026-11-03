@@ -26,12 +26,13 @@ def verify(revision):
         except HTTPError as error:
             response = error
         with response:
-            if response.status != status:
+            accepted=status if isinstance(status,tuple) else (status,)
+            if response.status not in accepted:
                 raise ValueError(f'{path[:70]} expected {status}, received {response.status}')
             raw = response.read(8*1024*1024+1)
             if len(raw)>8*1024*1024:
                 raise ValueError('Response too large')
-            checks.append((path[:70],status))
+            checks.append((path[:70],response.status))
             if not json_body:
                 return raw
             if response.headers.get_content_type()!='application/json' or response.headers.get('Cache-Control')!='no-store':
@@ -51,7 +52,8 @@ def verify(revision):
         raise ValueError('Invalid public catalog')
     get(API,'/api/health?'+'&'.join(['q=1']*32))
     get(API,'/api/health?'+'&'.join(['q=1']*33),400)
-    get(API,'/api/health?q='+'x'*4096,414)
+    # Gunicorn can reject the request line before the application returns 414.
+    get(API,'/api/health?q='+'x'*4096,(400,414),False)
     for path in ('/api/me','/api/me/listings','/api/messages'):
         get(API,path,401)
     get(ADMIN,'/api/admin/users',401)
