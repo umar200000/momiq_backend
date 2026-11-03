@@ -90,6 +90,13 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-03. 45 ta joriy bandning yakuniy qabul tekshiruvi
+
+Ochiq bandlar identifikatorlari [qabul shartlari jadvali](RELEASE_GAP_INVENTORY.md#joriy-qabul-shartlari) bilan solishtirildi. Jadvalda 45 ta noyob joriy band bor. Qolgan 13 band alohida. Mavjud dalillar bilan bu tekshiruvda to‘liq yopilgan bandlar soni 0.
+
+- **M019, M103, M112.** Production API uchun uchta o‘qish so‘rovi bajarildi. Health javobi HTTP 200 bilan `mode=production`, `testLogin=true` qaytardi, `releaseSha` maydoni yo‘q. Readiness manzili 401 qaytardi. 33 parametrli health so‘rovi kutilgan 400 o‘rniga 200 qaytardi. GitHub’da tekshirilgan backend `a07cec7`, `main` esa `f098c46`. Ishlayotgan server SHA’si javobda ko‘rsatilmagani uchun uni `main` SHA’siga teng deb belgilab bo‘lmaydi.
+- **Qurilma qabuli.** Flutter qurilmalar ro‘yxatida Windows, Chrome va Edge bor. Shu ish joyiga ulangan jismoniy Android yoki iPhone aniqlanmadi. Qolgan bandlarning provayder, infratuzilma, operator va do‘kon bo‘yicha yakuniy shartlari qabul jadvalida ochiq.
+
 ### 2026-11-03. Muddati o‘tgan navbatlar va migratsiya nusxasi
 
 - [x] **M116/M117.** Hisobot javobsiz bronlar va muddati o‘tgan ochiq nizolarni alohida sanaydi. Vaqt chegarasidan bir mikrosoniya oldin ikkala hisob nol, chegaraning o‘zida ikkalasi bir bo‘ldi. Bron va nizo yopilganda ikkala hisob nolga qaytdi. Operator chegaralari va chiqish kodlari tekshirildi. Hisobot olishdan oldin va keyin bazadagi barcha yozuvlar teng bo‘ldi.
