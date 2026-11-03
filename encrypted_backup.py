@@ -94,6 +94,9 @@ def inspect_copy(encrypted, receipt, *, max_age_hours, min_bytes, max_bytes, now
         size = os.fstat(stream.fileno()).st_size
         if size != receipt['bytes'] or not min_bytes <= size <= max_bytes:
             raise ValueError('Unexpected backup size')
+        if stream.readline(23) != b'age-encryption.org/v1\n':
+            raise ValueError('Expected an age ciphertext')
+        stream.seek(0)
         if hashlib.file_digest(stream,'sha256').hexdigest() != receipt['sha256']:
             raise ValueError('Ciphertext digest mismatch')
     return {'ok':True,'ageSeconds':round(age,2),'bytes':size,'expiresAt':expires.isoformat()}

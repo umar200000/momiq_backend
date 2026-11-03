@@ -56,14 +56,32 @@ def reason(account, start, end):
     return None
 
 
+def service_interval(starts_at, ends_at):
+    def parse(value):
+        if not isinstance(value, str) or len(value) > 40:
+            raise ValueError('Vaqt mintaqasi bilan sana kerak')
+        parsed = datetime.fromisoformat(value)
+        if parsed.utcoffset() is None:
+            raise ValueError('Vaqt mintaqasi bilan sana kerak')
+        try:
+            utc = parsed.astimezone(timezone.utc)
+            # The same instant must fit both the database timestamp and the handover calendar.
+            utc.astimezone(ZONE)
+        except OverflowError:
+            raise ValueError('Sana ruxsat etilgan oraliqdan tashqarida') from None
+        return utc
+
+    start, end = parse(starts_at), parse(ends_at)
+    if not timedelta(0) < end - start <= timedelta(days=365):
+        raise ValueError('Xizmat sanalari noto‘g‘ri')
+    return start, end
+
+
 def interval(params):
     """Optional zoned discovery interval. Never silently accept one endpoint."""
     values = [params.get(key, []) for key in ('startsAt', 'endsAt')]
     if values == [[], []]:
         return None
-    if any(len(value) != 1 or len(value[0]) > 40 for value in values):
+    if any(len(value) != 1 for value in values):
         raise ValueError('Qidiruvning boshlanish va tugash vaqti kerak')
-    start, end = (datetime.fromisoformat(value[0]) for value in values)
-    if start.utcoffset() is None or end.utcoffset() is None or not timedelta(0) < end-start <= timedelta(days=365):
-        raise ValueError('Qidiruv sanalari noto‘g‘ri')
-    return start, end
+    return service_interval(values[0][0], values[1][0])

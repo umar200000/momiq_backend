@@ -92,8 +92,9 @@ def prepare_quote(con, customer, listing_id, pet_ids, starts_at, ends_at, *,
             or any(not isinstance(p, str) or not p or len(p) > 100 for p in pet_ids)
             or len(set(pet_ids)) != len(pet_ids)):
         raise ValueError('Unique owned animals required')
-    start, end, current = parse(starts_at), parse(ends_at), rules.utc(now)
-    if start <= current or end <= start or end-start > timedelta(days=365):
+    start, end = sitter_availability.service_interval(starts_at, ends_at)
+    current = rules.utc(now)
+    if start <= current:
         raise ValueError('Invalid service interval')
     if not isinstance(instructions, str) or len(instructions) > 4000:
         raise ValueError('Invalid care instructions')

@@ -21,6 +21,9 @@ def geometry(root, value):
 class AreaTests(unittest.TestCase):
     def test_city_and_region_limits_and_hosted_configuration(self):
         path = Path(__file__).resolve().parent/'fixtures/tashkent-city-region-qa.geojson'
+        # The reviewed city and surrounding province share an edge. Their union
+        # is one polygon; concatenating their rings into a MultiPolygon is invalid.
+        self.assertEqual(json.loads(path.read_bytes())['geometry']['type'], 'Polygon')
         env = {'MOMIQ_AREA_FILE':str(path),'MOMIQ_AREA_SHA256':hashlib.sha256(path.read_bytes()).hexdigest()}
         area = service_area.load(env)
         for lon,lat,expected in ((69.2797,41.3112,True),(69.5822,41.4689,True),(70.1436,41.0167,True),

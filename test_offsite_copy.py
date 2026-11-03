@@ -25,6 +25,14 @@ class MountedCopyTests(unittest.TestCase):
     def copy(self):
         return offsite_copy.replicate(self.source,self.receipt,self.mount,max_age_hours=1,max_bytes=1024)
 
+    def test_inspection_rejects_plaintext_even_with_matching_size_and_digest(self):
+        self.source.write_bytes(b'SQLite format 3\x00TEST plaintext')
+        self.receipt.update(bytes=self.source.stat().st_size,
+                            sha256=hashlib.sha256(self.source.read_bytes()).hexdigest())
+        with self.assertRaisesRegex(ValueError,'age ciphertext'):
+            offsite_copy.encrypted_backup.inspect_copy(
+                self.source,self.receipt,max_age_hours=1,min_bytes=1,max_bytes=1024)
+
     def test_absent_mount_never_falls_back_to_the_local_disk(self):
         with self.assertRaisesRegex(ValueError,'mounted'):self.copy()
         self.assertEqual(list(self.mount.iterdir()),[])

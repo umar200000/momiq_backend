@@ -33,9 +33,6 @@ def replicate(source, receipt, mount, *, max_age_hours, max_bytes):
     source=Path(source)
     limits={'max_age_hours':max_age_hours,'min_bytes':1,'max_bytes':max_bytes}
     encrypted_backup.inspect_copy(source,receipt,**limits)
-    with source.open('rb') as src:
-        if src.readline(23)!=b'age-encryption.org/v1\n':
-            raise ValueError('Expected an age ciphertext')
     folder=destination(mount,source)
     checksum=receipt['sha256']
     final=folder/(checksum+'.age')

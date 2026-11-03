@@ -14,6 +14,18 @@ import test_booking_http as http_fixtures
 
 
 class SearchHttpTests(unittest.TestCase):
+    def test_unrepresentable_service_times_are_rejected_before_discovery_or_quote(self):
+        for start, end in (
+                ('9999-12-31T22:00:00-05:00', '9999-12-31T23:00:00-05:00'),
+                ('9999-12-31T18:30:00Z', '9999-12-31T19:30:00Z'),
+                ('0001-01-01T00:00:00+05:00', '0001-01-01T01:00:00+05:00')):
+            with self.subTest(start=start):
+                dates = {'startsAt': start, 'endsAt': end}
+                self.req('/api/sitters?' + urlencode(dates), status=400)
+                self.req('/api/bookings/quotes', 'POST', {**self.payload, **dates}, status=400)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM booking_quotes').fetchone()[0], 0)
+
     def test_nearest_search_limits_full_profiles_but_fills_past_ineligible_candidates(self):
         self.clones()
         path='/api/sitters?lat=41.3&lon=69.27'
@@ -21,8 +33,12 @@ class SearchHttpTests(unittest.TestCase):
             self.assertEqual(len(self.req(path)['sitters']),20)
             self.assertEqual(fingerprint.call_count,21)
         with server.db() as con:
-            con.execute("UPDATE wallet_accounts SET balance_minor=0 WHERE user_id NOT IN ('sitter-23','sitter-22')")
-        result=self.req(path)
+            con.execute("UPDATE wallet_accounts SET balance_minor=0 WHERE user_id NOT IN ('sitter-23','sitter-22','abc')")
+            con.execute("UPDATE users SET blocked=1 WHERE id='abc'")
+        with patch.object(catalog,'iter_profiles',wraps=catalog.iter_profiles) as profiles:
+            result=self.req(path)
+            self.assertEqual(profiles.call_count,1)
+            self.assertCountEqual(profiles.call_args.kwargs['favorites'],['sitter-23:boarding','sitter-22:boarding'])
         self.assertEqual({row['id'] for row in result['sitters']},{'sitter-23:boarding','sitter-22:boarding'})
         self.assertIsNone(result['nextCursor'])
 

@@ -93,10 +93,13 @@ def nearby_profiles(con,environment,selected,interval,after):
     con.create_function('momiq_catalog_distance',2,rank,deterministic=True)
     rows=con.execute("""SELECT m.user_id,m.service,
              momiq_catalog_distance(json_extract(j.value,'$.location.lat'),json_extract(j.value,'$.location.lon')) distance
-           FROM listing_moderation m JOIN listings l ON l.user_id=m.user_id, json_each(l.data,'$.listings') j
+           FROM listing_moderation m JOIN users u ON u.id=m.user_id
+             JOIN wallet_accounts w ON w.user_id=m.user_id
+             JOIN listings l ON l.user_id=m.user_id, json_each(l.data,'$.listings') j
            WHERE m.status='approved' AND j.type='object' AND json_extract(j.value,'$.type')=m.service
+             AND u.blocked=0 AND w.balance_minor>=?
              AND (? IS NULL OR m.service=?)
-           ORDER BY distance,m.user_id,m.service""",(selected['service'],selected['service']))
+           ORDER BY distance,m.user_id,m.service""",(catalog.MINIMUM_BALANCE_MINOR,selected['service'],selected['service']))
     boundary=(after['distance'],*after['last'].split(':',1)) if after else None
     def candidates():
         for owner,service,distance in rows:
