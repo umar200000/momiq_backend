@@ -90,6 +90,14 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-03. Sana bo‘yicha katalog, e’lon versiyasi va tiklash sinovi
+
+- [x] **M007/M099/M131.** Sana bo‘yicha qidirishda bir guruhdagi 21 ta enaganing bandligi ikkita SQL so‘rovida olindi. Qabul qilingan bron, tugamagan parvarish, ikki xizmat bir vaqtga tushishi, band enagadan keyin sahifani to‘ldirish va keyingi sahifa tekshirildi. Har bir yuklama sinovida 1 000 ta test hisob va 100 ta faol mijoz ishlatildi. Barcha 23 610 so‘rov o‘tdi. Katalog p95 oldingi kodda 784,92 va 909,27 ms, yangi kodda 642,18 va 631,70 ms chiqdi. To‘rtta vaqtinchalik bazada yaxlitlik va tashqi kalitlar tekshirildi. Yuklama bron yaratmadi. Band enagali holatlar alohida funksional sinovda tekshirildi. [To‘rtta o‘lchov](performance/catalog-capacity-batches-2026-11-03.json)
+- [x] **M102/M105/M124.** Enaga e’lonini saqladi, admin tasdiqladi, enaga arxivladi va yana faollashtirdi. Keyingi amal oldingi javob qaytishidan avval boshqa ulanishda bajarilganda dastlab uchala javob 4-versiyani ko‘rsatgan. Tuzatilgach, tartib bilan 1, 2, 3 va 4-versiyalar hamda tegishli holatlar qaytdi.
+- [x] **M099/M102.** Umumiy va saqlangan katalog, bildirishnomalar, enaga bosh sahifasi, profil eksporti va e’lonlar ro‘yxati javob yozishdan avval o‘qish tranzaksiyasini yopadi. SQLite DELETE rejimida oltita HTTP javobining har biri yuborilayotganida boshqa ulanish kutmasdan yozuvni saqladi. Enaga roli bekor qilinsa, bosh sahifadagi maxfiy ma’lumotlarni o‘qish o‘sha tranzaksiyada rad etiladi.
+- [x] **M112.** Izolyatsiyalangan HTTP reliz sinovi 401 javobida telefon yoki boshqa qo‘shimcha maydon kelsa xato beradi. Uch xizmatning mushuk filtri tekshiriladi. Production rejimidagi sinovda TEST e’lon qaytarilishi ham xato deb topildi.
+- [x] **M114/M115.** Asosiy fayl xeshi o‘zgarmagan holda haqiqiy SQLite WAL jurnaliga yangi yozuv saqlandi. Nusxani tekshirish va tiklash mashqi bunday nusxani rad etdi. Eski nusxadagi bo‘sh WAL va oddiy SHM fayli bilan tekshiruv o‘tdi. Ma’lumotli rollback jurnali alohida rad etildi.
+
 ### 2026-11-03. Profil javobi, sessiya va chek ro‘yxati
 
 - [x] **M102/M105/M124.** Dastlab sessiyasi birinchi tekshiruvdan keyin bekor qilingan mijoz profil yoki yozishmalar tarixini, operator esa o‘z hisob ma’lumotini 200 bilan ola olgan. Endi uchala yo‘l sessiyani o‘qish tranzaksiyasida tekshiradi va 401 qaytaradi. Admin eski yordam yozishmasiga javob kiritayotganda mijoz bloklansa, yozish tranzaksiyasi 409 qaytaradi. Xabar ham, javob yuborilgani haqida audit yozuvi ham yaratilmaydi.

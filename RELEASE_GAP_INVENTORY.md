@@ -33,6 +33,8 @@ Manba skani `lib/**/*.dart`, runtime Python modullari va admin JavaScript’ida 
 
 ## Joriy qabul shartlari
 
+2026-11-03. Sana bo‘yicha katalog bandlikni guruhlab oladi. 100 faol mijozli ikki juft lokal sinovda p95 pasaydi. E’lon javoblari o‘z versiyasiga bog‘landi, oltita o‘qish yo‘lida javob yuborilayotganda baza band bo‘lib qolishi tuzatildi. Izolyatsiyalangan reliz tekshiruvi noto‘g‘ri katalog satri va 401 javobiga qo‘shilgan maxfiy maydonni aniqlaydi. Tiklash sinovi asosiy faylga qo‘shilmay qolgan SQLite jurnalini rad etadi. Ushbu bosqichlar va o‘lchovlar asosiy rejaning bajarilish jurnalida belgilandi.
+
 2026-11-03. M133 bo‘yicha hujjat auditi shu branchga nisbatan yakunlandi. Quyida qolgan 45 ta joriy band bittadan asosiy bog‘liqlik bo‘yicha guruhlangan. Har bandning batafsil qabul sharti pastdagi jadvalda. M008 va avvaldan oxiriga ajratilgan 12 band alohida hisoblanadi.
 
 | To‘liq yopish uchun kerak | Bandlar |
@@ -85,7 +87,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Qolgan qism root deploy skriptini o‘rnatish va hosted juftlikni tasdiqlash. |
 | M110 | Draft PR va testlangan backend/admin juftligi mavjud. | Alohida stagingdan aynan sinovdan o‘tgan artefaktni productionga chiqarish. |
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
-| M112 | Preview’da schema 28 va 60 jadval mazmuni tekshirildi. Release smoke bir originda 26, ajratilgan originlarda 28 GET bajaradi va aniq schema hamda mobil API imkoniyatlarini solishtiradi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
+| M112 | Preview’da schema 28 va 60 jadval mazmuni tekshirildi. Joriy release smoke bir originda 27, ajratilgan originlarda 29 GET bajaradi. Sxema, mobil API imkoniyatlari, katalog filtrlari va maxfiy yo‘llar javobi tekshiriladi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
 | M113 | Uchta deploy/bootstrap skriptining har biri Bash sintaksis tekshiruvidan o‘tkaziladi. | Hostdagi systemd/nginx, firewall, TLS yangilanishi va filesystem huquqlari. |
 | M114 | Nusxani shifrlash, alohida ulangan diskka uzatish, qayta o‘qish va dublikatsiz retry sintetik ma’lumot bilan tekshirildi. | Haqiqiy offsite manzil, kalit egasi, storage retention va tashqi signal. |
 | M115 | Sinov diskidan qaytarilgan nusxada hamyonlar, tushum va bron komissiyalari yarashtirildi. Tiklashning vaqt chegarasi oshishi alohida exit kod beradi. | Haqiqiy offsite nusxa bilan RPO/RTO, o‘chirilgan hisoblar va operator mashqi. |

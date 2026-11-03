@@ -86,8 +86,9 @@ def save(con,uid,data,expected):
         con.execute("UPDATE listing_moderation SET status='archived' WHERE user_id=? AND service=?",(uid,kind))
     con.execute('INSERT INTO listings VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated=excluded.updated',(uid,json.dumps(data),now()))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'listings-save',uid+':'+str(revision(con,uid)),now()))
+    result = document(con,uid)
     con.commit()
-    return document(con,uid)
+    return result
 
 
 def outstanding_care(con,uid):
@@ -162,8 +163,9 @@ def archive(con,uid,kind,expected):
     con.execute('UPDATE listings SET data=?,updated=? WHERE user_id=?',(json.dumps(data),now(),uid))
     con.execute("INSERT INTO listing_moderation(user_id,service,status,reason) VALUES(?,?,'archived','Egasi arxivladi') ON CONFLICT(user_id,service) DO UPDATE SET status='archived',approved_hash=NULL,public_media=NULL,reason='Egasi arxivladi'",(uid,kind))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'listing-archive',uid+':'+kind,now()))
+    result = document(con,uid)
     con.commit()
-    return document(con,uid)
+    return result
 
 
 def completeness(account,item):
@@ -211,8 +213,9 @@ def review(con,uid,kind,data,actor,environment):
                 (uid,kind,status,digest,int(test_only),reason.strip(),actor,now(),media))
     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(actor,'listing-'+decision,json.dumps({'id':uid+':'+kind,'revision':revision(con,uid),'reason':reason.strip(),'testOnly':test_only}),now()))
     notifications.publish(con,uid,'listing-review:'+uid+':'+kind+':'+str(revision(con,uid)), 'listing',kind,status,reason.strip())
+    result = document(con,uid)
     con.commit()
-    return document(con,uid)
+    return result
 
 
 def profiles(con,environment,*,interval=None):

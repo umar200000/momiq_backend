@@ -141,6 +141,32 @@ class DeploySmokeTests(unittest.TestCase):
         with patch.object(deploy_smoke, 'MAX_RESPONSE', 8):
             with self.assertRaisesRegex(deploy_smoke.SmokeFailure, 'limit exceeded'): self.check()
 
+    def test_unauthorized_status_cannot_mask_an_account_leak(self):
+        self.responses['/api/me'] = (401,b'{"error":"Unauthorized","phone":"private-value"}',
+            {'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'})
+        with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'authentication error body') as caught:
+            self.check()
+        self.assertNotIn('private-value',str(caught.exception))
+
+    def test_catalog_smoke_checks_filtered_rows_and_production_test_marker(self):
+        path = '/api/sitters?service=boarding&pet=cat'
+        headers = {'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}
+        item = {'service':0,'pets':['Mushuk'],'testOnly':True}
+        def serve(row):
+            self.responses[path] = (200,json.dumps({'sitters':[row],'asOf':server.now(),'nextCursor':None}).encode(),headers)
+        serve(item)
+        self.assertTrue(self.check()['ok'])
+        for wrong in ({'pets':['It']},{'service':1},{'service':False}):
+            serve({**item,**wrong})
+            with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'Catalog filters'):
+                self.check()
+        with server.db() as con:
+            con.execute("UPDATE runtime_metadata SET value='production' WHERE key='environment'")
+        with patch.object(server,'ENVIRONMENT','production'),patch.object(server,'DEV_LOGIN',False):
+            serve(item)
+            with self.assertRaisesRegex(deploy_smoke.SmokeFailure,'test listing'):
+                deploy_smoke.check(self.url,self.url,'a'*40,'production')
+
     def test_invalid_urls_and_revision_never_send_a_request(self):
         for url in ('http://example.com', 'https://user:pass@example.com', 'https://example.com/path',
                     'https://example.com?token=secret', 'https://example.com/#fragment',

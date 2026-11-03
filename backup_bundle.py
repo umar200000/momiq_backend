@@ -64,6 +64,15 @@ def bundle_file(folder, relative):
 
 def verify(folder, *, manifest=None):
     folder=Path(folder).resolve()
+    # All committed data must be in the main file covered by the manifest. Immutable
+    # SQLite reads deliberately ignore sidecars, as does the restore copy.
+    for suffix in ('-wal','-journal','-shm'):
+        try:
+            sidecar = bundle_file(folder,'momiq.sqlite3'+suffix)
+        except FileNotFoundError:
+            continue
+        if suffix!='-shm' and sidecar.stat().st_size:
+            raise ValueError('Unexpected database sidecar in backup bundle')
     if manifest is None:
         manifest=json.loads(bundle_file(folder,'manifest.json').read_text(encoding='utf-8'))
     database=bundle_file(folder,'momiq.sqlite3')

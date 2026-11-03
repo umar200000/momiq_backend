@@ -490,7 +490,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/sitters" and self.command == "GET":
                 params = parse_qs(urlparse(self.path).query, keep_blank_values=True)
                 owner = self.auth(con) if params.get('favorites') == ['1'] else None
-                self.reply(200, catalog_search.page(con, ENVIRONMENT, params, user=owner))
+                result = catalog_search.page(con, ENVIRONMENT, params, user=owner)
+                con.commit()
+                self.reply(200,result)
                 return
             if path == "/api/auth/login" and self.command == "POST":
                 if not DEV_LOGIN:
@@ -645,14 +647,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200,{'account':result})
                 return
             if path == '/api/me/dashboard' and self.command == 'GET':
-                self.reply(200,sitter_dashboard.overview(con,user,datetime.fromisoformat(now())))
+                result = sitter_dashboard.overview(con,user,datetime.fromisoformat(now()))
+                con.commit()
+                self.reply(200,result)
                 return
             if path == '/api/me/profile-export':
                 if self.command != 'GET':
                     raise ApiError(405,'GET yuboring')
                 if urlparse(self.path).query:
                     raise ValueError('Profile export accepts no query')
-                self.reply(200,profile_export.read(con,user))
+                result = profile_export.read(con,user)
+                con.commit()
+                self.reply(200,result)
                 return
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":
@@ -697,6 +703,7 @@ class Handler(BaseHTTPRequestHandler):
                     result = catalog.save(con,user,listings,body.get('_revision'))
                 else:
                     result = catalog.document(con,user)
+                    con.commit()
                 self.reply(200,result)
                 return
             match = re.fullmatch(r'/api/me/listings/(boarding|homeVisit|personal)/archive',path)

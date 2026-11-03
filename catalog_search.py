@@ -130,9 +130,6 @@ def page(con, environment, params, *, user=None):
             catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',
                                   service=selected['service'],favorites=favorites))
     def matches():
-        # Reuse capacity for consecutive services belonging to the same sitter.
-        last_owner = None
-        usage = None
         for item in source:
             service=catalog.SERVICES[item['service']]
             if selected['service'] is not None and service!=selected['service']:continue
@@ -148,19 +145,14 @@ def page(con, environment, params, *, user=None):
             # never a sitter service-radius or booking eligibility rule.
             if selected['maxDistance'] is not None and item['distance'] is not None and item['distance']>selected['maxDistance']:continue
             if selected['origin'] and after and proximity_key(item)<=(after['distance'],*after['last'].split(':',1)):continue
-            if interval:
-                if last_owner != item['userId']:
-                    last_owner = item['userId']
-                    usage = booking_capacity.occupancy(con,last_owner,*interval,now)
-                free = booking_capacity.free_places(usage,service,capacity)
-                if free<selected['animals']:continue
-                item.update(availabilityKnown=True,freeCapacity=free,
-                            availabilityInterval={'startsAt':booking_capacity.stamp(interval[0]),'endsAt':booking_capacity.stamp(interval[1])})
             yield item
+    candidates = matches()
+    if interval:
+        candidates = available_profiles(con,candidates,interval,now,selected['animals'])
     if selected['origin'] and not ranked:
-        result=heapq.nsmallest(PAGE_SIZE+1,matches(),key=proximity_key)
+        result=heapq.nsmallest(PAGE_SIZE+1,candidates,key=proximity_key)
     else:
-        result=list(itertools.islice(matches(),PAGE_SIZE+1))
+        result=list(itertools.islice(candidates,PAGE_SIZE+1))
     more=len(result)>PAGE_SIZE
     result=result[:PAGE_SIZE]
     cursor=None
@@ -169,3 +161,17 @@ def page(con, environment, params, *, user=None):
         if selected['origin']:position['distance']=proximity_key(result[-1])[0]
         cursor=base64.urlsafe_b64encode(json.dumps(position,separators=(',',':')).encode()).decode().rstrip('=')
     return {'sitters':result,'nextCursor':cursor,'asOf':now.isoformat()}
+
+
+def available_profiles(con, candidates, interval, now, animals):
+    starts_at, ends_at = map(booking_capacity.stamp,interval)
+    while batch := list(itertools.islice(candidates,PAGE_SIZE+1)):
+        usage = booking_capacity.occupancies(con,(item['userId'] for item in batch),*interval,now)
+        for item in batch:
+            service = catalog.SERVICES[item['service']]
+            capacity = 30 if service=='homeVisit' else item['capacity']
+            free = booking_capacity.free_places(usage[item['userId']],service,capacity)
+            if free>=animals:
+                item.update(availabilityKnown=True,freeCapacity=free,
+                            availabilityInterval={'startsAt':starts_at,'endsAt':ends_at})
+                yield item

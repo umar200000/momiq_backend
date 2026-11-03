@@ -8,8 +8,8 @@ import wallet
 
 
 def overview(con, user, now):
-    wallet.require_sitter(con,user)
     if not con.in_transaction: con.execute('BEGIN')
+    wallet.require_sitter(con,user)
     account,_=catalog.account_for(con,user)
     listing=catalog.document(con,user)
     current=rules.utc(now)

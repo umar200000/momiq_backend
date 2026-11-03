@@ -40,6 +40,7 @@ def route(handler, con, user, path):
             clause += ' AND id<?'; args.append(int(cursor))
         rows = con.execute('SELECT * FROM notifications WHERE '+clause+' ORDER BY id DESC LIMIT 21', args).fetchall()
         unread = con.execute('SELECT COUNT(*) FROM notifications WHERE user_id=? AND read_at IS NULL', (user,)).fetchone()[0]
+        con.commit()
         handler.reply(200, {'items': [dict(json.loads(r['payload']), id=str(r['id']), created=r['created'], readAt=r['read_at']) for r in rows[:20]],
                             'nextCursor': str(rows[19]['id']) if len(rows) > 20 else None, 'unreadCount': unread})
         return True

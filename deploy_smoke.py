@@ -80,6 +80,8 @@ def check(api_url, admin_url, revision, mode, admin_dir=None, *, mobile_release=
                         raise SmokeFailure(name + ': expected JSON object')
                 else:
                     body = raw
+                if status==401 and (set(body)!={'error'} or not isinstance(body['error'],str) or not body['error'].strip()):
+                    raise SmokeFailure(name + ': invalid authentication error body')
                 checks.append({'check': name, 'status': status,
                                'durationMs': round((time.monotonic() - started) * 1000, 2)})
                 return body, response.headers
@@ -110,11 +112,18 @@ def check(api_url, admin_url, revision, mode, admin_dir=None, *, mobile_release=
     rejected, _ = fetch('excess-query-fields', api_url, '/api/health?'+'&'.join(['q=1']*33), status=400)
     if set(rejected) != {'error'} or not isinstance(rejected['error'],str):
         raise SmokeFailure('Unexpected query limit response')
-    for service in ('boarding', 'homeVisit', 'personal'):
+    for service_index,service in enumerate(('boarding', 'homeVisit', 'personal')):
         data, _ = fetch('catalog-' + service, api_url, '/api/sitters?service=' + service + '&pet=cat')
         if (not isinstance(data.get('sitters'), list) or 'nextCursor' not in data
                 or not isinstance(data.get('asOf'), str)):
             raise SmokeFailure('Invalid catalog page')
+        for item in data['sitters']:
+            if (not isinstance(item,dict) or type(item.get('service')) is not int
+                    or item['service']!=service_index or not isinstance(item.get('pets'),list)
+                    or 'Mushuk' not in item['pets']):
+                raise SmokeFailure('Catalog filters differ from requested service or pet')
+            if mode=='production' and item.get('testOnly') is not False:
+                raise SmokeFailure('Production catalog contains an unconfirmed or test listing')
     for name, path in (('profile', '/api/me'), ('bookings', '/api/bookings'),
                        ('notifications', '/api/notifications'), ('profile-export','/api/me/profile-export'),
                        ('wallet','/api/wallet'),('conversations','/api/conversations'),('support','/api/support')):

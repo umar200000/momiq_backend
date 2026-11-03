@@ -10,6 +10,42 @@ import wallet
 
 
 class RestoreDrillTests(unittest.TestCase):
+    def test_empty_legacy_wal_and_shm_are_allowed_but_journal_data_is_not(self):
+        with TemporaryDirectory() as tmp:
+            source, bundle = Path(tmp)/'source', Path(tmp)/'bundle'
+            with patch.object(server,'DATA',source), patch.object(server,'ENVIRONMENT','test'):
+                server.setup()
+                backup_bundle.create(source,bundle)
+            (bundle/'momiq.sqlite3-wal').touch()
+            (bundle/'momiq.sqlite3-shm').write_bytes(bytes(32768))
+            self.assertEqual(backup_bundle.verify(bundle)['database'],'ok')
+            (bundle/'momiq.sqlite3-journal').write_bytes(b'old page')
+            with self.assertRaisesRegex(ValueError,'sidecar'):
+                backup_bundle.verify(bundle)
+            self.assertEqual((bundle/'momiq.sqlite3-journal').read_bytes(),b'old page')
+
+    def test_uncheckpointed_backup_cannot_pass_verification_or_restore(self):
+        from contextlib import closing
+        import sqlite3
+        with TemporaryDirectory() as tmp:
+            source, bundle = Path(tmp)/'source', Path(tmp)/'bundle'
+            with patch.object(server,'DATA',source), patch.object(server,'ENVIRONMENT','test'):
+                server.setup()
+                backup_bundle.create(source,bundle)
+            database = bundle/'momiq.sqlite3'
+            before = backup_bundle.digest(database)
+            with closing(sqlite3.connect(database)) as writer:
+                self.assertEqual(writer.execute('PRAGMA journal_mode=WAL').fetchone()[0],'wal')
+                writer.execute("INSERT INTO runtime_metadata VALUES('test_after_backup','committed')")
+                writer.commit()
+                self.assertGreater((bundle/'momiq.sqlite3-wal').stat().st_size,0)
+                self.assertEqual(backup_bundle.digest(database),before)
+                with self.assertRaisesRegex(ValueError,'sidecar'):
+                    backup_bundle.verify(bundle)
+                with self.assertRaisesRegex(ValueError,'sidecar'):
+                    restore_drill.rehearse(bundle,'test')
+                self.assertEqual(writer.execute("SELECT value FROM runtime_metadata WHERE key='test_after_backup'").fetchone()[0],'committed')
+
     def test_old_admin_and_client_sessions_are_invalidated_only_on_the_rehearsal_copy(self):
         from contextlib import closing
         import sqlite3

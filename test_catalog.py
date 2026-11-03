@@ -148,6 +148,32 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(con.execute("SELECT COUNT(*) FROM notifications WHERE user_id='abc'").fetchone()[0],1)
         self.assertEqual(len(self.public()),1)
 
+    def test_listing_receipts_keep_their_own_committed_revision(self):
+        receipts = {}
+        original_commit = server.ClosingConnection.commit
+        def after_commit(connection):
+            original_commit(connection)
+            # Each following writer finishes before the previous call returns.
+            if pending:
+                name, write = pending.pop(0)
+                receipts[name] = write()
+
+        def archive():
+            with server.db() as con:
+                return catalog.archive(con, 'abc', 'boarding', 2)
+
+        pending = [('review', self.review), ('archive', archive),
+                   ('reopen', lambda: self.save(revision=3))]
+        with patch.object(server.ClosingConnection, 'commit', after_commit):
+            receipts['save'] = self.save()
+        for revision, (name, status) in enumerate([
+                ('save', 'pending'), ('review', 'approved'),
+                ('archive', 'archived'), ('reopen', 'pending')], start=1):
+            with self.subTest(name=name):
+                self.assertEqual(receipts[name]['_revision'], revision)
+                self.assertEqual(receipts[name]['moderation']['boarding']['status'], status)
+                self.assertEqual(receipts[name]['listings'][0]['active'], name != 'archive')
+
     def test_edits_invalidate_approval_but_notifications_do_not(self):
         self.save();self.review()
         after=copy.deepcopy(self.account);after['notifications']={'push':False}

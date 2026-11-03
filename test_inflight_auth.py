@@ -146,6 +146,40 @@ class InflightAuthorizationTests(unittest.TestCase):
         self.assertEqual(self.send('/api/me','GET'), (200,initial))
         self.assertEqual(self.send('/api/admin/me','GET',admin=True)[0], 200)
 
+    def test_slow_json_reader_does_not_hold_catalog_or_account_snapshots(self):
+        with server.db() as setup:
+            self.assertEqual(setup.execute('PRAGMA journal_mode=DELETE').fetchone()[0], 'delete')
+        original_reply = server.Handler.reply
+        locked = []
+        def probe(handler,status,body,cookie=None):
+            with server.db() as writer:
+                writer.execute('PRAGMA busy_timeout=0')
+                writer.execute("INSERT OR REPLACE INTO runtime_metadata VALUES('test_reader',?)",(handler.path,))
+                try:
+                    writer.commit()
+                except sqlite3.OperationalError as error:
+                    locked.append((handler.path,str(error)))
+                    writer.rollback()
+            original_reply(handler,status,body,cookie)
+
+        with patch.object(server.Handler,'reply',probe):
+            for path in ('/api/sitters','/api/sitters?favorites=1','/api/notifications',
+                         '/api/me/dashboard','/api/me/profile-export','/api/me/listings'):
+                self.assertEqual(self.send(path,'GET',client='abc')[0],200)
+        self.assertEqual(locked,[])
+
+    def test_dashboard_uses_role_from_same_snapshot_as_private_data(self):
+        original = server.ClosingConnection.execute
+        def lose_role(connection,sql,parameters=()):
+            if sql=='BEGIN' and connection.request_authorizer:
+                with server.db() as writer:
+                    writer.execute("DELETE FROM user_roles WHERE user_id='abc' AND role='sitter'")
+            return original(connection,sql,parameters)
+        with patch.object(server.ClosingConnection,'execute',lose_role):
+            status,body = self.send('/api/me/dashboard','GET',client='abc')
+        self.assertEqual(status,403)
+        self.assertEqual(set(body),{'error'})
+
     def test_revoked_session_cannot_read_account_or_message_history(self):
         original = server.Handler.auth
         def revoke_after_first_check(handler, con, role='client', *, bind=True):

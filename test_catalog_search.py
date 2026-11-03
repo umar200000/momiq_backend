@@ -80,6 +80,30 @@ class SearchHttpTests(unittest.TestCase):
         self.req('/api/sitters?after=bogus',status=400)
         self.req('/api/sitters?after=W10',status=400)
 
+    def test_dated_catalog_batches_capacity_and_fills_page_past_a_busy_sitter(self):
+        self.clones()
+        booking = http_fixtures.BookingHttpTests.quote(self)
+        booking = self.req('/api/bookings','POST',{'quoteId':booking['id'],'requestId':'1'*32})
+        self.req('/api/bookings/'+booking['id']+'/accept','POST',
+                 {'revision':0,'requestId':'2'*32},user='abc')
+        params = {name:[self.payload[name]] for name in ('startsAt','endsAt')}
+        with server.db() as con:
+            statements = []
+            con.set_trace_callback(statements.append)
+            first = catalog_search.page(con,'local',params)
+            self.assertEqual(len(first['sitters']),20)
+            self.assertEqual(first['sitters'][0]['id'],'abc:boarding')
+            self.assertEqual(first['sitters'][0]['freeCapacity'],1)
+            self.assertTrue(all(item['freeCapacity']==2 for item in first['sitters'][1:]))
+            self.assertEqual(sum('FROM bookings ' in sql for sql in statements),2)
+            params['animals'] = ['2']
+            page = catalog_search.page(con,'local',params)
+            self.assertEqual(len(page['sitters']),20)
+            tail = catalog_search.page(con,'local',{**params,'after':[page['nextCursor']]})
+            ids = [item['id'] for item in page['sitters'] + tail['sitters']]
+            self.assertEqual(ids,[f'sitter-{n:02}:boarding' for n in range(24)])
+            self.assertIsNone(tail['nextCursor'])
+
     def test_distance_cursor_rejects_oversized_or_nonfinite_numbers_over_http(self):
         params = {'lat': ['41.1'], 'lon': ['69.1']}
         digest = catalog_search.options(params)[2]
@@ -202,6 +226,19 @@ class SearchCapacityTests(unittest.TestCase):
         self.act(accepted,'cancel',user='customer')
         self.assertEqual(self.search(animals=2)[0]['freeCapacity'],2)
 
+    def test_overdue_owner_does_not_hide_other_owners_in_same_batch(self):
+        import booking_capacity
+        booking = self.act(self.request())
+        booking = self.act(booking,'start','abc',now=self.start)
+        self.act(booking,'start','customer',now=self.start)
+        with server.db() as con:
+            con.execute('BEGIN')
+            def batch(exclude=''):
+                return booking_capacity.occupancies(con,('abc','second','abc'),
+                    self.end,self.end+timedelta(days=1),self.end,exclude=exclude)
+            self.assertEqual(batch(),{'abc':None,'second':(set(),0)})
+            self.assertEqual(batch(booking['id']),{'abc':(set(),0),'second':(set(),0)})
+
     def test_capacity_uses_peak_not_sum_and_cross_service_block(self):
         first=self.act(self.request(self.quote(end=self.start+timedelta(days=1))))
         self.act(self.request(self.quote(user='other',start=self.start+timedelta(days=1)),user='other'))
@@ -215,7 +252,7 @@ class SearchCapacityTests(unittest.TestCase):
             con.execute("UPDATE listings SET data=? WHERE user_id='abc'",(json.dumps(raw),))
             con.execute("INSERT INTO listing_moderation(user_id,service,status,approved_hash,test_only,public_media) SELECT user_id,'personal',status,?,test_only,public_media FROM listing_moderation WHERE user_id='abc' AND service='boarding'",(catalog.fingerprint(account,raw['housing'],personal),))
         import booking_capacity
-        with patch.object(booking_capacity,'occupancy',wraps=booking_capacity.occupancy) as read_usage:
+        with patch.object(booking_capacity,'occupancies',wraps=booking_capacity.occupancies) as read_usage:
             self.assertEqual([s['service'] for s in self.search()],[0])
             self.assertEqual(read_usage.call_count,1)
         self.assertEqual(first['status'],'accepted')
