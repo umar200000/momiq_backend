@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("MOMIQ_DATA_DIR", ROOT / "data"))
 ADMIN = Path(os.environ.get("MOMIQ_ADMIN_DIR", ROOT.parent / "momiq_admin_panel"))
 PRODUCTION = os.environ.get("MOMIQ_ENV") == "production"
-DEV_LOGIN = not PRODUCTION or os.environ.get("MOMIQ_ALLOW_TEST_LOGIN") == "1"
+DEV_LOGIN = (os.environ.get("MOMIQ_ENV", "local") in {"local", "test"}
+             and os.environ.get("MOMIQ_ALLOW_TEST_LOGIN", "1") == "1")
 HOST = os.environ.get("MOMIQ_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MOMIQ_PORT", "8080"))
 

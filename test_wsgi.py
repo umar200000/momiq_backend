@@ -8,6 +8,28 @@ import server
 from wsgi import application
 
 class ProductionTests(unittest.TestCase):
+    def test_shared_login_is_confined_to_local_and_test_processes(self):
+        import os
+        from pathlib import Path
+        import subprocess
+        import sys
+        import tempfile
+        probe = """
+import json
+from test_wsgi import ProductionTests
+client = ProductionTests()
+health = json.loads(client.call('/api/health')['body'])
+response = client.call('/api/auth/login','POST',{'phone':'998900000001','code':'111111'})
+print(json.dumps([health['testLogin'], response['status']]))
+"""
+        for mode,flag,enabled in [('production','1',False),('production','0',False),
+                                  ('local','1',True),('test','1',True),('local','0',False)]:
+            with self.subTest(mode=mode,flag=flag), tempfile.TemporaryDirectory() as tmp:
+                env = dict(os.environ,MOMIQ_ENV=mode,MOMIQ_ALLOW_TEST_LOGIN=flag,MOMIQ_DATA_DIR=tmp)
+                check = subprocess.run([sys.executable,'-c','import server; server.setup()\n'+probe],
+                                       cwd=Path(__file__).resolve().parent,env=env,capture_output=True,text=True,check=True)
+                self.assertEqual(json.loads(check.stdout.splitlines()[-1]),[enabled,200 if enabled else 503])
+
     def call(self, path, method='GET', data=None, origin=None):
         env = {}; setup_testing_defaults(env)
         raw = json.dumps(data).encode() if data is not None else b''

@@ -22,7 +22,7 @@ Secrets per repository: `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`. Keys cannot open
 
 ## Temporary authentication
 
-By explicit owner request, `MOMIQ_ALLOW_TEST_LOGIN=1` enables the shared code `111111` even with HTTPS. ANY person knowing a phone number can sign in as that account. Use only test accounts/data. This is not a production-ready customer launch. Set the flag to `0` and restart `momiq` to close client sign-in until an SMS provider is implemented. Local development keeps its existing test login. No local users, chats or credentials are migrated to the server.
+The shared code `111111` is accepted only in local and test processes with test login enabled. In production, new client sign-in returns HTTP 503 until an SMS provider is available. Set `MOMIQ_ALLOW_TEST_LOGIN=0` in the production service environment. The application also enforces this boundary if an older installation still has the flag set to 1. The deployment workflow checks that public HTTPS health reports production mode and disabled test login.
 
 ## Operations
 
