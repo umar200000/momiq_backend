@@ -46,4 +46,8 @@ jobs:
           trap 'rm -f ~/.ssh/momiq' EXIT
           ssh -i ~/.ssh/momiq -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 momiq-deploy@95.182.119.218 "$COMMIT_SHA"
       - name: Verify HTTPS
-        run: curl --fail --retry 5 --retry-delay 3 https://api.momiq.net/api/health
+        shell: bash
+        run: |
+          set -o pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 https://api.momiq.net/api/health |
+            python -c 'import json,sys; h=json.load(sys.stdin); sys.exit(0 if h.get("mode")=="production" and h.get("testLogin") is False else "Production login check failed")'
