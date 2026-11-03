@@ -66,14 +66,14 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Joriy bajarish navbati — 2026-11-03**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 81 bajarilgan, 58 ochiq**. Dastlabki 48 ochiq banddan **45 tasi joriy/qisman**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 83 bajarilgan, 56 ochiq**. Dastlabki 48 ochiq banddan **43 tasi joriy/qisman (M019 SMSni kutadi, boshqa bandlar 42 ta)**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
 | Navbat | Bandlar | Hozir davom etadigan ish | Yakunda qoladigan qismi |
 | --- | --- | --- | --- |
 | 1 | M102, M105, M124 | Sessiya/rol almashishi, kech javob, parallel saqlash, offline/retry va timeout oqimlarini kod hamda izolyatsiyalangan testlarda tekshirish. | Haqiqiy qurilma/lifecycle va to‘liq hosted ruxsat sinovi. |
-| 2 | M103, M097 (M101 yopildi) | API shartnomasi va endpoint qamrovi, input/upload chegaralari, sabab/audit va maxfiy ma’lumot chiqishini tekshirish. | Audit retention siyosati va hosted qamrovni qabul qilish. |
+| 2 | M097 (M101 va M103 yopildi) | API shartnomasi va endpoint qamrovi, input/upload chegaralari, sabab/audit va maxfiy ma’lumot chiqishini tekshirish. | Audit retention siyosati va hosted qamrovni qabul qilish. |
 | 3 | M090 | Mavjud support/moderatsiyadan foydalanib e’lon/profil/sharh/media shikoyati va apellyatsiya qamrovini tugatish; ruxsat va dalil testlari. | Operatsion mas’ul va haqiqiy navbat qabuli. |
 | 4 | M123 | Uch tildagi matn, xato holati, kattalashtirilgan shrift/kichik ekran va accessibility widget tekshiruvlari. | Android/iPhone screen reader va haqiqiy klaviatura/ruxsat tekshiruvlari. |
 | 5 | M014 (M012 yopildi) | Izolyatsiyalangan test fixture/seed va test provider chegaralarini inventarizatsiya qilish; xavfsiz takrorlash tekshiruvlari. | Live bronni yaratib/qabul qilib bloklangan sinovni aylanib o‘tish yo‘q; SMS/push haqiqiy provayderlari keyin. |
@@ -82,13 +82,18 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 | 8 | M078, M139 | Video/chek/QR picker, progress, cancel/retry, process-death qoralamasi va maxfiylikning avtomatlashtiriladigan qismlari. | APK install bloklangan; native kamera/playback/haqiqiy iPhone qabul sinovi oxirida. |
 | 9 | M081, M082, M083, M084, M085 | In-app notice, afzallik, event/dedupe va sahifaga o‘tish qamrovini tekshirish; providerga bog‘liq bo‘lmagan kamchiliklarni tuzatish. | Push loyihasi/kalitlar, APNs, OS token delivery va haqiqiy qurilma sinovi. |
 | 10 | M092, M099, M100, M104, M107 | Operator huquqlari, bazaning concurrency dalillari, migration/backup mosligi, media/secrets inventari va konfiguratsiya tekshiruvlari. | MFA recovery siyosati, saqlash joyi/credential/budjet, eski hosted ma’lumotni ko‘chirish va kalit rotatsiyasi. |
-| 11 | M106, M109, M110, M111, M112, M113, M114, M115, M116, M117 | Release juftligi, CI, read-only smoke, HTTPS/origin/rate limit, backup/recovery va monitoring vositalari hamda yo‘riqnomalarining tekshiriladigan qismlari. | Root bootstrap, haqiqiy staging/promotion, offsite encryption/storage, tashqi alert egasi va real recovery mashqi. |
+| 11 | M106, M109, M110, M111, M113, M114, M115, M116, M117 (M112 yopildi) | Release juftligi, CI, read-only smoke, HTTPS/origin/rate limit, backup/recovery va monitoring vositalari hamda yo‘riqnomalarining tekshiriladigan qismlari. | Root bootstrap, haqiqiy staging/promotion, offsite encryption/storage, tashqi alert egasi va real recovery mashqi. |
 | 12 | M122, M125 | Haqiqiy imkoniyatlarga mos review/material inventari, versiya/artifact/symbol/pilot tayyorgarligi. | Signed build, store hisoblari, haqiqiy screenshot va public support/privacy/delete manzillari. |
 | 13 | M128, M129, M130, M131 (M133 yopildi) | Izolyatsiyalangan nosozlik/parallel testlar, API va dependency qamrovi; hujjat/placeholder cheklovlari va dalillarni yangilash. | M055ga bog‘langan live E2E, ikki qurilma, hosted/provider uzilishi va pilot qabul sinovlari. |
 
 **To‘liq bajarildi** belgisi kod va kerakli tekshiruvlar tugagandagina qo‘yiladi. Har ichki bosqich dalili bajarilish jurnaliga qo‘shiladi. Staging yoki providerga bog‘liq yakuniy tekshiruv qolsa band ochiq turadi; uning boshqa mustaqil qismi davom etadi.
 
 **Bajarilish jurnali — 2026-10-27**
+
+### 2026-11-03. M103 va M112 production serverida yopildi
+
+- [x] **M103.** Amaldagi backend URL parametrlarini WSGI’dan tekshiruvchiga yetkazadi, JSON hajmi, tuzilishi va media turini cheklaydi, suratning haqiqiy formatini, o‘lchami va piksellarini dekodlashda tekshiradi. Ommaviy HTTPS sinovida 32 parametr 200, 33 parametr 400 qaytardi. Uzun URL proksidan 400, handlerning alohida chegarasida 414 qaytdi. API va admin domenlariga hajm sarlavhasi bilan yuborilgan 34 MiB so‘rovlar 413, noto‘g‘ri JSON 400 va media turi 415 qaytardi. Relizdagi 30 ta test o‘tdi. Kengaytirilgan API tarmog‘ida JSON, rasm, video, e’lon va smoke bo‘yicha yana 39 ta test o‘tdi. Video endpoint amaldagi eski server reliziga kirmaydi.
+- [x] **M112.** GitHub Actions `main` dagi `fe3bf8093905dae650942e01847fe8c74f532ce3` ni serverga o‘rnatdi. API va admin domenlarida 15 ta o‘qish tekshiruvi CI ichida va alohida qayta o‘tdi. Health va readiness aniq commitni qaytardi. Readiness ishlayotgan SQLite bazasini faqat o‘qish rejimida tekshirdi. Katalog va admin fayllari ochildi, anonim maxfiy so‘rovlar 401, ikki domen chegarasi 404 qaytardi. Serverda M019 test kirishi yoqilgan. Birinchi deployda tekshiruv skripti alohida runnerda topilmadi. Yakuniy relizga checkout qo‘shildi va tarmoq qatlami uzun URL’ni ilovadan oldin rad etishi hisobga olindi. [Yakuniy test va deploy](https://github.com/umar200000/momiq_backend/actions/runs/41646251673)
 
 ### 2026-11-03. M019 relizga tayyorlandi
 
@@ -926,7 +931,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [ ] M100 — Versiyalangan migratsiya va eski ma’lumotni ko‘chirishni joriy etish: backup, dry-run, idempotency va moslik; JSON/draft/demo yozuvlari real hisoblarni yo‘qotmasdan ko‘chadi.
 - [x] M101 — API shartnomasini hujjatlashtirish va tekshirish: request/response, status/xato kodi, null, pagination, vaqt va valyuta; eski ilova versiyasiga moslik siyosati mavjud.
 - [ ] M102 — Har obyekt va amal bo‘yicha ruxsatni tekshirish: boshqa hisob, boshqa rol, bloklangan/o‘chgan hisob, o‘zgartirilgan ID va qo‘shimcha JSON maydoni orqali huquq oshmaydi.
-- [ ] M103 — Barcha kirishlar va uploadni chegaralash: uzunlik, son, sana, koordinata, MIME/haqiqiy format, fayl/piksel/video hajmi; zararli yoki ortiqcha resurs talab qiluvchi fayl rad etiladi.
+- [x] M103 — Barcha kirishlar va uploadni chegaralash: uzunlik, son, sana, koordinata, MIME/haqiqiy format, fayl/piksel/video hajmi; zararli yoki ortiqcha resurs talab qiluvchi fayl rad etiladi.
 - [ ] M104 — Rasmlar/videolarni object storage’ga ko‘chirish: bazada metadata, thumbnail, maxfiy media uchun ruxsatli URL, EXIF maxfiyligi, yetim fayl tozalash; DB javobi Base64 bilan shishmaydi.
 - [ ] M105 — Timeout, retry va background ishlarni ishonchli qilish: xavfsiz retry faqat mos amallarda, idempotency, rejalangan ishlarni deduplikatsiya va server restartidan keyingi davom ettirish.
 - [ ] M106 — HTTPS, cookie, CSRF/origin, XSS va rate limit himoyalarini tekshirish: reverse proxy va real domenlarda sinov; admin va mijoz chegarasi saqlanadi, ishlamayotgan cheklov bordek hisoblanmaydi.
@@ -938,7 +943,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [ ] M109 — Mavjud CI/CD’ni real holati bilan tekshirish: main himoyasi, majburiy checks, cheklangan deploy kaliti, aniq SHA va concurrency; backend/admin versiyalari bir-biriga mos deploy qilinadi.
 - [ ] M110 — Stagingdan productionga chiqarish tartibini belgilash: tekshirilgan commit/artifact, avtomatik deploy triggeri va muhit secretlari; yarim tayyor feature flag orqali yashiriladi yoki alohida branchda qoladi.
 - [ ] M111 — Migratsiya/deploy ketma-ketligini xavfsiz qilish: eski-yangi kodning vaqtincha birga ishlashi, lock va backup; kod rollback’i sxemani o‘zi qaytarmasligi hisobga olinadi.
-- [ ] M112 — Deploydan keyingi smoke tekshiruvini kengaytirish: health’dan tashqari DB, asosiy o‘qish, auth chegaralari va release SHA; test yozuvi kerak bo‘lsa izolyatsiyalangan va belgilangan bo‘ladi.
+- [x] M112 — Deploydan keyingi smoke tekshiruvini kengaytirish: health’dan tashqari DB, asosiy o‘qish, auth chegaralari va release SHA; test yozuvi kerak bo‘lsa izolyatsiyalangan va belgilangan bo‘ladi.
 - [ ] M113 — Jarayon va infratuzilmani tekshirish: service restart, proxy timeout/body limit, firewall, HTTPS yangilanishi va filesystem huquqlari; nginx/systemd/bootstrap o‘zgarishi oddiy push bilan o‘rnatilmasligi hisobga olinadi.
 - [ ] M114 — Alohida joydagi backupni sozlash: DB va media uchun shifrlash, retention, kirish cheklovi, backup yoshi/hajmi ogohlantirishi; shu server yo‘qolsa nusxa saqlanib qoladi.
 - [ ] M115 — Tiklash va rollback mashqini bajarish: toza muhitda DB+media mos tiklanadi, belgilangan vaqt/yo‘qotish chegarasi o‘lchanadi; to‘lov va o‘chirilgan hisob holatlari qayta tekshiriladi.

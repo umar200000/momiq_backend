@@ -35,14 +35,14 @@ Manba skani `lib/**/*.dart`, runtime Python modullari va admin JavaScript’ida 
 
 2026-11-03. Sana bo‘yicha katalog bandlikni guruhlab oladi. 100 faol mijozli ikki juft lokal sinovda p95 pasaydi. E’lon javoblari o‘z versiyasiga bog‘landi, oltita o‘qish yo‘lida javob yuborilayotganda baza band bo‘lib qolishi tuzatildi. Izolyatsiyalangan reliz tekshiruvi noto‘g‘ri katalog satri va 401 javobiga qo‘shilgan maxfiy maydonni aniqlaydi. Tiklash sinovi asosiy faylga qo‘shilmay qolgan SQLite jurnalini rad etadi. Ushbu bosqichlar va o‘lchovlar asosiy rejaning bajarilish jurnalida belgilandi.
 
-2026-11-03. M133 bo‘yicha hujjat auditi shu branchga nisbatan yakunlandi. Quyida qolgan 45 ta joriy band bittadan asosiy bog‘liqlik bo‘yicha guruhlangan. Har bandning batafsil qabul sharti pastdagi jadvalda. M008 va avvaldan oxiriga ajratilgan 12 band alohida hisoblanadi.
+2026-11-03. M133 bo‘yicha hujjat auditi shu branchga nisbatan yakunlandi. M103 va M112 serverda yopilgach, quyida qolgan 43 ta joriy band bittadan asosiy bog‘liqlik bo‘yicha guruhlangan. Har bandning batafsil qabul sharti pastdagi jadvalda. M008 va avvaldan oxiriga ajratilgan 12 band alohida hisoblanadi.
 
 | To‘liq yopish uchun kerak | Bandlar |
 | --- | --- |
 | Tasdiqlangan Toshkent shahri va viloyati geometriyasi, xarita kaliti yoki kvotasi | M001, M029, M042 |
 | Provayder loyihasi, tashqi xabarni qurilmada olish va OS ruxsatlari | M014, M081, M082, M083, M084, M085 |
 | Biznes egasi, moliya mutaxassisi yoki operator qarori, saqlash, MFA yoki litsenziya shartlari | M024, M066, M090, M092, M097, M107, M108 |
-| Server konfiguratsiyasi, eski baza, vakolatli deploy yoki hosted yuklama va uzilish mashqi | M007, M009, M019, M099, M100, M102, M103, M105, M106, M109, M110, M111, M112, M113, M130 |
+| Server konfiguratsiyasi, eski baza, vakolatli deploy yoki hosted yuklama va uzilish mashqi | M007, M009, M019, M099, M100, M102, M105, M106, M109, M110, M111, M113, M130 |
 | Tashqi storage, backup va tiklash, monitoring manzili yoki amaliy navbatchilik | M104, M114, M115, M116, M117 |
 | Haqiqiy qurilma, ikkala platformadagi oqimlar yoki native media | M078, M123, M124, M128, M129, M131, M139 |
 | Store manzillari, review kirishi, imzolangan paket yoki pilot guruhi | M122, M125 |
@@ -78,7 +78,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M100 | Tiklangan mustaqil bazaning muhiti va schema migratsiya checksumlari tekshirildi. | Eski hosted ma’lumotlar bilan migratsiya dry-run va qabul. |
 | M101 | Yopildi. 136 usul va yo‘l sinov dalili bilan hujjatlashtirildi. To‘rtta mobil versiyada yetti payload turi va begona murojaat identifikatorini rad etish qayta tekshirildi. | [API usullari va tekshiruv buyrug‘i](API_CONTRACT.md#http-method-and-route-index). Hosted smoke M112 da kuzatiladi. |
 | M102 | Profil, eski yozishmalar, operator va enaganing top-up tafsilotida sessiya o‘qish tranzaksiyasida qayta tekshirildi. Noto‘g‘ri sessiya, boshqa qaror va takrorlangan credential rad etildi. 37 ta maxfiy o‘qish yo‘li sessiyasiz va yaroqsiz token bilan tekshirildi. Eski rol tugmasi va sessiya tiklanishidagi almashuv ikkala hisob uchun ham POST yubormadi. | Hamma obyekt va rol bo‘yicha hosted qabul hamda haqiqiy qurilmada sessiya almashishi. |
-| M103 | Barcha 136 usul/yo‘lda manzil uzunligi va query soni, JSON kengligi/chuqurligi, rasm, chek va videoni rad etish tekshirildi. API va admin domenlarida 32 MiB dan ortiq hajmni proxy qaytardi. | Production API 33 maydonli query uchun hozir 200 bermoqda. Yangi reliz chiqqach 400 va qolgan reliz smoke natijalari tasdiqlanishi kerak. |
+| M103 | URL, JSON va rasm chegaralari relizga chiqarildi. Serverda 32/33 parametr, uzun URL, katta hajm, JSON va media turi tekshirildi. | Yopildi. Production dalili asosiy bajarilish jurnalida. |
 | M104 | Lokal private media, lease bilan himoyalangan vaqtinchalik fayllar va yetim derivativlar haqiqiy process-exit bilan tekshirildi. | Object storage provayderi, bucket, kalitlar, migratsiya va yetim obyektlarni tozalash. |
 | M105 | Profil versiyasi to‘qnashgach enaga server nusxasini qayta ochib yangi versiya bilan saqlashi tekshirildi. Noaniq chek takrori asl dalilni saqlaydi. Kredit va tuzatish process-exitdan keyin qayta tekshirildi. | Hosted worker/service restart va tashqi xizmat uzilishi qabuli. |
 | M106 | Ochiq domenlarda anonim hisob/admin hamda begona origin o‘qishlari rad etildi. | Haqiqiy Nginx/Gunicorn va TLS bilan cookie/CSRF/rate-limit lokal Linux’da tekshirildi. Reliz domenida hosted qabul stagingdan keyin. |
@@ -87,7 +87,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Qolgan qism root deploy skriptini o‘rnatish va hosted juftlikni tasdiqlash. |
 | M110 | Draft PR va testlangan backend/admin juftligi mavjud. | Alohida stagingdan aynan sinovdan o‘tgan artefaktni productionga chiqarish. |
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
-| M112 | Preview’da schema 28 va 60 jadval mazmuni tekshirildi. Joriy release smoke bir originda 27, ajratilgan originlarda 29 GET bajaradi. Sxema, mobil API imkoniyatlari, katalog filtrlari va maxfiy yo‘llar javobi tekshiriladi. | Yangi release SHA bilan haqiqiy domenlar orqali to‘liq smoke. |
+| M112 | Health va SQLite readiness serverdagi commit SHA’sini tasdiqladi. API va admin domenida 15 ta GET o‘tdi. | Yopildi. [Production deploy](https://github.com/umar200000/momiq_backend/actions/runs/41646251673). |
 | M113 | Uchta deploy/bootstrap skriptining har biri Bash sintaksis tekshiruvidan o‘tkaziladi. | Hostdagi systemd/nginx, firewall, TLS yangilanishi va filesystem huquqlari. |
 | M114 | Nusxani shifrlash, alohida ulangan diskka uzatish, qayta o‘qish va dublikatsiz retry sintetik ma’lumot bilan tekshirildi. | Haqiqiy offsite manzil, kalit egasi, storage retention va tashqi signal. |
 | M115 | Sinov diskidan qaytarilgan nusxada hamyonlar, tushum va bron komissiyalari yarashtirildi. Tiklashning vaqt chegarasi oshishi alohida exit kod beradi. | Haqiqiy offsite nusxa bilan RPO/RTO, o‘chirilgan hisoblar va operator mashqi. |
