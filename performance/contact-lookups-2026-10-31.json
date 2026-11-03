@@ -1,0 +1,30 @@
+{
+  "baseline": "faa420e",
+  "scope": "Isolated SQLite contact lookups, same warm connection; 50 alternating pairs per operation. Excludes HTTP, mobile network and writes.",
+  "accounts": 1000,
+  "sitters": 100,
+  "approvedListings": 167,
+  "bookings": 0,
+  "results": {
+    "checkSixFavoriteIds": {
+      "before": {
+        "medianMs": 1.859,
+        "p95Ms": 2.134
+      },
+      "after": {
+        "medianMs": 0.047,
+        "p95Ms": 0.081
+      }
+    },
+    "firstChatListingVisible": {
+      "before": {
+        "medianMs": 6.525,
+        "p95Ms": 9.356
+      },
+      "after": {
+        "medianMs": 0.108,
+        "p95Ms": 0.198
+      }
+    }
+  }
+}

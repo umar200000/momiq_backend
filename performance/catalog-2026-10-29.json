@@ -1,0 +1,1061 @@
+{
+  "scope": "Isolated synthetic loopback; single paired observation on a shared Windows workstation; no production traffic",
+  "baselineCommit": "4ace241",
+  "catalogSourceSha256": "a1e536ec025cd01ec18ad71016bac014b72a95aa0d39bd450cc129f633b75e4a",
+  "loadToolSourceSha256": "51b43da6f1b8f2f50feca477ff5916969b5fa7475cf5a381fa7397aa83d5aef0",
+  "comparison": "Both paced runs use measurementVersion 2: per-customer direct HTTP openers created before timing; no HTTP warmup. Initial means first cycle, repeat means later cycles. Handler excludes client and accept queue delays. Old version1 timings include lazy ambient proxy/client initialization and are not comparable speedup evidence.",
+  "baselinePaced": {
+    "createdAt": "2026-10-29T06:54:08.940654+00:00",
+    "accounts": 1000,
+    "activeCustomers": 100,
+    "sitters": 100,
+    "listings": 300,
+    "cycles": null,
+    "mode": "paced_duration",
+    "durationSeconds": 120,
+    "thinkMs": 1000,
+    "measurementVersion": 2,
+    "clientTransport": "per-customer direct loopback opener prepared before timing; no HTTP warmup",
+    "transport": "Windows/local stdlib ThreadingHTTPServer",
+    "python": "3.12.10",
+    "logicalCpus": 16,
+    "elapsedSeconds": 120.5,
+    "requests": 11858,
+    "listenBacklog": 128,
+    "expectedRequests": null,
+    "requestsPerSecond": 98.41,
+    "endpoints": {
+      "catalog": {
+        "count": 1700,
+        "p50Ms": 7.62,
+        "p95Ms": 239.15,
+        "p99Ms": 493.18,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 361.95,
+            "p95Ms": 520.21,
+            "p99Ms": 524.98
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 7.48,
+            "p95Ms": 23.84,
+            "p99Ms": 33.7
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 6.35,
+          "p95Ms": 130.02,
+          "p99Ms": 232.62
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 196.9,
+            "p95Ms": 260.77,
+            "p99Ms": 273.92
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 6.27,
+            "p95Ms": 15.89,
+            "p99Ms": 23.59
+          }
+        }
+      },
+      "profile": {
+        "count": 1700,
+        "p50Ms": 4.72,
+        "p95Ms": 18.22,
+        "p99Ms": 29.65,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.28,
+            "p95Ms": 16.92,
+            "p99Ms": 21.14
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.74,
+            "p95Ms": 18.22,
+            "p99Ms": 29.65
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 3.7,
+          "p95Ms": 13.85,
+          "p99Ms": 19.96
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 3.75,
+            "p95Ms": 17.46,
+            "p99Ms": 22.22
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 3.7,
+            "p95Ms": 13.12,
+            "p99Ms": 19.68
+          }
+        }
+      },
+      "bookings": {
+        "count": 1700,
+        "p50Ms": 4.91,
+        "p95Ms": 18.43,
+        "p99Ms": 27.41,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.82,
+            "p95Ms": 16.5,
+            "p99Ms": 27.32
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.91,
+            "p95Ms": 18.45,
+            "p99Ms": 27.41
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 3.93,
+          "p95Ms": 13.86,
+          "p99Ms": 19.26
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.09,
+            "p95Ms": 13.51,
+            "p99Ms": 23.21
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 3.92,
+            "p95Ms": 13.86,
+            "p99Ms": 19.2
+          }
+        }
+      },
+      "inbox": {
+        "count": 1700,
+        "p50Ms": 5.1,
+        "p95Ms": 18.6,
+        "p99Ms": 25.84,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.57,
+            "p95Ms": 13.75,
+            "p99Ms": 30.54
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 5.12,
+            "p95Ms": 18.6,
+            "p99Ms": 25.64
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 4.1,
+          "p95Ms": 14.7,
+          "p99Ms": 20.51
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 3.95,
+            "p95Ms": 19.47,
+            "p99Ms": 32.83
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.11,
+            "p95Ms": 14.5,
+            "p99Ms": 20.11
+          }
+        }
+      },
+      "notifications": {
+        "count": 1700,
+        "p50Ms": 4.81,
+        "p95Ms": 18.2,
+        "p99Ms": 25.73,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 5.54,
+            "p95Ms": 13.83,
+            "p99Ms": 17.88
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.8,
+            "p95Ms": 18.45,
+            "p99Ms": 25.99
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 3.76,
+          "p95Ms": 13.25,
+          "p99Ms": 19.81
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.72,
+            "p95Ms": 13.9,
+            "p99Ms": 18.01
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 3.74,
+            "p95Ms": 13.24,
+            "p99Ms": 19.81
+          }
+        }
+      },
+      "open_chat": {
+        "count": 1697,
+        "p50Ms": 5.31,
+        "p95Ms": 27.37,
+        "p99Ms": 555.8,
+        "statuses": {
+          "200": 1697
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 29.59,
+            "p95Ms": 792.63,
+            "p99Ms": 1040.44
+          },
+          "repeat": {
+            "count": 1597,
+            "p50Ms": 5.24,
+            "p95Ms": 20.33,
+            "p99Ms": 31.46
+          }
+        },
+        "handlerDuration": {
+          "count": 1697,
+          "p50Ms": 4.19,
+          "p95Ms": 20.14,
+          "p99Ms": 555.29
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 28.56,
+            "p95Ms": 791.68,
+            "p99Ms": 1039.57
+          },
+          "repeat": {
+            "count": 1597,
+            "p50Ms": 4.14,
+            "p95Ms": 17.05,
+            "p99Ms": 27.51
+          }
+        }
+      },
+      "send_chat": {
+        "count": 1661,
+        "p50Ms": 8.75,
+        "p95Ms": 63.86,
+        "p99Ms": 746.01,
+        "statuses": {
+          "200": 1661
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 7.67,
+            "p95Ms": 34.76,
+            "p99Ms": 66.74
+          },
+          "repeat": {
+            "count": 1561,
+            "p50Ms": 8.86,
+            "p95Ms": 64.61,
+            "p99Ms": 751.27
+          }
+        },
+        "handlerDuration": {
+          "count": 1661,
+          "p50Ms": 9.02,
+          "p95Ms": 61.59,
+          "p99Ms": 744.85
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 7.23,
+            "p95Ms": 33.09,
+            "p99Ms": 65.93
+          },
+          "repeat": {
+            "count": 1561,
+            "p50Ms": 9.06,
+            "p95Ms": 63.4,
+            "p99Ms": 749.74
+          }
+        }
+      }
+    },
+    "database": {
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "accounts": 1000,
+      "chats": 100,
+      "messages": 1661,
+      "bookings": 0
+    },
+    "successfulRequests": 11858,
+    "limitations": [
+      "Synthetic local paced duration, time budget checked before each request; in-flight requests may finish after the window.",
+      "Synchronized customer start; no real mobile network. Throughput elapsed includes HTTP shutdown/drain.",
+      "Client timings include transport/accept-queue delay; handler timings exclude them. Initial/repeat refer to each customer cycle.",
+      "Version 2 prepares direct clients outside timing; old lazy ambient-proxy measurements are not like-for-like speedup evidence.",
+      "Pre-issued synthetic sessions: does not benchmark SMS, login or TLS.",
+      "No booking acceptance, payment, video, reverse proxy, Gunicorn or production host traffic.",
+      "This is not proof of production capacity or a service-level guarantee; temporary data is removed."
+    ],
+    "baselineCommit": "4ace241"
+  },
+  "updatedPaced": {
+    "createdAt": "2026-10-29T06:49:49.791894+00:00",
+    "accounts": 1000,
+    "activeCustomers": 100,
+    "sitters": 100,
+    "listings": 300,
+    "cycles": null,
+    "mode": "paced_duration",
+    "durationSeconds": 120,
+    "thinkMs": 1000,
+    "measurementVersion": 2,
+    "clientTransport": "per-customer direct loopback opener prepared before timing; no HTTP warmup",
+    "transport": "Windows/local stdlib ThreadingHTTPServer",
+    "python": "3.12.10",
+    "logicalCpus": 16,
+    "elapsedSeconds": 120.49,
+    "requests": 11899,
+    "listenBacklog": 128,
+    "expectedRequests": null,
+    "requestsPerSecond": 98.76,
+    "endpoints": {
+      "catalog": {
+        "count": 1703,
+        "p50Ms": 7.27,
+        "p95Ms": 110.97,
+        "p99Ms": 422.9,
+        "statuses": {
+          "200": 1703
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 276.87,
+            "p95Ms": 460.78,
+            "p99Ms": 467.85
+          },
+          "repeat": {
+            "count": 1603,
+            "p50Ms": 7.16,
+            "p95Ms": 21.05,
+            "p99Ms": 32.56
+          }
+        },
+        "handlerDuration": {
+          "count": 1703,
+          "p50Ms": 5.99,
+          "p95Ms": 57.93,
+          "p99Ms": 85.18
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 74.09,
+            "p95Ms": 95.96,
+            "p99Ms": 103.98
+          },
+          "repeat": {
+            "count": 1603,
+            "p50Ms": 5.9,
+            "p95Ms": 14.77,
+            "p99Ms": 22.56
+          }
+        }
+      },
+      "profile": {
+        "count": 1700,
+        "p50Ms": 4.76,
+        "p95Ms": 18.37,
+        "p99Ms": 27.98,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.46,
+            "p95Ms": 20.23,
+            "p99Ms": 25.33
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.77,
+            "p95Ms": 18.1,
+            "p99Ms": 27.98
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 3.67,
+          "p95Ms": 13.02,
+          "p99Ms": 19.5
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 3.82,
+            "p95Ms": 17.44,
+            "p99Ms": 20.07
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 3.66,
+            "p95Ms": 12.52,
+            "p99Ms": 19.42
+          }
+        }
+      },
+      "bookings": {
+        "count": 1700,
+        "p50Ms": 4.91,
+        "p95Ms": 19.59,
+        "p99Ms": 26.96,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.61,
+            "p95Ms": 13.31,
+            "p99Ms": 23.81
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.92,
+            "p95Ms": 19.74,
+            "p99Ms": 27.23
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 3.91,
+          "p95Ms": 14.12,
+          "p99Ms": 19.42
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.07,
+            "p95Ms": 7.12,
+            "p99Ms": 14.12
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 3.9,
+            "p95Ms": 14.45,
+            "p99Ms": 19.53
+          }
+        }
+      },
+      "inbox": {
+        "count": 1700,
+        "p50Ms": 5.05,
+        "p95Ms": 20.31,
+        "p99Ms": 28.99,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.6,
+            "p95Ms": 10.35,
+            "p99Ms": 19.87
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 5.07,
+            "p95Ms": 20.89,
+            "p99Ms": 29.2
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 4.05,
+          "p95Ms": 13.31,
+          "p99Ms": 19.75
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 3.99,
+            "p95Ms": 10.81,
+            "p99Ms": 19.26
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.05,
+            "p95Ms": 13.59,
+            "p99Ms": 19.75
+          }
+        }
+      },
+      "notifications": {
+        "count": 1700,
+        "p50Ms": 4.86,
+        "p95Ms": 19.22,
+        "p99Ms": 27.4,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 5.62,
+            "p95Ms": 12.82,
+            "p99Ms": 18.67
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.83,
+            "p95Ms": 19.31,
+            "p99Ms": 27.44
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 3.77,
+          "p95Ms": 11.56,
+          "p99Ms": 19.38
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 4.68,
+            "p95Ms": 12.04,
+            "p99Ms": 17.71
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 3.75,
+            "p95Ms": 11.3,
+            "p99Ms": 19.38
+          }
+        }
+      },
+      "open_chat": {
+        "count": 1700,
+        "p50Ms": 5.33,
+        "p95Ms": 24.97,
+        "p99Ms": 464.8,
+        "statuses": {
+          "200": 1700
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 37.76,
+            "p95Ms": 800.32,
+            "p99Ms": 1115.6
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 5.27,
+            "p95Ms": 18.8,
+            "p99Ms": 28.47
+          }
+        },
+        "handlerDuration": {
+          "count": 1700,
+          "p50Ms": 4.16,
+          "p95Ms": 19.57,
+          "p99Ms": 463.69
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 36.47,
+            "p95Ms": 798.83,
+            "p99Ms": 1114.88
+          },
+          "repeat": {
+            "count": 1600,
+            "p50Ms": 4.11,
+            "p95Ms": 15.32,
+            "p99Ms": 21.17
+          }
+        }
+      },
+      "send_chat": {
+        "count": 1696,
+        "p50Ms": 8.5,
+        "p95Ms": 53.3,
+        "p99Ms": 143.64,
+        "statuses": {
+          "200": 1696
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 7.12,
+            "p95Ms": 26.59,
+            "p99Ms": 37.91
+          },
+          "repeat": {
+            "count": 1596,
+            "p50Ms": 8.6,
+            "p95Ms": 54.2,
+            "p99Ms": 143.68
+          }
+        },
+        "handlerDuration": {
+          "count": 1696,
+          "p50Ms": 8.64,
+          "p95Ms": 51.41,
+          "p99Ms": 141.65
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 6.25,
+            "p95Ms": 19.7,
+            "p99Ms": 38.56
+          },
+          "repeat": {
+            "count": 1596,
+            "p50Ms": 8.69,
+            "p95Ms": 52.5,
+            "p99Ms": 142.3
+          }
+        }
+      }
+    },
+    "database": {
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "accounts": 1000,
+      "chats": 100,
+      "messages": 1696,
+      "bookings": 0
+    },
+    "successfulRequests": 11899,
+    "limitations": [
+      "Synthetic local paced duration, time budget checked before each request; in-flight requests may finish after the window.",
+      "Synchronized customer start; no real mobile network. Throughput elapsed includes HTTP shutdown/drain.",
+      "Client timings include transport/accept-queue delay; handler timings exclude them. Initial/repeat refer to each customer cycle.",
+      "Version 2 prepares direct clients outside timing; old lazy ambient-proxy measurements are not like-for-like speedup evidence.",
+      "Pre-issued synthetic sessions: does not benchmark SMS, login or TLS.",
+      "No booking acceptance, payment, video, reverse proxy, Gunicorn or production host traffic.",
+      "This is not proof of production capacity or a service-level guarantee; temporary data is removed."
+    ]
+  },
+  "updatedBurst": {
+    "createdAt": "2026-10-29T06:44:43.097602+00:00",
+    "accounts": 1000,
+    "activeCustomers": 100,
+    "sitters": 100,
+    "listings": 300,
+    "cycles": 5,
+    "mode": "burst_cycles",
+    "durationSeconds": 0,
+    "thinkMs": 0,
+    "measurementVersion": 2,
+    "clientTransport": "per-customer direct loopback opener prepared before timing; no HTTP warmup",
+    "transport": "Windows/local stdlib ThreadingHTTPServer",
+    "python": "3.12.10",
+    "logicalCpus": 16,
+    "elapsedSeconds": 8.61,
+    "requests": 3500,
+    "listenBacklog": 128,
+    "expectedRequests": 3500,
+    "requestsPerSecond": 406.58,
+    "endpoints": {
+      "catalog": {
+        "count": 500,
+        "p50Ms": 12.0,
+        "p95Ms": 365.72,
+        "p99Ms": 457.16,
+        "statuses": {
+          "200": 500
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 270.23,
+            "p95Ms": 457.16,
+            "p99Ms": 462.07
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 10.38,
+            "p95Ms": 18.25,
+            "p99Ms": 31.18
+          }
+        },
+        "handlerDuration": {
+          "count": 500,
+          "p50Ms": 10.56,
+          "p95Ms": 76.29,
+          "p99Ms": 91.2
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 67.76,
+            "p95Ms": 91.2,
+            "p99Ms": 93.06
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 9.07,
+            "p95Ms": 19.3,
+            "p99Ms": 29.64
+          }
+        }
+      },
+      "profile": {
+        "count": 500,
+        "p50Ms": 7.04,
+        "p95Ms": 334.84,
+        "p99Ms": 393.74,
+        "statuses": {
+          "200": 500
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 258.67,
+            "p95Ms": 393.74,
+            "p99Ms": 408.36
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 6.32,
+            "p95Ms": 10.81,
+            "p99Ms": 18.95
+          }
+        },
+        "handlerDuration": {
+          "count": 500,
+          "p50Ms": 5.58,
+          "p95Ms": 18.82,
+          "p99Ms": 37.26
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 11.04,
+            "p95Ms": 36.72,
+            "p99Ms": 45.14
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 4.86,
+            "p95Ms": 10.53,
+            "p99Ms": 20.82
+          }
+        }
+      },
+      "bookings": {
+        "count": 500,
+        "p50Ms": 7.7,
+        "p95Ms": 180.96,
+        "p99Ms": 194.95,
+        "statuses": {
+          "200": 500
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 164.23,
+            "p95Ms": 194.95,
+            "p99Ms": 197.64
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 6.75,
+            "p95Ms": 12.1,
+            "p99Ms": 19.46
+          }
+        },
+        "handlerDuration": {
+          "count": 500,
+          "p50Ms": 6.8,
+          "p95Ms": 42.87,
+          "p99Ms": 50.94
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 35.78,
+            "p95Ms": 50.94,
+            "p99Ms": 55.46
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 5.98,
+            "p95Ms": 15.0,
+            "p99Ms": 23.31
+          }
+        }
+      },
+      "inbox": {
+        "count": 500,
+        "p50Ms": 8.68,
+        "p95Ms": 200.9,
+        "p99Ms": 206.46,
+        "statuses": {
+          "200": 500
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 196.09,
+            "p95Ms": 206.46,
+            "p99Ms": 218.47
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 7.58,
+            "p95Ms": 16.2,
+            "p99Ms": 30.76
+          }
+        },
+        "handlerDuration": {
+          "count": 500,
+          "p50Ms": 8.37,
+          "p95Ms": 36.75,
+          "p99Ms": 43.93
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 32.27,
+            "p95Ms": 43.55,
+            "p99Ms": 56.55
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 6.99,
+            "p95Ms": 21.06,
+            "p99Ms": 36.91
+          }
+        }
+      },
+      "notifications": {
+        "count": 500,
+        "p50Ms": 7.17,
+        "p95Ms": 174.72,
+        "p99Ms": 191.02,
+        "statuses": {
+          "200": 500
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 166.9,
+            "p95Ms": 191.02,
+            "p99Ms": 226.49
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 6.44,
+            "p95Ms": 12.47,
+            "p99Ms": 24.39
+          }
+        },
+        "handlerDuration": {
+          "count": 500,
+          "p50Ms": 5.96,
+          "p95Ms": 20.5,
+          "p99Ms": 37.11
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 15.67,
+            "p95Ms": 32.58,
+            "p99Ms": 68.77
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 5.29,
+            "p95Ms": 11.56,
+            "p99Ms": 26.11
+          }
+        }
+      },
+      "open_chat": {
+        "count": 500,
+        "p50Ms": 9.29,
+        "p95Ms": 4634.83,
+        "p99Ms": 6310.78,
+        "statuses": {
+          "200": 500
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 2865.14,
+            "p95Ms": 6310.78,
+            "p99Ms": 6749.29
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 8.17,
+            "p95Ms": 16.67,
+            "p99Ms": 27.8
+          }
+        },
+        "handlerDuration": {
+          "count": 500,
+          "p50Ms": 8.76,
+          "p95Ms": 4505.9,
+          "p99Ms": 6178.7
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 2727.48,
+            "p95Ms": 6178.7,
+            "p99Ms": 6614.46
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 7.65,
+            "p95Ms": 19.94,
+            "p99Ms": 31.54
+          }
+        }
+      },
+      "send_chat": {
+        "count": 500,
+        "p50Ms": 11.87,
+        "p95Ms": 196.1,
+        "p99Ms": 2721.96,
+        "statuses": {
+          "200": 500
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 11.2,
+            "p95Ms": 1049.95,
+            "p99Ms": 3053.91
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 12.13,
+            "p95Ms": 103.39,
+            "p99Ms": 2086.69
+          }
+        },
+        "handlerDuration": {
+          "count": 500,
+          "p50Ms": 11.49,
+          "p95Ms": 194.28,
+          "p99Ms": 2650.3
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 11.04,
+            "p95Ms": 1009.68,
+            "p99Ms": 3053.33
+          },
+          "repeat": {
+            "count": 400,
+            "p50Ms": 11.59,
+            "p95Ms": 103.17,
+            "p99Ms": 2086.97
+          }
+        }
+      }
+    },
+    "database": {
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "accounts": 1000,
+      "chats": 100,
+      "messages": 500,
+      "bookings": 0
+    },
+    "successfulRequests": 3500,
+    "limitations": [
+      "Synthetic local saturation burst; no think time.",
+      "Synchronized customer start; no real mobile network. Throughput elapsed includes HTTP shutdown/drain.",
+      "Client timings include transport/accept-queue delay; handler timings exclude them. Initial/repeat refer to each customer cycle.",
+      "Version 2 prepares direct clients outside timing; old lazy ambient-proxy measurements are not like-for-like speedup evidence.",
+      "Pre-issued synthetic sessions: does not benchmark SMS, login or TLS.",
+      "No booking acceptance, payment, video, reverse proxy, Gunicorn or production host traffic.",
+      "This is not proof of production capacity or a service-level guarantee; temporary data is removed."
+    ]
+  },
+  "limitations": [
+    "No TLS, SMS, media, real phone network, long booking histories or hosted Gunicorn load.",
+    "Single runs are not a statistical significance or capacity guarantee.",
+    "No snapshot cache: account/balance/moderation/availability/review visibility checks remain live."
+  ],
+  "sourceHashEncoding": "UTF-8 with LF newlines"
+}

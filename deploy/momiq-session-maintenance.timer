@@ -1,0 +1,7 @@
+[Unit]
+Description=Check a bounded batch of expired session and rate-limit records
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Expire Momiq private videos according to approved retention
+After=momiq.service
+[Service]
+Type=oneshot
+User=momiq
+Group=momiq
+WorkingDirectory=/opt/momiq/current/backend
+EnvironmentFile=/etc/momiq/backend.env
+ExecStart=/opt/momiq/current/backend/.venv/bin/python video_retention.py
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/momiq

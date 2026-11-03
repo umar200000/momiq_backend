@@ -13,19 +13,79 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Scan reachable Git history for secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner="$RUNNER_TEMP/momiq-gitleaks"
+          mkdir -p "$scanner"
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 60 --location https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$scanner/release.tar.gz"
+          printf '%s  %s\n' '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb' "$scanner/release.tar.gz" | sha256sum --check -
+          tar -xzf "$scanner/release.tar.gz" -C "$scanner" gitleaks
+          printf '[extend]\nuseDefault = true\n' > "$scanner/config.toml"
+          touch "$scanner/empty-ignore"
+          "$scanner/gitleaks" git . --log-opts=--all --config "$scanner/config.toml" --gitleaks-ignore-path "$scanner/empty-ignore" --ignore-gitleaks-allow --redact=100 --no-banner --timeout 120
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
-      - name: Fetch admin fixtures
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install verified runtime wheels
+        run: |
+          python -m pip install --only-binary=:all: --require-hashes -r requirements.txt
+      - name: Audit pinned runtime dependencies
+        run: |
+          python -m venv .audit-venv
+          .audit-venv/bin/python -m pip install pip-audit==2.10.1
+          .audit-venv/bin/python -m pip_audit --disable-pip --require-hashes -r requirements.txt
+      - name: Collect exact runtime license evidence
+        run: python tool/license_inventory.py --output ci-artifacts/runtime-licenses
+      - name: Retain runtime license evidence for seven days
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runtime-licenses-${{ github.sha }}-${{ github.run_attempt }}
+          path: ci-artifacts/runtime-licenses/
+          if-no-files-found: error
+          retention-days: 7
+          include-hidden-files: false
+      - name: Install video and encrypted recovery test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg age nginx
+      - name: Resolve the exact tested admin revision
+        id: admin_pair
+        run: |
+          revision="$(python release_pair.py --backend . --print-revision)"
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Fetch pinned admin fixtures
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: umar200000/momiq_admin
+          ref: ${{ steps.admin_pair.outputs.revision }}
           path: admin-fixture
+      - name: Verify admin contract and checkout identity
+        run: python release_pair.py --backend . --admin admin-fixture --actual-admin-revision "$(git -C admin-fixture rev-parse HEAD)"
       - run: python -m unittest -q
         env:
           MOMIQ_ADMIN_DIR: ${{ github.workspace }}/admin-fixture
-      - run: bash -n deploy/momiq-deploy deploy/momiq-deploy-entry
+      - name: Verify isolated load fixture and HTTP workload
+        run: python tool/load_test.py --accounts 20 --active 2 --cycles 1 --output "${{ runner.temp }}/momiq-load-smoke.json"
+      - name: Verify Nginx TLS and Gunicorn on isolated loopback ports
+        run: python tool/verify_proxy.py
+      - name: Replay payment approvals after worker death before and after commit
+        run: python -m tool.verify_worker_recovery
+      - name: Check each deployment script
+        run: |
+          for script in deploy/momiq-deploy deploy/momiq-deploy-entry deploy/bootstrap.sh; do
+            bash -n "$script" || exit 1
+          done
+      - name: Validate hosted Gunicorn configuration
+        run: gunicorn --check-config --config gunicorn.conf.py wsgi:application
+        env:
+          MOMIQ_ENV: test
+          MOMIQ_DATA_DIR: ${{ runner.temp }}/momiq-gunicorn-config
+          MOMIQ_ADMIN_DIR: ${{ github.workspace }}/admin-fixture
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -33,6 +93,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Deploy tested commit
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -45,5 +106,7 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           trap 'rm -f ~/.ssh/momiq' EXIT
           ssh -i ~/.ssh/momiq -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 momiq-deploy@95.182.119.218 "$COMMIT_SHA"
-      - name: Verify HTTPS
-        run: curl --fail --retry 5 --retry-delay 3 https://api.momiq.net/api/health
+      - name: Verify HTTPS release, read paths and authentication boundaries
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: python3 deploy_smoke.py --api-url https://api.momiq.net --admin-url https://admin.momiq.net --backend-sha "$COMMIT_SHA" --mode production

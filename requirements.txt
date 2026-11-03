@@ -1,2 +1,2 @@
-gunicorn==23.0.0
-packaging==25.0
+# Complete pinned runtime with upstream release SHA-256 hashes.
+-r requirements.lock

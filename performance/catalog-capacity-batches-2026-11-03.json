@@ -1,0 +1,234 @@
+{
+  "baseline": "31c8293",
+  "workload": "Sequential before, after, after, before on Windows loopback. Each run uses an independent temporary database with 1,000 TEST accounts, 100 active customers, 167 listings, a dated proximity query, 60 seconds and 1 second of think time. No hosted traffic.",
+  "runs": [
+    {
+      "variant": "before",
+      "requests": 5904,
+      "successfulRequests": 5904,
+      "catalog": {
+        "count": 900,
+        "p50Ms": 16.18,
+        "p95Ms": 784.92,
+        "p99Ms": 940.85,
+        "statuses": {
+          "200": 900
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 780.46,
+            "p95Ms": 944.91,
+            "p99Ms": 952.37
+          },
+          "repeat": {
+            "count": 800,
+            "p50Ms": 13.81,
+            "p95Ms": 113.95,
+            "p99Ms": 165.55
+          }
+        },
+        "handlerDuration": {
+          "count": 900,
+          "p50Ms": 15.09,
+          "p95Ms": 669.79,
+          "p99Ms": 716.05
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 658.08,
+            "p95Ms": 721.45,
+            "p99Ms": 742.45
+          },
+          "repeat": {
+            "count": 800,
+            "p50Ms": 13.07,
+            "p95Ms": 115.65,
+            "p99Ms": 162.58
+          }
+        }
+      },
+      "database": {
+        "integrity": "ok",
+        "foreignKeyErrors": 0,
+        "accounts": 1000,
+        "chats": 100,
+        "messages": 800,
+        "bookings": 0
+      }
+    },
+    {
+      "variant": "after",
+      "requests": 5911,
+      "successfulRequests": 5911,
+      "catalog": {
+        "count": 900,
+        "p50Ms": 12.4,
+        "p95Ms": 642.18,
+        "p99Ms": 750.28,
+        "statuses": {
+          "200": 900
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 621.03,
+            "p95Ms": 759.72,
+            "p99Ms": 768.03
+          },
+          "repeat": {
+            "count": 800,
+            "p50Ms": 11.5,
+            "p95Ms": 40.75,
+            "p99Ms": 52.88
+          }
+        },
+        "handlerDuration": {
+          "count": 900,
+          "p50Ms": 10.96,
+          "p95Ms": 513.09,
+          "p99Ms": 574.92
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 509.13,
+            "p95Ms": 583.03,
+            "p99Ms": 599.1
+          },
+          "repeat": {
+            "count": 800,
+            "p50Ms": 10.14,
+            "p95Ms": 37.64,
+            "p99Ms": 49.29
+          }
+        }
+      },
+      "database": {
+        "integrity": "ok",
+        "foreignKeyErrors": 0,
+        "accounts": 1000,
+        "chats": 100,
+        "messages": 800,
+        "bookings": 0
+      }
+    },
+    {
+      "variant": "after-repeat",
+      "requests": 5915,
+      "successfulRequests": 5915,
+      "catalog": {
+        "count": 900,
+        "p50Ms": 13.87,
+        "p95Ms": 631.7,
+        "p99Ms": 747.8,
+        "statuses": {
+          "200": 900
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 625.11,
+            "p95Ms": 756.53,
+            "p99Ms": 763.4
+          },
+          "repeat": {
+            "count": 800,
+            "p50Ms": 12.69,
+            "p95Ms": 132.72,
+            "p99Ms": 197.88
+          }
+        },
+        "handlerDuration": {
+          "count": 900,
+          "p50Ms": 12.32,
+          "p95Ms": 499.13,
+          "p99Ms": 574.48
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 494.83,
+            "p95Ms": 582.78,
+            "p99Ms": 601.67
+          },
+          "repeat": {
+            "count": 800,
+            "p50Ms": 11.2,
+            "p95Ms": 129.84,
+            "p99Ms": 193.85
+          }
+        }
+      },
+      "database": {
+        "integrity": "ok",
+        "foreignKeyErrors": 0,
+        "accounts": 1000,
+        "chats": 100,
+        "messages": 800,
+        "bookings": 0
+      }
+    },
+    {
+      "variant": "before-repeat",
+      "requests": 5880,
+      "successfulRequests": 5880,
+      "catalog": {
+        "count": 900,
+        "p50Ms": 17.05,
+        "p95Ms": 909.27,
+        "p99Ms": 1015.31,
+        "statuses": {
+          "200": 900
+        },
+        "transportOrShapeErrors": {},
+        "clientPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 897.23,
+            "p95Ms": 1025.47,
+            "p99Ms": 1035.39
+          },
+          "repeat": {
+            "count": 800,
+            "p50Ms": 14.5,
+            "p95Ms": 163.46,
+            "p99Ms": 212.08
+          }
+        },
+        "handlerDuration": {
+          "count": 900,
+          "p50Ms": 14.95,
+          "p95Ms": 761.17,
+          "p99Ms": 839.87
+        },
+        "handlerPhases": {
+          "initial": {
+            "count": 100,
+            "p50Ms": 756.1,
+            "p95Ms": 856.67,
+            "p99Ms": 882.23
+          },
+          "repeat": {
+            "count": 800,
+            "p50Ms": 12.88,
+            "p95Ms": 159.71,
+            "p99Ms": 208.26
+          }
+        }
+      },
+      "database": {
+        "integrity": "ok",
+        "foreignKeyErrors": 0,
+        "accounts": 1000,
+        "chats": 100,
+        "messages": 800,
+        "bookings": 0
+      }
+    }
+  ]
+}

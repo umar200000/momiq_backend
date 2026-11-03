@@ -1,0 +1,9 @@
+[Unit]
+Description=Prune expired verified Momiq backup bundles
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/momiq-backup --prune-only
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/momiq

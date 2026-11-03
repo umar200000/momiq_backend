@@ -1,0 +1,28 @@
+{
+  "scope": "Local WSL Gunicorn 2 workers, 4 threads each. Readiness checked once. 100 clients released together, 5 dated catalog GETs each, no think time, no TLS. Excludes hosted latency.",
+  "accounts": 1000,
+  "approvedListings": 167,
+  "activeClients": 100,
+  "requests": 500,
+  "all": {
+    "count": 500,
+    "p50Ms": 1001.83,
+    "p95Ms": 1328.41,
+    "p99Ms": 1383.86
+  },
+  "first": {
+    "count": 100,
+    "p50Ms": 581.92,
+    "p95Ms": 1108.78,
+    "p99Ms": 1173.69
+  },
+  "repeat": {
+    "count": 400,
+    "p50Ms": 1071.41,
+    "p95Ms": 1356.0,
+    "p99Ms": 1384.46
+  },
+  "bookings": 0,
+  "integrity": "ok",
+  "foreignKeyErrors": 0
+}

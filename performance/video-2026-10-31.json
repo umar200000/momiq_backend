@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-31",
+  "scope": "single local backend process, synthetic 1280x720 H.264 24 fps, no HTTP, mobile upload, audio or bookings",
+  "platform": "Windows",
+  "samples": [
+    {
+      "durationSeconds": 10,
+      "sourceBytes": 1604834,
+      "burst": [
+        {
+          "outcome": "ok",
+          "elapsedSeconds": 1.563,
+          "playbackBytes": 1382719,
+          "posterBytes": 11849
+        },
+        {
+          "outcome": "busy",
+          "elapsedSeconds": 0.0
+        },
+        {
+          "outcome": "ok",
+          "elapsedSeconds": 1.563,
+          "playbackBytes": 1382719,
+          "posterBytes": 11849
+        }
+      ],
+      "retry": {
+        "outcome": "ok",
+        "elapsedSeconds": 1.25,
+        "playbackBytes": 1382719,
+        "posterBytes": 11849
+      }
+    },
+    {
+      "durationSeconds": 60,
+      "sourceBytes": 9610404,
+      "burst": [
+        {
+          "outcome": "busy",
+          "elapsedSeconds": 0.0
+        },
+        {
+          "outcome": "ok",
+          "elapsedSeconds": 7.906,
+          "playbackBytes": 8326466,
+          "posterBytes": 11849
+        },
+        {
+          "outcome": "ok",
+          "elapsedSeconds": 7.922,
+          "playbackBytes": 8326466,
+          "posterBytes": 11849
+        }
+      ],
+      "retry": {
+        "outcome": "ok",
+        "elapsedSeconds": 6.516,
+        "playbackBytes": 8326466,
+        "posterBytes": 11849
+      }
+    }
+  ]
+}
