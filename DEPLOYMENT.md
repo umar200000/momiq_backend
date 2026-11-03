@@ -7,7 +7,7 @@
 
 ## Automatic delivery
 
-The delivery workflow targets pushes to `main` in `umar200000/momiq_backend` or `umar200000/momiq_admin`: GitHub Actions tests the commit and requests deployment of the exact SHA using a separate restricted key. PRs only run tests. The deploy source accepts only the current main SHA and serializes deployments with flock. Its new smoke and rollback guards described below require installation by a privileged operator; a draft-branch push does not install this script or update production. Admin assets are picked up without restarting the backend. Runtime data is outside release directories.
+The delivery workflow targets pushes to `main` in `umar200000/momiq_backend` or `umar200000/momiq_admin`: GitHub Actions tests the commit and requests deployment of the exact SHA using a separate restricted key. Pull requests run tests. Manual dispatch on a work branch also runs tests. Dispatch on main enters the deploy job once the tests pass. The deploy source accepts only the current main SHA and serializes deployments with flock. Its new smoke and rollback guards described below require installation by a privileged operator; a draft-branch push does not install this script or update production. Admin assets are picked up without restarting the backend. Runtime data is outside release directories.
 
 Secrets per repository: `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`. Keys cannot open an interactive shell or forward ports. Server allows each key to deploy only its own component. Workflow Actions are pinned to commit hashes. Changes to bootstrap/systemd/nginx scripts require a deliberate server configuration update; normal deployment does not install them automatically.
 

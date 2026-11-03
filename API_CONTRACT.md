@@ -1,5 +1,7 @@
 # Current API contract
 
+The branch contains migrations through version 29. Migration 28 adds private video reporting. Migration 29 rejects replacement of an existing platform settings version on insert, preserving the QR and commission terms referenced by earlier transactions. Check the deployed database separately with the readiness endpoint.
+
 Client authentication accepts one Bearer credential. Administrator authentication accepts one `momiq_admin` cookie. Ambiguous credentials and raw bearer tokens return 401. Logout validates and revokes the same credential that authenticated the request.
 
 A notification read acknowledgement contains `ok`, `noticeId`, the original `readAt` and the current `unreadCount`. Hosted mobile builds check the `notice-read-receipts-v1` capability and match the ID before navigating. Pages are strictly descending by notification ID and a later page starts below its requested cursor. Older local builds can still consume the original fields. New support tickets bind their confirmation to the submitted subject, topic, booking and reported content. Appeals additionally match the captured source revision.
@@ -212,7 +214,7 @@ Acceptance rechecks eligible accounts/listing, pair blocks, threshold `max(15,00
 
 Pending reject/cancel/expiry charge nothing. Prestart accepted cancellation appends one internal commission reversal, frees the reservation and records the reason. Automatic cancellation at/after start is refused for admin review. There is no customer service-money refund or payout. Retrying an accepted action returns current booking state; changed payload/reused action ID or stale revision conflicts. Expiry is persisted in bounded batches and on attempted pending actions, surviving restarts. The local/test server starts the persisted-deadline worker described below. Exact handover address is visible only in accepted/active/completed/disputed participant views; cancelled/pending views redact it. The mobile request/list/detail/accept/reject/cancel paths are connected behind the catalog `bookingEnabled` flag. In-app notifications, two-party service confirmation and no-show adjudication are described below; external push and final retention remain open. Home visits conservatively allow only one overlapping customer interval; a finer visit-slot scheduler is not implemented.
 
-Migration 10 adds empty tables without changing existing account, wallet or chat rows. Seed cleanup refuses even an uncharged quote so booking history cannot be removed through fixture cleanup. Migration 10/11 were dry-run and then applied with the preview writer stopped and a fresh backup; the previous 27 tables remained unchanged. Subsequent migration evidence is recorded in the checklist; the current preview is schema 17.
+Migration 10 adds empty tables without changing existing account, wallet or chat rows. Seed cleanup refuses even an uncharged quote so booking history cannot be removed through fixture cleanup. Migration 10/11 were dry-run and then applied with the preview writer stopped and a fresh backup; the previous 27 tables remained unchanged. Subsequent migration evidence is recorded in the checklist; the preview used for that check was on schema 17.
 
 
 Authenticated client routes (local/test only):
@@ -574,7 +576,7 @@ A poll captured before or during a local block update cannot replace the confirm
 
 ### Support-to-administrator content handoff
 
-This additive workflow uses existing schema25 assignment/history tables; schema27 remains current. For an active support ticket with an immutable listing/review target (ordinary report or appeal), a support operator may hand unassigned or self-assigned work to an enabled administrator. The administrator already has support/moderation access; this does not grant support access to finance, accounts or another role's private namespace.
+This additive workflow uses existing schema25 assignment/history tables and required no additional migration beyond schema 27. For an active support ticket with an immutable listing/review target (ordinary report or appeal), a support operator may hand unassigned or self-assigned work to an enabled administrator. The administrator already has support/moderation access; this does not grant support access to finance, accounts or another role's private namespace.
 
 - `GET /api/admin/work-queue/support/{ticketId}` adds `canEscalate` for the current actor/source/assignment. It is false for ordinary untargeted tickets, another operator's assigned work, closed tickets and other roles.
 - `GET /api/admin/work-queue/support/{ticketId}/escalation-operators` is support-only and requires the same eligibility. It returns only enabled administrators' username/role. The minimal `work-escalation-operators-view` audit commits before disclosure; a failed audit returns no data.

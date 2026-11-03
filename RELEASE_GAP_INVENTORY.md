@@ -1,6 +1,6 @@
 # Relizdagi qolgan cheklovlar inventari
 
-2026-10-29, `codex/production-foundations` manbasi. Bu production server/qurilma holatining tasdig‘i emas. Asosiy vazifa va qabul mezonlari [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) da; bu hujjat topilgan markerlar nimani anglatishini va qaysi bandda hal bo‘lishini ko‘rsatadi.
+2026-11-03, `codex/production-foundations` manbasi. Bu production server/qurilma holatining tasdig‘i emas. Asosiy vazifa va qabul mezonlari [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) da; bu hujjat topilgan markerlar nimani anglatishini va qaysi bandda hal bo‘lishini ko‘rsatadi.
 
 | Topilma | Amaldagi holat va chegara | Qolgan ish |
 | --- | --- | --- |
@@ -8,10 +8,10 @@
 | `myid_page.dart` dagi “MyID xizmati hali ulanmagan” | Haqiqiy tekshiruv muvaffaqiyati ko‘rsatilmaydi. `catalog.py` TEST tasdiqni haqiqiy MyID deb qabul qilmaydi; hozir production nashri/katalogi bu yo‘l bilan ochilmaydi. | M006/M038: kelishuv va kalitlardan keyin real integratsiya. Oxirida. |
 | Bildirishnoma/sozlama ekranlaridagi “Push xabarlar hali ulanmagan” | In-app xabarlar, atomar o‘qish tasdig‘i/count snapshot, hodisa deduplikatsiyasi va sessiyaga bog‘langan navigatsiya mavjud. Eski `{ok:true}` serverda hisob yangilashgacha lokal taxmin qoladi. Bu Android/iOS tashqi push yetkazilganini anglatmaydi. | M081–M085: provider/OS token, yetkazish, APNs va haqiqiy deep-link/lifecycle qabuli. |
 | `region=tashkent`, taxminiy katalog koordinatalari | Toshkent qidiruv hududi va maxfiylik uchun qo‘pol koordinata mavjud. Bu aniq shahar va viloyat chegarasi yoki tashqarida bronni rad etish kafolati emas. | M001/M029/M042: shahar va viloyatning yakuniy geometriyasini tasdiqlash, geofence va xarita/geokodlash kalitlari. Toshkent ichida enaga radius cheklovi kiritilmaydi. |
-| `mock.profile.*`, `mock.notify.*` | Test/preview uchun saqlangan eski lokal kalitlar. Profil va home’da API-enabled sessiya yo‘qligi mock profilni yashirin almashtirmaydi; yangi ro‘yxatdan o‘tish tuzatishida remote profil mock kalitlariga yozilmaydi. | M008/M009/M124: qolgan forma/login/lifecycle va hosted build qamrovi; M133: ishlatilmay qolgan compatibility kodini reja bilan tozalash. |
-| `CustomerStore.book/cancel` va eski `CustomerOrders`/`CustomerCareReport` | Eski lokal bron yo‘li muvaffaqiyat yaratmaydi, aniq xato beradi. Hozirgi authenticated yo‘l `BookingInbox`/`BookingRequestPage`; server tasdig‘i, revision va idempotency ishlatiladi. API-enabled sessiyasiz customer store yuklanmaydi. | M133: legacy UI/compatibility chaqiruvlarini alohida migratsiya bilan chiqarish. Eski ekran matnini o‘chirish real bron oqimi tugadi degani emas; M055/M128 native qabul alohida qoladi. |
+| `mock.profile.*`, `mock.notify.*` | Test/preview uchun saqlangan eski lokal kalitlar. Profil va home’da API-enabled sessiya yo‘qligi mock profilni yashirin almashtirmaydi; yangi ro‘yxatdan o‘tish tuzatishida remote profil mock kalitlariga yozilmaydi. | M008/M009/M124: qolgan forma/login/lifecycle va hosted build qamrovi; Bu kalitlar offline test/preview uchun ishlatiladi. Sessiya tozalanganda `mock.` prefiksi bilan eski kalitlar ham o‘chiriladi. |
+| Lokal bron, sharh va parvarish maketlari | Eski ekranlar va lokal book/cancel usullari olib tashlandi. Buyurtmalar tabida sessiya bo‘lmasa kirish xabari chiqadi. Sessiya bilan serverdagi `BookingInbox` ochiladi. | M133 bo‘yicha tozalandi. Qurilmada to‘liq bron oqimining qabuli M128 da. |
 | Mavjudlikning eski lokal hisoblash fallback’i | Katalog kartasidan olib tashlandi. Faqat server bergan yaroqli `freeCapacity` ko‘rsatiladi, aks holda “tasdiqlanmagan”.0uyga tashrif joyi “bo‘sh” emas. | M123: qolgan ekranlarda uch til, real accessibility va qurilma qabuli. |
-| Admin `input.placeholder` | Bu javob maydonidagi oddiy yordam matni; ulanmagan funksiya/TODO emas. `TODO`, `FIXME`, `mock` markerlari bo‘yicha JavaScript skani uni soxta bajarilmagan vazifaga aylantirmaydi. | M133: keyword skani bilan cheklanmay, marshrut/test/haqiqiy UI qamrovini tekshirish. |
+| Admin `input.placeholder` | Bu javob maydonidagi oddiy yordam matni; ulanmagan funksiya/TODO emas. `TODO`, `FIXME`, `mock` markerlari bo‘yicha JavaScript skani uni soxta bajarilmagan vazifaga aylantirmaydi. | Oddiy HTML maydoni sifatida saqlanadi. Operator navbatining yakuniy qabuli M090 da. |
 | Base64 receipt/profile JSON va lokal video fayllari | Ruxsat, haqiqiy media validatsiyasi, video retention va private playback bor; barcha media uchun object-storage migratsiyasi tugamagan. | M104/M108/M114: storage joyi/credential/budjet, metadata/URL, retention va offsite restore siyosati. |
 | E’lon, sharh va nizo qarori bo‘yicha apellyatsiya | E’lon va sharh bo‘yicha yopish amaldagi qaror xeshiga bog‘lanadi. Nizo bo‘yicha ishtirokchi yakunlangan qaror versiyasiga murojaat qiladi. Yopgan administratorning javobi va asl qaror hodisasi auditga yoziladi. | M090 uchun dalilni saqlash siyosati, qarorni o‘zgartirish vakolati va haqiqiy operator qabuli qoladi. |
 | Mobil yordam tarixi va retry | API/ID/target/controller qayta bog‘langanda eski private holat ajratiladi; to‘liq page va revision tasdig‘i tekshiriladi, buzilgan javob asl tarix/qoralamani saqlaydi. | M101/M102/M124: native picker/process-death, haqiqiy hosted va operatsion qabul hali ochiq. Sessiya invalidatsiyasidan keyingi yashirish rebuild bilan bajariladi. |
@@ -23,14 +23,27 @@
 | `net.momiq.app`, unsigned build va eski emulator | Doimiy identifikator o‘rnatilgan; Android build va unsigned iOS simulator CI dalili mavjud. Eski emulatorni yangi APK ishlatyapti deb ko‘rsatish mumkin emas. | M119–M122/M125/M128/M131: signing, real qurilma, store materiallari va pilot. APK install/M055 bloklangan sinov qayta urinilmaydi. |
 | Hisobni o‘chirish, telefonni almashtirish, fiskal/audit retention | Tasdiqlangan balans qoldig‘i qaytarilmasligi saqlanadi; hisob/aktiv majburiyat/dalil/backup bo‘yicha belgilanmagan siyosat o‘ylab topilmaydi. | M023/M024/M066/M091/M097/M108: yakuniy siyosat, egalik va mutaxassis/biznes egasi qabuli. |
 
-Test seed/cleanup, vaqtinchalik fixture va provayder chegaralari: [TEST_DATA_BOUNDARIES.md](TEST_DATA_BOUNDARIES.md). M012/M014 ushbu inventar bilan to‘liq yopilmaydi.
+Test seed/cleanup, vaqtinchalik fixture va provayder chegaralari: [TEST_DATA_BOUNDARIES.md](TEST_DATA_BOUNDARIES.md). Seed takrorlanuvchanligi M012 da yopilgan. M014 tashqi provayder va qurilma tekshiruvini kutadi.
 
 ## Dalil chegarasi
 
 Manba skani `lib/**/*.dart`, runtime Python modullari va admin JavaScript’ida TODO/FIXME/mock/placeholder hamda “hali ulanmagan” markerlari, so‘ng tegishli chaqiruvlar va muhit guardlarini o‘qish orqali bajarildi. Test fixture’lari va oddiy HTML input placeholderlari mahsulotning tayyor bo‘lmagan imkoniyati deb sanalmadi. Dependency kataloglari, secret/runtime fayllari va foydalanuvchi ma’lumotlari bu inventarga ko‘chirilmadi.
 
-Marker topilmagani funksiyaning to‘liq ishlashini isbotlamaydi. Bu inventar M133’ning bir ichki bosqichi; umumiy production/readiness yoki barcha61ochiq band tugagan degan xulosa emas. Har bir topilma yuqoridagi asosiy ID bilan kuzatiladi, yangi dublikat vazifa sanalmaydi.
+2026-11-03 dagi qayta skanda ilovada qolgan markerlar profil, sozlama va login keshini tozalash, MyID va tashqi pushning holatini bildirish bilan bog‘liq. Backenddagi markerlar sintetik seed va SMS mavjud bo‘lmagandagi javobga tegishli. Admin JS dagi input yordam matni hamda iOS storyboard’dagi First Responder elementlari interfeysning ishlatiladigan qismi. Ishlatiladigan test kalitlari eski qurilmalardagi keshni o‘qish va tozalash uchun saqlandi.
 
+## Joriy qabul shartlari
+
+2026-11-03. M133 bo‘yicha hujjat auditi shu branchga nisbatan yakunlandi. Quyida qolgan 45 ta joriy band bittadan asosiy bog‘liqlik bo‘yicha guruhlangan. Har bandning batafsil qabul sharti pastdagi jadvalda. M008 va avvaldan oxiriga ajratilgan 12 band alohida hisoblanadi.
+
+| To‘liq yopish uchun kerak | Bandlar |
+| --- | --- |
+| Tasdiqlangan Toshkent shahri va viloyati geometriyasi, xarita kaliti yoki kvotasi | M001, M029, M042 |
+| Provayder loyihasi, tashqi xabarni qurilmada olish va OS ruxsatlari | M014, M081, M082, M083, M084, M085 |
+| Biznes egasi, moliya mutaxassisi yoki operator qarori, saqlash, MFA yoki litsenziya shartlari | M024, M066, M090, M092, M097, M107, M108 |
+| Server konfiguratsiyasi, eski baza, vakolatli deploy yoki hosted yuklama va uzilish mashqi | M007, M009, M019, M099, M100, M102, M103, M105, M106, M109, M110, M111, M112, M113, M130 |
+| Tashqi storage, backup va tiklash, monitoring manzili yoki amaliy navbatchilik | M104, M114, M115, M116, M117 |
+| Haqiqiy qurilma, ikkala platformadagi oqimlar yoki native media | M078, M123, M124, M128, M129, M131, M139 |
+| Store manzillari, review kirishi, imzolangan paket yoki pilot guruhi | M122, M125 |
 
 ## 2026-10-31 kuni ko‘rib chiqilgan 49 band
 
@@ -86,4 +99,4 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M129 | Rad, timeout, retry, begona hisob, qaror, no-show va komissiya holatlarida regressiyalar bor. | Real qurilmadagi muqobil oqimlar va siyosatga bog‘liq hisob amallari. |
 | M130 | Haqiqiy Gunicorn workeri moliyaviy commit oldida va keyin uzilgach, ayni HTTP so‘rovini qayta yuborish bitta kredit, tarix, audit va xabar bilan tugadi. | Hosted deploy/DB, provider va storage uzilishi mashqi. |
 | M131 | Izolyatsiyalangan HTTP yuklama, katalog, media va xavfsizlik testlari bor. iPhone 16 Pro (iOS 18.6) simulatorida QA paketining birinchi ochilishi va jarayon yopilgach qayta ochilishi tasdiqlandi. [CI natijasi](https://github.com/umar200000/momiq_app/actions/runs/41190049621) | Haqiqiy Android/iOS qurilmalar matritsasi, mobil tarmoq va hosted yuklama sinovi. |
-| M133 | API, deploy, operatsion, test chegaralari, store va ushbu 49 band dalillari yangilandi. | Pilotdan oldin ochiq bandlar, mock/placeholder inventari va yakuniy hujjat auditi. |
+| M133 | API, deploy, operatsion, test chegaralari, store va ushbu 49 band dalillari yangilandi. | 2026-11-03 da yopildi. Joriy qabul shartlari, runtime markerlari va hujjatlar qayta tekshirildi. Pilot qabuli M132 da. |

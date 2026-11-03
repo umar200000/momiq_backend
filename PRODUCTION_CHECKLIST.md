@@ -64,9 +64,9 @@ Mock/test ma’lumotlari qo‘shish va keyingi ish davomida zarur deploy uchun f
 
 Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda belgilanadi. Ish boshlanganda mas’ul, bog‘liqlik, commit/PR va test dalili shu ID ostida yoziladi. Shartli vazifa faqat mahsulot qarori yozilgandan keyin qo‘llanmaydi deb yopiladi; jimgina tashlab ketilmaydi. Quyidagi ro‘yxat auditda ma’lum bo‘lgan ko‘lamni qamraydi; ish davomida topilgan yangi holatlar yangi ID bilan qo‘shiladi.
 
-**Joriy bajarish navbati — 2026-10-29**
+**Joriy bajarish navbati — 2026-11-03**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 80 bajarilgan, 59 ochiq**. Dastlabki 48 ochiq banddan **46 tasi joriy/qisman**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 81 bajarilgan, 58 ochiq**. Dastlabki 48 ochiq banddan **45 tasi joriy/qisman**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
@@ -84,11 +84,16 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 | 10 | M092, M099, M100, M104, M107 | Operator huquqlari, bazaning concurrency dalillari, migration/backup mosligi, media/secrets inventari va konfiguratsiya tekshiruvlari. | MFA recovery siyosati, saqlash joyi/credential/budjet, eski hosted ma’lumotni ko‘chirish va kalit rotatsiyasi. |
 | 11 | M106, M109, M110, M111, M112, M113, M114, M115, M116, M117 | Release juftligi, CI, read-only smoke, HTTPS/origin/rate limit, backup/recovery va monitoring vositalari hamda yo‘riqnomalarining tekshiriladigan qismlari. | Root bootstrap, haqiqiy staging/promotion, offsite encryption/storage, tashqi alert egasi va real recovery mashqi. |
 | 12 | M122, M125 | Haqiqiy imkoniyatlarga mos review/material inventari, versiya/artifact/symbol/pilot tayyorgarligi. | Signed build, store hisoblari, haqiqiy screenshot va public support/privacy/delete manzillari. |
-| 13 | M128, M129, M130, M131, M133 | Izolyatsiyalangan nosozlik/parallel testlar, API va dependency qamrovi; hujjat/placeholder cheklovlari va dalillarni yangilash. | M055ga bog‘langan live E2E, ikki qurilma, hosted/provider uzilishi va pilot qabul sinovlari. |
+| 13 | M128, M129, M130, M131 (M133 yopildi) | Izolyatsiyalangan nosozlik/parallel testlar, API va dependency qamrovi; hujjat/placeholder cheklovlari va dalillarni yangilash. | M055ga bog‘langan live E2E, ikki qurilma, hosted/provider uzilishi va pilot qabul sinovlari. |
 
 **To‘liq bajarildi** belgisi kod va kerakli tekshiruvlar tugagandagina qo‘yiladi. Har ichki bosqich dalili bajarilish jurnaliga qo‘shiladi. Staging yoki providerga bog‘liq yakuniy tekshiruv qolsa band ochiq turadi; uning boshqa mustaqil qismi davom etadi.
 
 **Bajarilish jurnali — 2026-10-27**
+
+### 2026-11-03. M133 yopildi
+
+- [x] Sessiyasiz mijoz buyurtmalar oynasida kirish haqidagi xabarni ko‘radi. Eski lokal bron, bekor qilish, tahrirlanadigan sharh va soxta video holati sahifalari chiqarildi. Saqlangan eski formatni o‘qish va demo yozuvlarini filtrlash mexanizmi saqlandi. 39 ta mobil test o‘tdi, analyzer xato topmadi.
+- [x] Uch repo README fayllari, API shartnomasi, deploy va operator buyruqlari manbaga solishtirildi. API indeksidagi 137 juftlikning har biri ikki yaroqsiz so‘rovni bazani ochmasdan rad etdi. Reliz juftligi, diagnostika va offsite nusxalash bo‘yicha 17 ta mahalliy test o‘tdi. Qolgan 45 bandning qabul shartlari va markerlar bo‘yicha qarorlar [inventarda](RELEASE_GAP_INVENTORY.md#joriy-qabul-shartlari) yozilgan.
 
 ### 2026-11-03. Audit, moderatsiya, kirish va katalog
 
@@ -914,7 +919,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [ ] M130 — Parallel va nosozlik sinovlari: bir joyga ikki bron, chekni ikki admin tasdiqlashi, retry/dublikat chek, kredit yozilayotganida deploy/DB uzilishi, storage/SMS uzilishi; tiklanganda pul yoki majburiyat ikki marta yozilmaydi.
 - [ ] M131 — Yuklama, maxfiylik va qurilma sinovlarini bajarish: M007 hajmi, eski/yangi Android, kelishilgan iOS, Wi-Fi/mobil/offline, katta media; ruxsatlar, API va dependency xavfsizlik tekshiruvi yakunlanadi.
 
-- [ ] M133 — Hujjat va yakuniy auditni yangilash: README/API/deploy/operator ko‘rsatmalari amaldagi kodga mos, eski mock/placeholder/TODO inventari yopilgan; ma’lum cheklovlar, ochiq vazifalar va reliz dalillari yozilgan.
+- [x] M133 — Hujjat va yakuniy auditni yangilash: README/API/deploy/operator ko‘rsatmalari amaldagi kodga mos, eski mock/placeholder/TODO inventari yopilgan; ma’lum cheklovlar, ochiq vazifalar va reliz dalillari yozilgan.
 
 **Bajarish tartibi va bog‘liqliklar**
 
@@ -939,7 +944,7 @@ Tasdiqlangan qarorlar qayta so‘ralmaydi. Kun hisobi 2026-10-28 da har boshlang
 
 **Dalillar va rasmiy tekshiruv manbalari**
 
-Mahalliy dalillar: [server.py](D:/projects/momiq_v1/momiq_backend/server.py), [deploy tartibi](D:/projects/momiq_v1/momiq_backend/DEPLOYMENT.md), [CI](D:/projects/momiq_v1/momiq_backend/.github/workflows/deploy.yml), [buyurtma holati](D:/projects/momiq_v1/momiq_app/lib/features/customer/data/customer_store.dart:321), [hayvon notes xatosi](D:/projects/momiq_v1/momiq_app/lib/features/customer/presentation/customer_account.dart:55), [release signing](D:/projects/momiq_v1/momiq_app/android/app/build.gradle.kts).
+Mahalliy dalillar: [server.py](D:/projects/momiq_v1/momiq_backend/server.py), [deploy tartibi](D:/projects/momiq_v1/momiq_backend/DEPLOYMENT.md), [CI](D:/projects/momiq_v1/momiq_backend/.github/workflows/deploy.yml), [buyurtma holati](../momiq_app/lib/features/customer/data/customer_store.dart), [hayvon notes xatosi](../momiq_app/lib/features/customer/presentation/customer_account.dart), [release signing](D:/projects/momiq_v1/momiq_app/android/app/build.gradle.kts).
 
 Android release uchun signing va AAB tayyorgarligi [Flutter rasmiy yo‘riqnomasiga](https://docs.flutter.dev/deployment/android) muvofiq tekshiriladi.
 
@@ -1020,4 +1025,4 @@ Quyida ochiq bandlarning tashqi shart kutayotgan qismlari sanalgan.
 
 - **2026-11-03, M097.** Audit tarixini saqlash muddati va arxivni o‘qishga vakolatli rol bo‘yicha qaror egasining ko‘rsatmasiga asosan yakuniy muhokamaga qoldirildi.
 
-Ochiq bandlar sanog‘i tekshiruvi: **80 yopiq + 46 joriy/qisman + 1 staging kutishida + 12 avvalgi yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
+Ochiq bandlar sanog‘i tekshiruvi: **81 yopiq + 45 joriy/qisman + 1 staging kutishida + 12 avvalgi yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
