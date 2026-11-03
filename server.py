@@ -1,5 +1,6 @@
 """Momiq local API. Python 3.12+, SQLite; no third-party runtime dependencies."""
-import base64
+import request_json
+from media_validation import MediaBusy, validate_photo as photo
 import hashlib
 import hmac
 import json
@@ -22,6 +23,23 @@ PRODUCTION = os.environ.get("MOMIQ_ENV") == "production"
 DEV_LOGIN = not PRODUCTION or os.environ.get("MOMIQ_ALLOW_TEST_LOGIN") == "1"
 HOST = os.environ.get("MOMIQ_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MOMIQ_PORT", "8080"))
+
+# git archive substitutes the exact commit before the deploy script extracts it.
+_ARCHIVE_REVISION = "$Format:%H$"
+RELEASE_SHA = _ARCHIVE_REVISION if re.fullmatch(r'[a-f0-9]{40}',_ARCHIVE_REVISION) else None
+
+
+def ready():
+    uri = (DATA/'momiq.sqlite3').resolve().as_uri()+'?mode=ro'
+    from contextlib import closing
+    with closing(sqlite3.connect(uri,uri=True,timeout=2)) as con:
+        con.execute('BEGIN')
+        for query in ('SELECT id,blocked FROM users LIMIT 1','SELECT id FROM sitters LIMIT 1',
+                      'SELECT user_id,role FROM sessions LIMIT 1','SELECT user_id FROM listings LIMIT 1',
+                      'SELECT id,user_id FROM messages LIMIT 1','SELECT username FROM admins LIMIT 1'):
+            con.execute(query).fetchone()
+        return con.execute('PRAGMA user_version').fetchone()[0]
+
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -80,20 +98,20 @@ def sitter_profiles():
 def sitter_names():
     return {s['id']: s.get('name', '') for s in sitter_profiles()}
 
-def photo(value):
-    if value is None:
-        return None
-    if not isinstance(value, str) or len(value) > 4_200_000:
-        raise ValueError("Rasm 3 MB dan kichik bo‘lishi kerak")
-    raw = base64.b64decode(value, validate=True)
-    if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4] == b"RIFF" and raw[8:12] == b"WEBP")):
-        raise ValueError("PNG, JPEG yoki WebP rasm yuboring")
-    return value
-
 def string(value, limit=100):
     if not isinstance(value, str) or len(value) > limit:
         raise ValueError("Matn uzunligi noto‘g‘ri")
     return value.strip()
+
+def bounded_fields(record, known):
+    # Older mobile builds can send additional scalar metadata (e.g. display dates).
+    if not isinstance(record,dict) or len(record)>32:
+        raise ValueError('Invalid record')
+    for key,value in record.items():
+        if key not in known and (len(key)>100 or not (value is None or type(value) in (bool,int,float)
+                or isinstance(value,str) and len(value)<=2000)):
+            raise ValueError('Invalid extra field')
+
 
 def default_account():
     return {"profile": {"first": "", "last": "", "photo": None}, "favorites": [],
@@ -102,11 +120,12 @@ def default_account():
 def validate_account(data):
     result = default_account()
     p = data.get("profile", {})
+    if not isinstance(p,dict) or not isinstance(data.get('notifications',{}),dict): raise ValueError('Profil noto‘g‘ri')
     result["profile"] = {"first": string(p.get("first", "")), "last": string(p.get("last", "")), "photo": photo(p.get("photo"))}
     if not result["profile"]["first"] or not result["profile"]["last"]:
         raise ValueError("Ism va familiya majburiy")
     fav = data.get("favorites", [])
-    if not isinstance(fav, list) or any(x not in sitter_names() for x in fav):
+    if not isinstance(fav, list) or len(fav)>500 or not all(isinstance(x,str) and len(x)<=100 for x in fav) or (fav and not set(fav).issubset(sitter_names())):
         raise ValueError("Enaga noto‘g‘ri")
     result["favorites"] = list(dict.fromkeys(fav))
     addresses = data.get("addresses", [])
@@ -115,10 +134,11 @@ def validate_account(data):
     for item in addresses:
         if not isinstance(item, dict):
             raise ValueError("Manzil noto‘g‘ri")
+        bounded_fields(item,{'id','label','address','apartment','lat','lon'})
         for key in ["id", "label", "address", "apartment"]:
             string(item.get(key, ""), 500)
         lat, lon = item.get("lat"), item.get("lon")
-        if not isinstance(lat, (int,float)) or not isinstance(lon, (int,float)) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
+        if type(lat) not in (int,float) or type(lon) not in (int,float) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
             raise ValueError("Manzil koordinatalari noto‘g‘ri")
     result["addresses"] = addresses
     result["notifications"] = {k: data.get("notifications", {}).get(k, True) for k in ["orders", "chat", "video"]}
@@ -131,6 +151,7 @@ def validate_account(data):
     if not isinstance(pets, list) or len(pets) > 30: raise ValueError('Hayvonlar soni noto‘g‘ri')
     for pet in pets:
         if not isinstance(pet, dict) or pet.get('type') not in ['It','Mushuk','Boshqa']: raise ValueError('Hayvon turi noto‘g‘ri')
+        bounded_fields(pet,{'type','photo','id','name','age','sex','breed','notes','otherType'})
         if not photo(pet.get('photo')): raise ValueError('Hayvon rasmi majburiy')
         for key in ['id','name','age','sex','breed','notes','otherType']:
             string(pet.get(key,''),2000)
@@ -139,6 +160,7 @@ def validate_account(data):
     support = data.get('support', [])
     if not isinstance(support,list) or len(support)>100: raise ValueError('Murojaatlar soni noto‘g‘ri')
     for item in support:
+        bounded_fields(item,{'id','text'})
         string(item['id'],100)
         string(item['text'],4000)
     sitter = data.get('sitterProfile')
@@ -210,15 +232,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
     def body(self):
-        size = int(self.headers.get("Content-Length", "0"))
-        if size <= 0 or size > 32_000_000:
-            raise ApiError(413, "So‘rov hajmi noto‘g‘ri")
-        if not self.headers.get("Content-Type", "").startswith("application/json"):
-            raise ApiError(415, "JSON yuboring")
-        obj = json.loads(self.rfile.read(size))
-        if not isinstance(obj, dict):
-            raise ValueError("JSON obyekt yuboring")
-        return obj
+        try:
+            limit = 16*1024 if urlparse(self.path).path in ('/api/auth/login','/api/admin/login') else request_json.MAX_BYTES
+            return request_json.read(self,max_bytes=limit)
+        except (request_json.BodyError, ValueError):
+            self.close_connection = True
+            raise
     def auth(self, con, role="client"):
         token = self.headers.get("Authorization", "").removeprefix("Bearer ")
         if role == "admin":
@@ -258,7 +277,12 @@ class Handler(BaseHTTPRequestHandler):
                  "image": None if r["deleted"] else r["image"], "time": r["time"]}
                 for r in con.execute("SELECT * FROM messages WHERE user_id=? ORDER BY time,id", (user,))]
     def handle_request(self):
-        path = urlparse(self.path).path
+        if len(self.path.encode("utf-8")) > 4096:
+            raise ApiError(414,"So‘rov manzili juda uzun")
+        target = urlparse(self.path)
+        if target.query.count("&") >= 32:
+            raise ApiError(400,"So‘rov parametrlari juda ko‘p")
+        path = target.path
         origin = self.headers.get("Origin")
         if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
             raise ApiError(403, "Origin ruxsat etilmagan")
@@ -275,12 +299,21 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
             return
+        if self.command == "GET" and path in ("/api/health","/api/ready"):
+            result = {"ok":True,"mode":"production" if PRODUCTION else "local","releaseSha":RELEASE_SHA}
+            if path == "/api/health":
+                result.update(sms=False,clientLoginEnabled=DEV_LOGIN,testLogin=DEV_LOGIN)
+            else:
+                try:
+                    result["schemaVersion"] = ready()
+                except (OSError,sqlite3.Error):
+                    self.reply(503,{"ok":False})
+                    return
+            self.reply(200,result)
+            return
         with db() as con:
             if path == "/api/sitters" and self.command == "GET":
                 self.reply(200, {"sitters": sitter_profiles()})
-                return
-            if path == "/api/health" and self.command == "GET":
-                self.reply(200, {"ok": True, "mode": "production" if PRODUCTION else "local", "sms": False, "clientLoginEnabled": DEV_LOGIN, "testLogin": DEV_LOGIN})
                 return
             if path == "/api/auth/login" and self.command == "POST":
                 if not DEV_LOGIN:
@@ -419,7 +452,8 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200,{'messages':self.messages(con,user)})
     def dispatch(self):
         try: self.handle_request()
-        except ApiError as e: self.reply(e.status,{'error':e.message})
+        except MediaBusy as e: self.reply(503,{'error':str(e)})
+        except (ApiError,request_json.BodyError) as e: self.reply(e.status,{'error':e.message})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): pass
         except Exception as e:

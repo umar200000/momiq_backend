@@ -141,7 +141,10 @@ class ApiTests(unittest.TestCase):
         self.req('/api/me',token=a['token'],expected=401)
     def test_photo_settings_and_persistence(self):
         a=self.login('998907777777')
-        png=base64.b64encode(bytes.fromhex('89504e470d0a1a0a')+b'example').decode()
+        from io import BytesIO
+        from PIL import Image
+        buffer=BytesIO(); Image.new('RGB',(2,2)).save(buffer,format='PNG')
+        png=base64.b64encode(buffer.getvalue()).decode()
         account=a['account'];account['profile']={'first':'Madina','last':'Test','photo':png}
         account['notifications']['chat']=False
         account['favorites']=['hoji'];account['language']='ru'

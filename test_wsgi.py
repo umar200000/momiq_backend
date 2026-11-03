@@ -11,7 +11,8 @@ class ProductionTests(unittest.TestCase):
     def call(self, path, method='GET', data=None, origin=None):
         env = {}; setup_testing_defaults(env)
         raw = json.dumps(data).encode() if data is not None else b''
-        env.update(QUERY_STRING='', PATH_INFO=path, REQUEST_METHOD=method, CONTENT_LENGTH=str(len(raw)), CONTENT_TYPE='application/json', HTTP_HOST='admin.momiq.net')
+        route, _, query = path.partition('?')
+        env.update(QUERY_STRING=query, PATH_INFO=route, REQUEST_METHOD=method, CONTENT_LENGTH=str(len(raw)), CONTENT_TYPE='application/json', HTTP_HOST='admin.momiq.net')
         env['wsgi.input'] = io.BytesIO(raw)
         if origin: env['HTTP_ORIGIN'] = origin
         response = {}
@@ -21,6 +22,28 @@ class ProductionTests(unittest.TestCase):
         finally:
             if hasattr(output, 'close'): output.close()
         return response
+
+    def test_request_limits_and_readiness_use_actual_wsgi_target(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        prefix = '/api/health?q='
+        with TemporaryDirectory() as root, patch.object(server,'DATA',Path(root)), patch.object(server,'RELEASE_SHA','a'*40):
+            self.assertEqual(self.call('/api/health?'+'&'.join(['q=1']*32))['status'],200)
+            self.assertEqual(self.call('/api/me?'+'&'.join(['q=1']*33))['status'],400)
+            self.assertEqual(self.call(prefix+'x'*(4096-len(prefix)))['status'],200)
+            self.assertEqual(self.call(prefix+'x'*(4097-len(prefix)))['status'],414)
+            self.assertEqual(self.call('/api/ready')['status'],503)
+            self.assertFalse((Path(root)/'momiq.sqlite3').exists())
+            server.setup()
+            with server.db() as con:
+                before=list(con.iterdump())
+            status=self.call('/api/ready')
+            self.assertEqual(status['status'],200)
+            self.assertEqual(json.loads(status['body'])['releaseSha'],'a'*40)
+            with server.db() as con:
+                self.assertEqual(before,list(con.iterdump()))
+                con.execute('DROP TABLE listings')
+            self.assertEqual(self.call('/api/ready')['status'],503)
 
     def test_wsgi_static_admin(self):
         r = self.call('/admin/')
