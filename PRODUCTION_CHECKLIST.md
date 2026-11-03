@@ -90,6 +90,14 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-03. Profil, chek tarixi va rol almashishi
+
+- [x] **M102/M124.** Sessiya almashishi ochiq sahifaga xabar beradi. Eski profil maydonlari, jadval kalendari, chat va yordam yozishmalari keyingi kadrda yashiriladi. Ochiq chek oynasi yopiladi, avvalgi hisobga tegishli bildirishnoma va surat ekrandan olinadi. Testlarda ota sahifa qayta ochilmadi. Boshqa chek ID sini berish eskirgan sessiyani qayta faollashtirmadi.
+- [x] **M102/M105.** Eski rol tugmasi saqlanib qolsa yoki sessiya tiklanayotganida hisob almashsa, rol o‘zgartirish so‘rovi yuborilmaydi. Tuzatishdan oldin takrorlangan ikki holatda POST yuborilgan edi. Rol bo‘yicha yettita test o‘tdi.
+- [x] **M105/M124.** Server profil versiyasi eskirgani uchun 409 qaytarsa, enaga tahrirlarini bekor qilib serverdagi nusxani ochishni tanlay oladi. Profilni qayta olish yozuv yubormaydi. Testda foydalanuvchi serverdagi ismni ko‘rdi va keyingi o‘zgarish 12-versiyaga bog‘landi. Profil, chek tarixi, rasm va bildirishnoma bo‘yicha 43 ta maqsadli test o‘tdi.
+- [x] Mobil `5585ddc` uchun analyzer va 545 ta mahalliy test o‘tdi. Live API integratsiya fayli tanlovga kiritilmadi. M102/M105/M124 uchun haqiqiy qurilma, server restart va tashqi xizmat uzilishi qabuli ochiq. [Mobil CI](https://github.com/umar200000/momiq_app/actions/runs/41623486370)
+- [x] Oldingi mobil `6332f87` commitining iOS 18.6, iPhone 16 Pro simulator natijasi tekshirildi. `net.momiq.app` birinchi ochilishda va to‘liq yopib qayta ochilganda rol tanlash ekraniga yetdi. Shu uch repo tekshiruvida backend va admin testlari ham o‘tdi. [Mobil CI](https://github.com/umar200000/momiq_app/actions/runs/41614651492) · [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41614668489) · [Admin CI](https://github.com/umar200000/momiq_admin/actions/runs/41614658720)
+
 ### 2026-11-03. M133 yopildi
 
 - [x] Sessiyasiz mijoz buyurtmalar oynasida kirish haqidagi xabarni ko‘radi. Eski lokal bron, bekor qilish, tahrirlanadigan sharh va soxta video holati sahifalari chiqarildi. Saqlangan eski formatni o‘qish va demo yozuvlarini filtrlash mexanizmi saqlandi. 39 ta mobil test o‘tdi, analyzer xato topmadi.
