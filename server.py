@@ -162,8 +162,8 @@ def setup():
         con.commit()
         migrate(con)
 
-def account_snapshot(con, row):
-    snapshot = con.execute('SELECT u.account, COALESCE(r.revision,0) revision FROM users u LEFT JOIN account_revisions r ON r.user_id=u.id WHERE u.id=?', (row['id'],)).fetchone()
+def account_snapshot(con, user_id):
+    snapshot = con.execute('SELECT u.account, COALESCE(r.revision,0) revision FROM users u LEFT JOIN account_revisions r ON r.user_id=u.id WHERE u.id=?', (user_id,)).fetchone()
     account = json.loads(snapshot['account'])
     account['_revision'] = snapshot['revision']
     return account
@@ -322,6 +322,9 @@ class ApiError(Exception):
     def __init__(self, status, message):
         self.status, self.message = status, message
 
+SMALL_ACCOUNT_ACTIONS = frozenset(('/api/me/role', '/api/me/pets/archive',
+                                   '/api/auth/logout', '/api/auth/logout-all', '/api/admin/logout'))
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "MomiqLocal/1"
     def send_response(self, code, message=None):
@@ -355,7 +358,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
     def body(self):
         try:
-            return request_json.read(self)
+            limit = 16 * 1024 if urlparse(self.path).path in SMALL_ACCOUNT_ACTIONS else request_json.MAX_BYTES
+            return request_json.read(self, max_bytes=limit)
         except (request_json.BodyError,ValueError):
             # Never reuse an HTTP connection with unread/ambiguous request bytes.
             self.close_connection=True
@@ -384,14 +388,14 @@ class Handler(BaseHTTPRequestHandler):
     def auth(self, con, role="client", *, bind=True):
         token = self.session_token(role)
         digest = hashlib.sha256(token.encode()).hexdigest()
-        session = con.execute("SELECT * FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
+        session = con.execute("SELECT user_id FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
         if not session:
             raise ApiError(401, "Qayta kiring")
         if role == "admin":
             self.operator_role=operator_access.role_for(con,session['user_id'])
             if not self.operator_role:raise ApiError(401, "Qayta kiring")
         if role == "client":
-            user = con.execute("SELECT * FROM users WHERE id=?", (session["user_id"],)).fetchone()
+            user = con.execute("SELECT blocked FROM users WHERE id=?", (session["user_id"],)).fetchone()
             if not user or user["blocked"]:
                 raise ApiError(403, "Hisob bloklangan")
         if bind:
@@ -430,6 +434,12 @@ class Handler(BaseHTTPRequestHandler):
                  "text": "Xabar o‘chirildi" if r["deleted"] else r["text"],
                  "image": None if r["deleted"] else r["image"], "time": r["time"]}
                 for r in con.execute("SELECT * FROM messages WHERE user_id=? ORDER BY time,id", (user,))]
+    def reply_message_history(self,con,user):
+        con.execute('BEGIN')
+        messages = self.messages(con,user)
+        con.commit()
+        self.reply(200,{'messages':messages})
+
     def handle_request(self):
         # Apply the same ceiling to the local HTTP and WSGI entry points before
         # any route parses individual fields or starts a database transaction.
@@ -505,7 +515,7 @@ class Handler(BaseHTTPRequestHandler):
                     con.execute('INSERT OR IGNORE INTO user_roles VALUES(?,?)',(user['id'],role))
                 token = self.session(con,user["id"],"client")
                 con.commit()
-                self.reply(200, {"token": token, "userId": user["id"], "account": account_snapshot(con,user)})
+                self.reply(200, {"token": token, "userId": user["id"], "account": account_snapshot(con,user["id"])})
                 return
             if path == "/api/admin/login" and self.command == "POST":
                 data = self.body()
@@ -545,7 +555,10 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Bu so‘rovda query maydonlari qabul qilinmaydi')
             if admin:
                 if path=='/api/admin/me' and self.command=='GET':
-                    self.reply(200,operator_access.identity(user,self.operator_role))
+                    con.execute('BEGIN')
+                    result = operator_access.identity(user,self.operator_role)
+                    con.commit()
+                    self.reply(200,result)
                     return
             if path == '/api/me/role':
                 if self.command != 'POST':raise ApiError(405,'POST yuboring')
@@ -560,7 +573,7 @@ class Handler(BaseHTTPRequestHandler):
                 if changed:
                     con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
                                 (user,'role-enroll',data['role'],now()))
-                result={'userId':user,'role':data['role'],'roles':roles_for(con,user),'account':account_snapshot(con,row)}
+                result={'userId':user,'role':data['role'],'roles':roles_for(con,user),'account':account_snapshot(con,user)}
                 con.commit()
                 self.reply(200,result)
                 return
@@ -617,9 +630,9 @@ class Handler(BaseHTTPRequestHandler):
                 pet = next((p for p in current.get('pets',[]) if p['id']==pet_id),None)
                 if (pet and type(data.get('_revision')) is int and data['_revision']==current_revision-1
                         and bool(pet.get('archived',False))==data['archived']):
-                    row = con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
+                    result = account_snapshot(con,user)
                     con.commit()
-                    self.reply(200,{'account':account_snapshot(con,row)})
+                    self.reply(200,{'account':result})
                     return
                 claim_account_revision(con,user,data.get('_revision'))
                 if not pet: raise ApiError(404,'Hayvon topilmadi')
@@ -627,9 +640,9 @@ class Handler(BaseHTTPRequestHandler):
                 con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(current),user))
                 con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
                             (user,'pet-archive' if data['archived'] else 'pet-restore',pet_id,now()))
-                row = con.execute('SELECT * FROM users WHERE id=?',(user,)).fetchone()
+                result = account_snapshot(con,user)
                 con.commit()
-                self.reply(200,{'account':account_snapshot(con,row)})
+                self.reply(200,{'account':result})
                 return
             if path == '/api/me/dashboard' and self.command == 'GET':
                 self.reply(200,sitter_dashboard.overview(con,user,datetime.fromisoformat(now())))
@@ -667,9 +680,12 @@ class Handler(BaseHTTPRequestHandler):
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
                         con.execute("INSERT OR IGNORE INTO user_roles VALUES(?,'sitter')",(user,))
-                row = con.execute("SELECT * FROM users WHERE id=?", (user,)).fetchone()
+                else:
+                    con.execute('BEGIN')
+                row = con.execute("SELECT phone FROM users WHERE id=?", (user,)).fetchone()
+                result = {"userId":user,"phone":row["phone"],"account":account_snapshot(con,user)}
                 con.commit()
-                self.reply(200,{"userId":user,"phone":row["phone"],"account":account_snapshot(con,row)})
+                self.reply(200,result)
                 return
             if path == '/api/me/listings' and self.command in ['GET','PUT']:
                 if self.command == 'PUT':
@@ -695,7 +711,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200,catalog.review(con,*match.groups(),self.body(),user,ENVIRONMENT))
                 return
             if path == "/api/messages" and self.command == "GET":
-                self.reply(200,{"messages":self.messages(con,user)})
+                self.reply_message_history(con,user)
                 return
             if path == "/api/messages" and self.command == "POST":
                 self.save_message(con,user,True,self.body())
@@ -709,6 +725,8 @@ class Handler(BaseHTTPRequestHandler):
                     # Decode/validate potentially large photos before taking the
                     # writer lock; the revision is rechecked inside the transaction.
                     validated=validate_account(data['account']) if 'account' in data else None
+                    con.execute('BEGIN IMMEDIATE')
+                elif chat and self.command == "GET":
                     con.execute('BEGIN IMMEDIATE')
                 row = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
                 if not row:
@@ -768,6 +786,10 @@ class Handler(BaseHTTPRequestHandler):
         if not text and not image: raise ValueError('Xabar yoki rasm kiriting')
         request_id = string(data.get('requestId',secrets.token_hex(16)),100)
         con.execute('BEGIN IMMEDIATE')
+        if not mine:
+            recipient = con.execute('SELECT blocked FROM users WHERE id=?',(user,)).fetchone()
+            if not recipient: raise ApiError(404,'Mijoz topilmadi')
+            if recipient['blocked']: raise ApiError(409,'Hisob bloklangan')
         existing = con.execute('SELECT * FROM messages WHERE user_id=? AND request_id=?',(user,request_id)).fetchone()
         if existing:
             if (bool(existing['mine']) != mine or existing['sitter'] != sitter
@@ -781,7 +803,7 @@ class Handler(BaseHTTPRequestHandler):
                         (secrets.token_hex(16),user,sitter,int(mine),text,image,now(),request_id))
             if not mine: self.audit(con,operator,'reply',user)
         con.commit()
-        self.reply(200,{'messages':self.messages(con,user)})
+        self.reply_message_history(con,user)
     def dispatch(self):
         from request_logging import access_record
         started=time.monotonic();outcome='ok'

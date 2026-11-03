@@ -15,7 +15,7 @@ class JsonBodyTests(unittest.TestCase):
         message=Message();message['Content-Length']=str(len(raw));message['Content-Type']='application/json; charset=utf-8'
         for key,value in headers.items():
             del message[key];message[key]=value
-        return SimpleNamespace(headers=message,rfile=io.BytesIO(raw))
+        return SimpleNamespace(path='/api/me',headers=message,rfile=io.BytesIO(raw))
 
     def test_duplicate_keys_nonfinite_numbers_encoding_and_nonobject_rejected(self):
         for raw in (b'{"a":1,"a":2}',b'{"a":1,"\\u0061":2}',b'{"x":{"a":0,"a":1}}',b'{"x":NaN}',b'{"x":Infinity}',b'{"x":-Infinity}',b'{"x":1e9999}',b'[]',b'null',b'{"x":"\xff"}',b'{} trailing'):
@@ -54,6 +54,24 @@ class JsonBodyTests(unittest.TestCase):
         for header in ('Content-Length','Content-Type'):
             h=self.handler();h.headers[header]=h.headers[header]
             with self.assertRaises(body.BodyError):body.read(h)
+
+    def test_small_account_actions_reject_large_bodies_before_reading(self):
+        limit = 16 * 1024
+        for path in ('/api/me/role','/api/me/pets/archive','/api/auth/logout','/api/auth/logout-all','/api/admin/logout'):
+            with self.subTest(path=path):
+                valid = self.handler(b'{}' + b' ' * (limit-2))
+                valid.path = path
+                self.assertEqual(Handler.body(valid), {})
+                stream = io.BytesIO(b'{}' + b' ' * (limit-1))
+                handler = WsgiHandler({'REQUEST_METHOD':'POST','PATH_INFO':path,'CONTENT_LENGTH':str(limit+1),
+                                       'CONTENT_TYPE':'application/json','wsgi.input':stream})
+                with self.assertRaises(body.BodyError) as caught: handler.body()
+                self.assertEqual(caught.exception.status, 413)
+                self.assertEqual(stream.tell(), 0)
+                self.assertTrue(handler.close_connection)
+        profile = self.handler(b'{}' + b' ' * limit)
+        profile.path = '/api/me'
+        self.assertEqual(Handler.body(profile), {})
 
     def test_partial_reads_truncation_timeout_and_reader_release(self):
         class Partial(io.BytesIO):

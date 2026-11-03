@@ -79,12 +79,12 @@ def decode(raw):
     return obj
 
 
-def read(handler):
+def read(handler, max_bytes=MAX_BYTES):
     lengths=handler.headers.get_all('Content-Length',[])
     if len(lengths)!=1 or not re.fullmatch(r'[0-9]{1,8}',lengths[0]):
         raise BodyError(400,'Content-Length noto‘g‘ri')
     size=int(lengths[0])
-    if not 0<size<=MAX_BYTES:raise BodyError(413,'So‘rov hajmi noto‘g‘ri')
+    if not 0<size<=max_bytes:raise BodyError(413,'So‘rov hajmi noto‘g‘ri')
     if handler.headers.get('Transfer-Encoding') is not None:
         raise BodyError(400,'Transfer-Encoding qabul qilinmaydi')
     types=handler.headers.get_all('Content-Type',[])

@@ -97,6 +97,12 @@ def post_entry(con, uid, value, kind, source, actor, reason):
     return entry
 
 
+# Keep receipt images out of summary queries, including the pagination lookahead.
+TOPUP_SUMMARY = ('id,amount_minor,qr_version,status,created,review_reason,reviewed_at,'
+                 'payer_reference,paid_at,revision')
+ADMIN_TOPUP_SUMMARY = TOPUP_SUMMARY + ',user_id,transfer_reference'
+
+
 def topup_view(row, *, admin=False):
     result={'id':row['id'],'amountMinor':row['amount_minor'],'currency':'UZS',
             'qrVersion':row['qr_version'],'status':row['status'],'created':row['created'],
@@ -108,7 +114,7 @@ def topup_view(row, *, admin=False):
 
 
 def acknowledge_topup(handler, con, identity, request_id, revision, status):
-    row = con.execute('SELECT * FROM topup_requests WHERE id=?', (identity,)).fetchone()
+    row = con.execute(f'SELECT {TOPUP_SUMMARY} FROM topup_requests WHERE id=?', (identity,)).fetchone()
     original = con.execute('SELECT * FROM topup_history WHERE topup_id=? AND revision=?',
                            (identity, revision)).fetchone()
     if original is None:
@@ -139,7 +145,8 @@ def topup_page(handler, con, uid, admin=False):
         if not row or (not admin and row['user_id']!=uid): raise WalletError(400,'Invalid cursor')
         predicates.append('(created,id)<(?,?)');args.extend([row['created'],row['id']])
     clause=' WHERE '+' AND '.join(predicates) if predicates else ''
-    rows=con.execute('SELECT * FROM topup_requests'+clause+' ORDER BY created DESC,id DESC LIMIT 21',args).fetchall()
+    columns = ADMIN_TOPUP_SUMMARY if admin else TOPUP_SUMMARY
+    rows=con.execute(f'SELECT {columns} FROM topup_requests'+clause+' ORDER BY created DESC,id DESC LIMIT 21',args).fetchall()
     items=[topup_view(r,admin=admin) for r in rows[:20]]
     if admin:
         for item in items:
@@ -165,10 +172,13 @@ def route(handler, con, uid, path, photo, environment):
     method=handler.command
     one=re.fullmatch(r'/api/wallet/topups/([a-f0-9]{32})',path)
     if one and method=='GET':
+        con.execute('BEGIN')
         require_sitter(con,uid)
-        row=con.execute('SELECT * FROM topup_requests WHERE id=? AND user_id=?',(one[1],uid)).fetchone()
+        row=con.execute(f'SELECT {TOPUP_SUMMARY} FROM topup_requests WHERE id=? AND user_id=?',(one[1],uid)).fetchone()
         if not row: raise WalletError(404,'So‘rov topilmadi')
-        handler.reply(200,{'topup':topup_view(row)});return True
+        result = topup_view(row)
+        con.commit()
+        handler.reply(200,{'topup':result});return True
     history_match=re.fullmatch(r'/api/(admin|wallet)/topups/([a-f0-9]{32})/history(?:/([0-9]{1,9})/receipt)?',path)
     if history_match and method=='GET':
         query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
@@ -390,7 +400,9 @@ def route(handler, con, uid, path, photo, environment):
         con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(uid,'topup-'+decision,row['id']+': '+reason,now()))
         topup_history.record(con,row['id'],decision,uid,reason)
         notifications.publish(con,row['user_id'],'topup-review:'+row['id']+':'+str(revision+1),'wallet_topup',row['id'],status,reason)
+        updated=con.execute(f'SELECT {ADMIN_TOPUP_SUMMARY} FROM topup_requests WHERE id=?',(row['id'],)).fetchone()
+        result=topup_view(updated,admin=True)
         con.commit()
-        handler.reply(200,{'topup':topup_view(con.execute('SELECT * FROM topup_requests WHERE id=?',(row['id'],)).fetchone(),admin=True)})
+        handler.reply(200,{'topup':result})
         return True
     return False

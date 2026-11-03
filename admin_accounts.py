@@ -135,7 +135,7 @@ def route(handler, con, actor, path, account_snapshot, roles_for):
     if not row:
         handler.reply(404,{'error':'Hisob topilmadi'});return True
     if kind=='users':
-        user={'id':uid,'phone':row['phone'],'blocked':bool(row['blocked']),'created':row['created'],'roles':roles_for(con,uid),'account':account_snapshot(con,row)}
+        user={'id':uid,'phone':row['phone'],'blocked':bool(row['blocked']),'created':row['created'],'roles':roles_for(con,uid),'account':account_snapshot(con,uid)}
         contacts={r[0] for r in con.execute('SELECT DISTINCT sitter FROM messages WHERE user_id=?',(uid,))}
         names={}
         for contact in contacts:

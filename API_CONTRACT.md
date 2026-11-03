@@ -8,6 +8,12 @@ A notification read acknowledgement contains `ok`, `noticeId`, the original `rea
 
 JSON request bodies must use UTF-8 and contain Unicode scalar values. Unpaired surrogate escapes in a key or value return 400 before a mutation. Valid surrogate pairs and literal backslash text are preserved. If an older record already contains a lone surrogate, the JSON response renders U+FFFD at that position without rewriting the stored record.
 
+Client and admin logout, client logout-all, role selection and pet archive accept up to 16 KiB of JSON each. A larger declared body receives 413 before the reader consumes any bytes. The existing size limits for profile and media requests still apply.
+
+Account, client message history and operator identity reads check the session within their SQLite read transaction. Revocation committed before that snapshot returns 401. A profile save and a pet archive or archive retry capture the returned account revision before committing. A later edit appears on subsequent reads. A legacy operator reply checks that the recipient can receive messages after acquiring the writer lock. A blocked recipient receives no message and the operator gets 409.
+
+Top-up summaries in the sitter list, sitter detail and operator queue read metadata only. Receipt images are fetched through the existing authenticated receipt routes. The sitter detail checks the session within its read transaction. The operator review acknowledgement returns the status and revision captured inside its own transaction, even if the sitter resubmits immediately after commit.
+
 An authenticated booking participant can request review of a resolved dispute using `POST /api/support` with `topic=dispute_appeal`, the booking ID, the observed integer `appealRevision`, a reason and the normal idempotency fields. Another participant's support thread remains private. An open or missing decision returns 404. A changed revision returns 409. The immutable ticket topic and booking reference identify the one resolved dispute and its immutable decision event. The response adds `disputeAppeal`. Limited support operators see only its booking ID, revision and event ID and may route the ticket to an administrator. On closure an administrator must supply `reviewedDisputeEventId` and a reason. A missing or incorrect event returns 428 or 409. The audit links the closure message and decision event. This records the response without changing the adjudicated booking, commission or customer service payment.
 
 ## Liveness, readiness and release identity
