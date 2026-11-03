@@ -1031,6 +1031,8 @@ Quyida ochiq bandlarning tashqi shart kutayotgan qismlari sanalgan.
 - **Operatsiya va xarajat:** M007/M092/M099/M104/M107/M114–M117. Object storage/offsite backup joyi va credential, encryption/recovery kaliti egasi, MFA recovery, SLO/RPO/RTO, alert va support mas’uli/budjet kerak. Mavjud SQLite/load natijasi bazani amalda almashtirish yoki xarajat qilish uchun avtomatik qaror emas.
 - **Store va pilot:** M119–M122/M125/M128/M131/M132. Imzolash egasi, Apple/Google hisoblari, real Android/iPhone, public support/privacy/delete URL va egasining haqiqiy oqim qabuli kerak. Signing foydalanuvchi aytganidek oxirida.
 
+- **2026-11-03, M090.** Xato yashirilgan sharhni apellyatsiyadan keyin yana ommaga ko‘rsatishga kim vakolatli bo‘lishini egasi keyingi muhokamaga qoldirdi. Sharhning asl matni va yulduzlari tahrirlanmasligi tasdiqlangan. Ushbu qaror M090 ning ochiq qismi sifatida hisoblanadi.
+
 - **2026-11-03, M097.** Audit tarixini saqlash muddati va arxivni o‘qishga vakolatli rol bo‘yicha qaror egasining ko‘rsatmasiga asosan yakuniy muhokamaga qoldirildi.
 
 Ochiq bandlar sanog‘i tekshiruvi: **81 yopiq + 45 joriy/qisman + 1 staging kutishida + 12 avvalgi yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
