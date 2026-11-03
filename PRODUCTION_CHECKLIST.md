@@ -93,7 +93,7 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 ### 2026-11-03. M019 relizga tayyorlandi
 
 - [x] Amaldagi `main` asosida M019 uchun alohida tuzatish tayyorlandi. Eski server sozlamasida test kirishi yoqilgan bo‘lsa ham production rejimida umumiy kod bilan yangi sessiya ochilmaydi. Vaqtinchalik bazalarda production uchun ikkita, local/test uchun uchta konfiguratsiyada health va haqiqiy login yo‘li tekshirildi. 15 ta mahalliy test va [PR uchun GitHub CI](https://github.com/umar200000/momiq_backend/actions/runs/41642054901) o‘tdi.
-- [ ] Serverda yopish. Oldingi hosted test kirishi egasining tanlovi bilan yoqilgan. Bu o‘zgarish SMS tayyor bo‘lguncha mijoz va enaganing serverga yangi kirishini yopadi. [M019 uchun alohida PR](https://github.com/umar200000/momiq_backend/pull/2). Bandni to‘liq yopish uchun rollout va amaldagi domenning tekshiruvi kerak.
+- [ ] Egasi qaroriga ko‘ra serverdagi mijoz va enaga test kirishi SMS tayyor bo‘lguncha saqlanadi. M019 shu muddatgacha ochiq. SMS orqali kirish ishlagach, umumiy kodni o‘chirish va amaldagi domenda tekshirish kerak. [Tayyor PR](https://github.com/umar200000/momiq_backend/pull/2)
 
 ### 2026-11-03. 45 ta joriy bandning yakuniy qabul tekshiruvi
 
