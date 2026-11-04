@@ -470,9 +470,11 @@ class Handler(BaseHTTPRequestHandler):
             match = re.fullmatch(r"/api/admin/messages/([a-f0-9]+)",path)
             if match and self.command == 'DELETE':
                 self.begin_write(con,user,role)
-                changed = con.execute("UPDATE messages SET deleted=1,text='',image=NULL WHERE id=?", (match[1],)).rowcount
-                if not changed: raise ApiError(404,'Xabar topilmadi')
-                self.audit(con,'delete-message',match[1])
+                changed = con.execute("UPDATE messages SET deleted=1,text='',image=NULL WHERE id=? AND deleted=0", (match[1],)).rowcount
+                if changed:
+                    self.audit(con,'delete-message',match[1])
+                elif not con.execute('SELECT 1 FROM messages WHERE id=?',(match[1],)).fetchone():
+                    raise ApiError(404,'Xabar topilmadi')
                 con.commit()
                 self.reply(200,{"ok":True})
                 return
