@@ -298,6 +298,26 @@ class ApiTests(unittest.TestCase):
         self.req(path,'PUT',{'account':profile},admin=True)
         self.req('/api/me',token=a['token'],expected=403)
 
+    def test_admin_users_loads_roles_once_and_keeps_empty_and_multiple_roles(self):
+        from unittest.mock import patch
+        account = json.dumps(server.default_account())
+        with server.db() as con:
+            con.executemany('INSERT INTO users VALUES(?,?,?,0,?)',
+                            [(uid,'test-'+uid,account,server.now()) for uid in ('aa11','aa12')])
+            con.executemany('INSERT INTO user_roles VALUES(?,?)',[('aa11','sitter'),('aa11','customer')])
+        original_db = server.db
+        queries = []
+        def observed():
+            con = original_db()
+            con.set_trace_callback(queries.append)
+            return con
+        with patch.object(server,'db',observed):
+            rows = self.req('/api/admin/users',admin=True)['users']
+        roles = {row['id']:row['roles'] for row in rows}
+        self.assertEqual(roles['aa11'],['customer','sitter'])
+        self.assertEqual(roles['aa12'],[])
+        self.assertEqual(sum('FROM user_roles' in sql for sql in queries),1)
+
     def test_admin_block_only_edit_keeps_concurrent_profile_update(self):
         from unittest.mock import patch
         a=self.login('998900011044')

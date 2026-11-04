@@ -467,7 +467,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.save_message(con,user,True,self.body())
                 return
             if path == "/api/admin/users" and self.command == "GET":
-                users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"roles":roles_for(con,r["id"]),"account":json.loads(r["account"])} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
+                roles = {}
+                for uid,role_name in con.execute('SELECT user_id,role FROM user_roles ORDER BY user_id,role'):
+                    roles.setdefault(uid,[]).append(role_name)
+                users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"roles":roles.get(r["id"],[]),"account":json.loads(r["account"])} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
                 con.commit()
                 self.reply(200,{"users":users,"sitters":sitter_names()})
                 return
