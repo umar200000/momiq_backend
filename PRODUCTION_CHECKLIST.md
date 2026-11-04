@@ -66,7 +66,7 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Joriy bajarish navbati — 2026-11-03**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 85 bajarilgan, 54 ochiq**. **39 ta band joriy navbatda. M019 SMSni, M008 stagingni kutadi. M042 xarita xizmati ochilguncha alohida keyinga qoldirildi**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 85 bajarilgan, 54 ochiq**. **38 ta band joriy navbatda. M019 SMSni, M008 stagingni kutadi. M042 xarita xizmati ochilguncha, M100 eski server bazasidagi yakuniy sinovgacha keyinga qoldirildi**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
@@ -81,7 +81,7 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 | 7 | M024, M066, M108 | Hisob/pul/ma’lumot hayot davridagi mavjud kod va UI bo‘shliqlarini belgilash; tasdiqlangan qoldiq qaytarilmasligini bir xil ko‘rsatish. | O‘chirish/retention/aktiv majburiyat/fiskal siyosatini kelishmasdan qaytarilmas o‘chirish yoki yuridik tasdiq qilinmaydi. |
 | 8 | M078, M139 | Video/chek/QR picker, progress, cancel/retry, process-death qoralamasi va maxfiylikning avtomatlashtiriladigan qismlari. | APK install bloklangan; native kamera/playback/haqiqiy iPhone qabul sinovi oxirida. |
 | 9 | M081, M082, M083, M084, M085 | In-app notice, afzallik, event/dedupe va sahifaga o‘tish qamrovini tekshirish; providerga bog‘liq bo‘lmagan kamchiliklarni tuzatish. | Push loyihasi/kalitlar, APNs, OS token delivery va haqiqiy qurilma sinovi. |
-| 10 | M092, M099, M100, M104, M107 | Operator huquqlari, bazaning concurrency dalillari, migration/backup mosligi, media/secrets inventari va konfiguratsiya tekshiruvlari. | MFA recovery siyosati, saqlash joyi/credential/budjet, eski hosted ma’lumotni ko‘chirish va kalit rotatsiyasi. |
+| 10 | M092, M099, M104, M107 | Operator huquqlari, bazaning concurrency dalillari, media/secrets inventari va konfiguratsiya tekshiruvlari. | MFA recovery siyosati, saqlash joyi/credential/budjet va kalit rotatsiyasi. |
 | 11 | M106, M109, M110, M111, M113, M114, M115, M116, M117 (M112 yopildi) | Release juftligi, CI, read-only smoke, HTTPS/origin/rate limit, backup/recovery va monitoring vositalari hamda yo‘riqnomalarining tekshiriladigan qismlari. | Root bootstrap, haqiqiy staging/promotion, offsite encryption/storage, tashqi alert egasi va real recovery mashqi. |
 | 12 | M122, M125 | Haqiqiy imkoniyatlarga mos review/material inventari, versiya/artifact/symbol/pilot tayyorgarligi. | Signed build, store hisoblari, haqiqiy screenshot va public support/privacy/delete manzillari. |
 | 13 | M128, M129, M130, M131 (M133 yopildi) | Izolyatsiyalangan nosozlik/parallel testlar, API va dependency qamrovi; hujjat/placeholder cheklovlari va dalillarni yangilash. | M055ga bog‘langan live E2E, ikki qurilma, hosted/provider uzilishi va pilot qabul sinovlari. |
@@ -976,7 +976,6 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 **N. Ma’lumot yaxlitligi, media va xavfsizlik**
 
 - [ ] M099 — Domen modeli va ma’lumot saqlash qarorini yakunlash: bog‘lanishlar, indekslar, unique cheklovlar, tranzaksiyalar; SQLite qolishi yoki PostgreSQLga ko‘chish parallel bron/yuklama natijasi bilan asoslanadi.
-- [ ] M100 — Versiyalangan migratsiya va eski ma’lumotni ko‘chirishni joriy etish: backup, dry-run, idempotency va moslik; JSON/draft/demo yozuvlari real hisoblarni yo‘qotmasdan ko‘chadi.
 - [x] M101 — API shartnomasini hujjatlashtirish va tekshirish: request/response, status/xato kodi, null, pagination, vaqt va valyuta; eski ilova versiyasiga moslik siyosati mavjud.
 - [ ] M102 — Har obyekt va amal bo‘yicha ruxsatni tekshirish: boshqa hisob, boshqa rol, bloklangan/o‘chgan hisob, o‘zgartirilgan ID va qo‘shimcha JSON maydoni orqali huquq oshmaydi.
 - [x] M103 — Barcha kirishlar va uploadni chegaralash: uzunlik, son, sana, koordinata, MIME/haqiqiy format, fayl/piksel/video hajmi; zararli yoki ortiqcha resurs talab qiluvchi fayl rad etiladi.
@@ -1113,6 +1112,12 @@ Bu bo‘lim foydalanuvchining 2026-10-29 ko‘rsatmasi bilan ro‘yxat oxiriga k
 - [ ] M042 — MapKit va geokodlash sozlamalarini tugatish: muhit/ilova bilan cheklangan kalit, kvota va provider xatosi; kalit yo‘qligi sahifani yiqitmaydi.
 
 Momiq nomiga Yandex MapKit va manzil qidirish xizmati hali ochilmagan. Egasi xizmat ochishni keyinga qoldirdi. Hisob ajratilgach, kalit cheklovlari, kvota va haqiqiy manzil qidiruvi tekshiriladi.
+
+**2026-11-04 kuni yakunga qoldirilgan migratsiya bandi**
+
+- [ ] M100 — Versiyalangan migratsiya va eski ma’lumotni ko‘chirishni joriy etish: backup, dry-run, idempotency va moslik; JSON/draft/demo yozuvlari real hisoblarni yo‘qotmasdan ko‘chadi.
+
+Egasi M100 ni yakuniy navbatga ko‘chirdi. Qolgan qabul sharti — eski server bazasining shaxssizlantirilgan nusxasida migratsiyani tekshirish va yozuvlarni solishtirish.
 
 **Davom etayotgan bandlarning tashqi qabul bosqichlari**
 
