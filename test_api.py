@@ -375,6 +375,26 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(roles['aa12'],[])
         self.assertEqual(sum('FROM user_roles' in sql for sql in queries),1)
 
+    def test_one_damaged_legacy_name_does_not_hide_other_accounts_or_rewrite_storage(self):
+        owner=self.login('998900011087')
+        account=owner['account']
+        account['profile']['first']='TEST'+chr(0xd800)+'🐾'
+        original=json.dumps(account)
+        def restore():
+            with server.db() as con:
+                con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(server.default_account()),owner['userId']))
+        self.addCleanup(restore)
+        with server.db() as con:
+            con.execute('UPDATE users SET account=? WHERE id=?',(original,owner['userId']))
+        other=self.login('998900011088')
+        users={u['id']:u for u in self.req('/api/admin/users',admin=True)['users']}
+        self.assertIn(other['userId'],users)
+        self.assertEqual(users[owner['userId']]['account']['profile']['first'],'TEST�🐾')
+        self.assertEqual(self.req('/api/me',token=owner['token'])['account']['profile']['first'],'TEST�🐾')
+        self.req('/api/admin/users',token=other['token'],expected=401)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT account FROM users WHERE id=?',(owner['userId'],)).fetchone()[0],original)
+
     def test_admin_block_only_edit_keeps_concurrent_profile_update(self):
         from unittest.mock import patch
         a=self.login('998900011044')

@@ -241,7 +241,12 @@ class Handler(BaseHTTPRequestHandler):
             # The parser can reject requests before dispatch sets any attributes.
             print(access_record(getattr(self,'command',''),getattr(self,'path',''),code))
     def reply(self, status, body, cookie=None):
-        raw = json.dumps(body, ensure_ascii=False).encode()
+        serialized = json.dumps(body, ensure_ascii=False)
+        try:
+            raw = serialized.encode()
+        except UnicodeEncodeError:
+            # Render damaged legacy text without changing the stored evidence.
+            raw = request_json.surrogates.sub('\ufffd',serialized).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
