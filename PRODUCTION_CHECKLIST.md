@@ -66,7 +66,7 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Joriy bajarish navbati — 2026-11-03**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 85 bajarilgan, 54 ochiq**. Dastlabki 48 ochiq banddan **41 tasi joriy/qisman (M019 SMSni kutadi, boshqa bandlar 40 ta)**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 85 bajarilgan, 54 ochiq**. **39 ta band joriy navbatda. M019 SMSni, M008 stagingni kutadi. M042 xarita xizmati ochilguncha alohida keyinga qoldirildi**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
@@ -77,7 +77,7 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 | 3 | M090 | Mavjud support/moderatsiyadan foydalanib e’lon/profil/sharh/media shikoyati va apellyatsiya qamrovini tugatish; ruxsat va dalil testlari. | Operatsion mas’ul va haqiqiy navbat qabuli. |
 | 4 | M123 | Uch tildagi matn, xato holati, kattalashtirilgan shrift/kichik ekran va accessibility widget tekshiruvlari. | Android/iPhone screen reader va haqiqiy klaviatura/ruxsat tekshiruvlari. |
 | 5 | M014 (M012 yopildi) | Izolyatsiyalangan test fixture/seed va test provider chegaralarini inventarizatsiya qilish; xavfsiz takrorlash tekshiruvlari. | Live bronni yaratib/qabul qilib bloklangan sinovni aylanib o‘tish yo‘q; SMS/push haqiqiy provayderlari keyin. |
-| 6 | M001, M007, M009, M019, M042 | Tasdiqlangan Toshkent shahri va viloyati chegarasi hamda 1 000 hisob va 100 faol mijozli o‘lchovlar qayd etildi. | Ikki platformada uchala xizmat qabuli, xarita kaliti va kvotasi, SLO va xarajat, staging hamda SMS ishga tushgach serverdagi test kirishini almashtirish. |
+| 6 | M001, M007, M009, M019 | Tasdiqlangan Toshkent shahri va viloyati chegarasi hamda 1 000 hisob va 100 faol mijozli o‘lchovlar qayd etildi. | Ikki platformada uchala xizmat qabuli, SLO va xarajat, staging hamda SMS ishga tushgach serverdagi test kirishini almashtirish. |
 | 7 | M024, M066, M108 | Hisob/pul/ma’lumot hayot davridagi mavjud kod va UI bo‘shliqlarini belgilash; tasdiqlangan qoldiq qaytarilmasligini bir xil ko‘rsatish. | O‘chirish/retention/aktiv majburiyat/fiskal siyosatini kelishmasdan qaytarilmas o‘chirish yoki yuridik tasdiq qilinmaydi. |
 | 8 | M078, M139 | Video/chek/QR picker, progress, cancel/retry, process-death qoralamasi va maxfiylikning avtomatlashtiriladigan qismlari. | APK install bloklangan; native kamera/playback/haqiqiy iPhone qabul sinovi oxirida. |
 | 9 | M081, M082, M083, M084, M085 | In-app notice, afzallik, event/dedupe va sahifaga o‘tish qamrovini tekshirish; providerga bog‘liq bo‘lmagan kamchiliklarni tuzatish. | Push loyihasi/kalitlar, APNs, OS token delivery va haqiqiy qurilma sinovi. |
@@ -885,7 +885,6 @@ SMS provayder bilan bog‘liq M016–M018 yakuniy bosqichga qoldirildi: provayde
 
 - [x] M040 — Katalogni sahifalab olish va serverda filtrlash: xizmat, hayvon turi, narx, sanalar, sig‘im va tekshiruv holati; tartiblash barqaror va natijalar takrorlanmaydi.
 - [x] M041 — Yaqinlik qidiruvini haqiqiy koordinatalarga ulash: masofa serverda hisoblanadi; joylashuv berilmaganda tanlangan hudud bilan qidirish ishlaydi. Tasdiqlangan qaror: Toshkent ichida enaganing xizmat radiusi bilan cheklash qo‘llanmaydi.
-- [ ] M042 — MapKit va geokodlash sozlamalarini tugatish: muhit/ilova bilan cheklangan kalit, kvota va provider xatosi; kalit yo‘qligi sahifani yiqitmaydi.
 - [x] M043 — Joylashuv ruxsati rad etilishi, GPS o‘chiqligi va past aniqlikni boshqarish: majburlashsiz qo‘lda manzil tanlash, qayta urinish va sozlamaga o‘tish mavjud.
 - [x] M044 — Enaga tafsilotlarini real ma’lumot bilan to‘ldirish: xizmat narxi birligi, mavjud sanalar, tasdiq holati, haqiqiy rasmlar va sharhlar; aniq uy manzilini ochish siyosati bajariladi.
 - [x] M045 — Saqlanganlar va qidiruv holatlarini yakunlash: o‘chgan enaga, bo‘sh natija, yuklash/xato, sahifaga qaytish va filtrni tozalash; faol bo‘lmagan e’lonni bron qilib bo‘lmaydi.
@@ -1106,6 +1105,12 @@ Bu bo‘lim foydalanuvchining 2026-10-29 ko‘rsatmasi bilan ro‘yxat oxiriga k
 **2026-10-31 kuni alohida yakunga ko‘chirilgan staging bandi**
 
 - [ ] M008 — Local, staging va production konfiguratsiyalarini ajratish: URL, baza, storage, push, SMS va payment kalitlari aralashmaydi; staging mavjudligi amalda tekshiriladi yoki yaratiladi.
+
+**2026-11-04 kuni alohida keyinga qoldirilgan xarita bandi**
+
+- [ ] M042 — MapKit va geokodlash sozlamalarini tugatish: muhit/ilova bilan cheklangan kalit, kvota va provider xatosi; kalit yo‘qligi sahifani yiqitmaydi.
+
+Momiq nomiga Yandex MapKit va manzil qidirish xizmati hali ochilmagan. Egasi xizmat ochishni keyinga qoldirdi. Hisob ajratilgach, kalit cheklovlari, kvota va haqiqiy manzil qidiruvi tekshiriladi.
 
 **Davom etayotgan bandlarning tashqi qabul bosqichlari**
 
