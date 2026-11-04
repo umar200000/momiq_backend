@@ -90,7 +90,15 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-04. M102/M105 — sessiya va xabarni qayta yuborish
+
+- [x] Production backendda ikki admin cookie yuborilgan so‘rov sinovdan avval 200 qaytargan. O‘qish va logout uchun bitta aniq sessiya talab qilinadi. Vaqtinchalik bazadagi haqiqiy test sessiyalari bilan noaniq so‘rov 401 qaytardi va sessiyani bekor qilmadi. Yaroqli Bearer bilan chiqilgach, keyingi GET 401 qaytardi.
+- [x] Bir xabar to‘rt marta parallel yuborilganda bitta yozuv va bitta ID qaytdi. O‘sha so‘rov ID’sida matn almashtirilsa 409 qaytadi. Xabarni tekshirish vaqtida sessiya bekor qilinsa yoki administrator javob yozayotgan mijoz bloklansa, yozish tranzaksiyasi xabarni saqlamaydi. Rad etilgan javob uchun audit yozuvi yaratilmaydi.
+- [x] Backend `b82b215` uchun 35 ta test, CI va deploy o‘tdi. Ikki ommaviy domendagi 19 ta o‘qish sinovi hamda noaniq cookie va Bearer’siz credential uchun 401 javoblari qayta tekshirildi. M102 ning qurilmadagi sessiya almashuvi hamda M105 ning hosted uzilish mashqi ochiq. [Production CI](https://github.com/umar200000/momiq_backend/actions/runs/41784584010)
+
 ### 2026-11-04. Backend va admin versiyalarining mosligi, host ko‘rigi
+
+- **Egasi qarori.** M109 va M113 ning vakolatli server konsolini talab qiladigan tekshiruvlari keyinga qoldirildi. Ikkala band ham ochiq. Tayyor hisobot va oldingi domen tekshiruvlari keyingi qabulda ishlatiladi.
 
 - [x] **M107.** Amaldagi backend CI va serverdagi installer bir xil uchta runtime paketini versiya va SHA-256 xeshlari orqali tekshiradi. Uchala to‘g‘ri wheel qabul qilindi. Sinov nusxasidagi paketga qo‘shimcha bayt yozilganda o‘rnatishdan avval rad etildi. Pinlangan paketlar auditi, test va production deploy muvaffaqiyatli. Aktivlar huquqi, provider shartlari va kalit egalari bo‘yicha qabul ochiq. [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41784052267)
 - [x] **M109.** Admin deploy ham panelning uch faylini o‘zi chiqargan commit bilan baytma-bayt solishtiradi va backend readiness orqali ishlayotgan SHA’ni tekshiradi. Admin `8d41c34` va backend `2f3baea` production’da qayta tekshirildi. Admin commitida faqat CI o‘zgargan, frontend fayllari backend sinagan `f474aaa` bilan bir xil. Relizdan keyingi mustaqil 19 GET o‘tdi. Ikki komponent o‘zaro almashayotgan vaqtda server lock ichidagi nazorat hali ochiq. [Admin CI](https://github.com/umar200000/momiq_admin/actions/runs/41784171815)
