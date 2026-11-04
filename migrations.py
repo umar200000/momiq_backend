@@ -255,7 +255,7 @@ def _elapsed_us_v1(start, end):
     return (duration.days*86400+duration.seconds)*1_000_000+duration.microseconds
 
 
-def migrate(con):
+def migrate(con, *, verify_existing=False):
     if con.in_transaction:
         raise RuntimeError('Commit bootstrap before running migrations')
     con.create_function('momiq_migration_elapsed_us_v1',2,_elapsed_us_v1,deterministic=True)
@@ -279,7 +279,7 @@ def migrate(con):
             con.execute('INSERT INTO schema_migrations VALUES(?,?,?,?)',
                         (version, name, digest, datetime.now(timezone.utc).isoformat()))
             completed.append(version)
-        if completed and con.execute('PRAGMA foreign_key_check').fetchone():
+        if (completed or verify_existing) and con.execute('PRAGMA foreign_key_check').fetchone():
             raise RuntimeError('Migration would leave invalid foreign keys')
         con.commit()
         return completed
@@ -332,16 +332,14 @@ def main():
         backup_database(args.database, args.backup)
         with closing(sqlite3.connect(args.database)) as con:
             con.execute('PRAGMA foreign_keys=ON')
-            print('Applied migrations:', migrate(con))
+            print('Applied migrations:', migrate(con, verify_existing=True))
     else:
         with tempfile.TemporaryDirectory() as directory:
             copy = Path(directory) / 'dry-run.sqlite3'
             backup_database(args.database, copy)
             with closing(sqlite3.connect(copy)) as con:
                 con.execute('PRAGMA foreign_keys=ON')
-                print('Dry-run migrations:', migrate(con))
-                if con.execute('PRAGMA foreign_key_check').fetchall():
-                    raise RuntimeError('Foreign-key check failed')
+                print('Dry-run migrations:', migrate(con, verify_existing=True))
                 print('Integrity:', con.execute('PRAGMA integrity_check').fetchone()[0])
 
 

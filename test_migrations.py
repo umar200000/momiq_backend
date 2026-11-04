@@ -188,6 +188,29 @@ class MigrationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'foreign keys'):migrations.migrate(con)
             self.assertEqual(con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall(),[])
 
+    def test_offline_apply_and_dry_run_both_reject_an_orphan_in_current_schema(self):
+        import subprocess
+        import sys
+
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'source.db'
+            backup = Path(directory) / 'backup.db'
+            with closing(sqlite3.connect(source)) as con:
+                con.execute('CREATE TABLE users(id TEXT PRIMARY KEY)')
+                migrations.migrate(con)
+                with con:
+                    con.execute("INSERT INTO account_revisions VALUES('TEST-orphan', 0)")
+                original = list(con.iterdump())
+            for flags in ([], ['--apply', '--backup', str(backup)]):
+                with self.subTest(flags=flags):
+                    result = subprocess.run([sys.executable, migrations.__file__, str(source), *flags],
+                                            capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('foreign keys', result.stderr)
+            for database in (source, backup):
+                with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as con:
+                    self.assertEqual(list(con.iterdump()), original)
+
     def test_changed_or_unknown_migration_rejected(self):
         with closing(sqlite3.connect(':memory:')) as con:
             con.execute('CREATE TABLE users(id TEXT PRIMARY KEY)')
