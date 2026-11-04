@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-11-04. Tasdiqlangan hudud, parallel bron va hisob so‘rovlari
 
+- [x] **M123/M124/M130, CI dalili.** Mobil `b6ff8d1` versiyasi Android tekshiruvi va iOS buildidan o‘tdi. iPhone 16 Pro, iOS 18.6 simulyatorida rol tanlash ekrani birinchi ishga tushirish va jarayonni qayta ochishda tasdiqlandi. Ikkala PNG va aynan shu commitga tegishli natija fayli tekshirildi. Backend `6244e3f` uchun Linux CI uzilish va qayta urinish sinovlari bilan o‘tdi. [Mobil CI](https://github.com/umar200000/momiq_app/actions/runs/41837081767) · [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41838490286)
+
 - [x] **M105/M130, bron komissiyasi va qaytimi.** Vaqtinchalik TEST bazasida Gunicorn ishchi jarayoni bronni qabul qilish va bekor qilishning har birida ikki marta majburan to‘xtatildi. Commitdan avval uzilganda bron holati va balans saqlandi. Commitdan keyin javob yo‘qolganda ayni so‘rov avvalgi natijani berdi. Har amalda bitta moliyaviy yozuv, bitta tarix, bitta audit va har tomonga bittadan xabar tekshirildi. Bekor qilishdan keyin enaga balansi dastlabki qiymatga qaytdi. Balans to‘ldirish ssenariylari bilan birga olti uzilish sinaldi.
 
 - [x] **M007/M117, video hajmi va trafik.** 720p harakatli tasvir va ovozli 10 hamda 60 soniyalik ikkita fayl backend orqali qayta kodlandi. Kuniga 200 ta hisobot va 30 kun uchun tayyor videolar va muqovalar mos ravishda 8,24 va 49,54 GiB joy egallashi hisoblandi. Faol bronlar, nizolar, backup va takrorlar uchun kerakli joy alohida. [Baytlardagi o‘lchovlar](performance/video-service-volume-2026-11-04.json)
