@@ -42,6 +42,22 @@ class SearchHttpTests(unittest.TestCase):
         self.assertEqual({row['id'] for row in result['sitters']},{'sitter-23:boarding','sitter-22:boarding'})
         self.assertIsNone(result['nextCursor'])
 
+    def test_nearby_price_range_uses_both_endpoints_before_loading_profiles(self):
+        self.clones()
+        path='/api/sitters?lat=41.30&lon=69.27&service=boarding&minPrice=10005&maxPrice=10006'
+        expected=['sitter-05:boarding','sitter-06:boarding']
+        with patch.object(catalog,'iter_profiles',wraps=catalog.iter_profiles) as profiles:
+            result=self.req(path)
+            self.assertEqual(profiles.call_count,1)
+            self.assertCountEqual(profiles.call_args.kwargs['favorites'],expected)
+        self.assertCountEqual([row['id'] for row in result['sitters']],expected)
+        self.assertIsNone(result['nextCursor'])
+        kind=result['sitters'][0]['pets'][0]
+        with patch.object(catalog,'iter_profiles',wraps=catalog.iter_profiles) as profiles:
+            absent=self.req(path+'&pet='+('dog' if kind=='Mushuk' else 'cat'))
+            self.assertEqual(absent['sitters'],[])
+            profiles.assert_not_called()
+
     setUp=http_fixtures.BookingHttpTests.setUp
     save=http_fixtures.BookingHttpTests.save
     review=http_fixtures.BookingHttpTests.review

@@ -91,15 +91,28 @@ def nearby_profiles(con,environment,selected,interval,after):
             return 21000
         return distance_km(selected['origin'],{'lat':round(lat,2),'lon':round(lon,2)})
     con.create_function('momiq_catalog_distance',2,rank,deterministic=True)
+    # Apply explicit filters to the same listing that supplies the sort point.
+    # Full profiles still pass moderation, fingerprint and availability checks.
+    filters = []
+    args = [catalog.MINIMUM_BALANCE_MINOR]
+    if selected['service'] is not None:
+        filters.append('m.service=?')
+        args.append(selected['service'])
+    if selected['minPrice'] or selected['maxPrice']!=999999999:
+        filters.append("json_extract(j.value,'$.price') BETWEEN ? AND ?")
+        args.extend((selected['minPrice'],selected['maxPrice']))
+    if selected['pet'] is not None:
+        filters.append("EXISTS(SELECT 1 FROM json_each(j.value,'$.pets') pet WHERE pet.value=?)")
+        args.append(selected['pet'])
+    extra = ''.join(' AND '+condition for condition in filters)
     rows=con.execute("""SELECT m.user_id,m.service,
              momiq_catalog_distance(json_extract(j.value,'$.location.lat'),json_extract(j.value,'$.location.lon')) distance
            FROM listing_moderation m JOIN users u ON u.id=m.user_id
              JOIN wallet_accounts w ON w.user_id=m.user_id
              JOIN listings l ON l.user_id=m.user_id, json_each(l.data,'$.listings') j
            WHERE m.status='approved' AND j.type='object' AND json_extract(j.value,'$.type')=m.service
-             AND u.blocked=0 AND w.balance_minor>=?
-             AND (? IS NULL OR m.service=?)
-           ORDER BY distance,m.user_id,m.service""",(catalog.MINIMUM_BALANCE_MINOR,selected['service'],selected['service']))
+             AND u.blocked=0 AND w.balance_minor>=?"""+extra+
+           ' ORDER BY distance,m.user_id,m.service',args)
     boundary=(after['distance'],*after['last'].split(':',1)) if after else None
     def candidates():
         for owner,service,distance in rows:

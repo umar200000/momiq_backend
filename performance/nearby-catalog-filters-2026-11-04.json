@@ -1,0 +1,80 @@
+{
+  "baseline": "9898e3f1232dfc1017b3f516f44177181c7f07ac",
+  "scope": "Windows SQLite, disposable database, 40 alternating pairs, no network",
+  "accounts": 1000,
+  "sitters": 100,
+  "listings": 167,
+  "identicalPages": 23,
+  "firstPage": [
+    {
+      "case": "unfiltered",
+      "returned": 20,
+      "old": {
+        "fullProfiles": 21,
+        "p50Ms": 2.247,
+        "p95Ms": 2.694
+      },
+      "new": {
+        "fullProfiles": 21,
+        "p50Ms": 2.243,
+        "p95Ms": 2.62
+      }
+    },
+    {
+      "case": "mixed",
+      "returned": 13,
+      "old": {
+        "fullProfiles": 67,
+        "p50Ms": 3.309,
+        "p95Ms": 4.139
+      },
+      "new": {
+        "fullProfiles": 13,
+        "p50Ms": 1.206,
+        "p95Ms": 1.397
+      }
+    },
+    {
+      "case": "noMatch",
+      "returned": 0,
+      "old": {
+        "fullProfiles": 167,
+        "p50Ms": 7.798,
+        "p95Ms": 8.666
+      },
+      "new": {
+        "fullProfiles": 0,
+        "p50Ms": 0.705,
+        "p95Ms": 0.928
+      }
+    },
+    {
+      "case": "cat",
+      "returned": 20,
+      "old": {
+        "fullProfiles": 42,
+        "p50Ms": 3.065,
+        "p95Ms": 3.772
+      },
+      "new": {
+        "fullProfiles": 21,
+        "p50Ms": 2.235,
+        "p95Ms": 2.489
+      }
+    },
+    {
+      "case": "dog",
+      "returned": 20,
+      "old": {
+        "fullProfiles": 42,
+        "p50Ms": 2.97,
+        "p95Ms": 3.556
+      },
+      "new": {
+        "fullProfiles": 21,
+        "p50Ms": 2.237,
+        "p95Ms": 2.605
+      }
+    }
+  ]
+}
