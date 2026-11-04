@@ -1,6 +1,7 @@
 """Owner-only portable profile fields. Media, credentials and other parties are excluded."""
 from datetime import datetime,timezone
 import json
+import sitter_availability
 
 
 def fields(record, names):
@@ -52,6 +53,12 @@ def read(con,owner):
         services = owner_services(con, owner)
         if services:
             sitter_fields['services'] = services
+        for key in ('schedule', 'closedDates'):
+            if key in sitter:
+                try:
+                    sitter_fields.update(sitter_availability.calendar_fields({key:sitter[key]}))
+                except ValueError:
+                    pass  # Keep other exportable fields from an older record.
     return {
         'format':'momiq-profile-v1','ownerId':owner,'generatedAt':datetime.now(timezone.utc).isoformat(),
         'profile':{**fields(account.get('profile'),('first','last')),'phone':row['phone']},

@@ -2,6 +2,7 @@
 import request_json
 from request_logging import access_record
 import service_area
+import sitter_availability
 import profile_export
 from media_validation import MediaBusy, validate_photo as photo
 import hashlib
@@ -178,6 +179,7 @@ def validate_account(data):
         if housing not in ['apartment','house']: raise ValueError('Uy turi noto‘g‘ri')
         result['sitterProfile'] = {'years': years, 'about': string(sitter.get('about',''),4000),
                                   'homePhotos': [photo(v) for v in homes], 'housing': housing}
+        result['sitterProfile'].update(sitter_availability.calendar_fields(sitter))
     result['support'] = support
     return result
 
@@ -216,10 +218,12 @@ def roles_for(con, uid):
     return [r[0] for r in con.execute('SELECT role FROM user_roles WHERE user_id=? ORDER BY role',(uid,))]
 
 
-def check_addresses(con,uid,account):
+def prepare_account_write(con,uid,account,incoming):
     row = con.execute('SELECT account FROM users WHERE id=?',(uid,)).fetchone()
     if not row: raise ApiError(404,'Mijoz topilmadi')
-    service_area.changed_addresses(AREA,json.loads(row[0]),account,'production' if PRODUCTION else 'local')
+    previous = json.loads(row[0])
+    sitter_availability.preserve_omitted(previous,account,incoming)
+    service_area.changed_addresses(AREA,previous,account,'production' if PRODUCTION else 'local')
 
 class ApiError(Exception):
     def __init__(self, status, message):
@@ -425,9 +429,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":
-                    account = validate_account(self.body())
+                    data = self.body()
+                    account = validate_account(data)
                     self.begin_write(con,user,role)
-                    check_addresses(con,user,account)
+                    prepare_account_write(con,user,account,data)
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
                         con.execute("INSERT OR IGNORE INTO user_roles VALUES(?,'sitter')",(user,))
@@ -511,7 +516,7 @@ class Handler(BaseHTTPRequestHandler):
                     if account is not None:
                         if blocked is not None and current[0]!=blocked:
                             raise ApiError(409,'Hisob holati o‘zgargan. Sahifani yangilang.')
-                        check_addresses(con,uid,account)
+                        prepare_account_write(con,uid,account,data['account'])
                     if account is not None or current[0]!=blocked:
                         con.execute("UPDATE users SET account=COALESCE(?,account),blocked=COALESCE(?,blocked) WHERE id=?",
                                     (json.dumps(account) if account is not None else None,blocked,uid))

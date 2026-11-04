@@ -330,6 +330,31 @@ class ApiTests(unittest.TestCase):
         self.req(path,'PUT',{'account':profile},admin=True)
         self.req('/api/me',token=a['token'],expected=403)
 
+    def test_calendar_survives_older_client_and_admin_writes_but_can_be_cleared(self):
+        owner=self.login('998900010315')
+        path='/api/admin/users/'+owner['userId']
+        account=owner['account']
+        account['profile'].update(first='TEST',last='Calendar')
+        schedule={'start':540,'end':1080,'days':[True]*5+[False]*2}
+        dates=['2026-12-10']
+        account['sitterProfile']={'schedule':schedule,'closedDates':dates}
+        def save(data,status=200):
+            return self.req('/api/me','PUT',data,token=owner['token'],expected=status)
+        save(account)
+        expected={**schedule,'timezone':'Asia/Tashkent'}
+        for invalid in ({'schedule':{**schedule,'start':1080}}, {'closedDates':dates*2}):
+            save({**account,'sitterProfile':invalid},400)
+        legacy={**account,'sitterProfile':{'about':'TEST text'}}
+        self.assertEqual(save(legacy)['account']['sitterProfile']['schedule'],expected)
+        self.req(path,'PUT',{'account':legacy},admin=True)
+        stored=self.req('/api/me',token=owner['token'])['account']['sitterProfile']
+        self.assertEqual((stored['schedule'],stored['closedDates']),(expected,dates))
+        exported=self.req('/api/me/profile-export',token=owner['token'])['sitterProfile']
+        self.assertEqual((exported['schedule'],exported['closedDates']),(expected,dates))
+        cleared=save({**account,'sitterProfile':{'schedule':None,'closedDates':[]}})['account']['sitterProfile']
+        self.assertIsNone(cleared.get('schedule'))
+        self.assertEqual(cleared['closedDates'],[])
+
     def test_admin_users_loads_roles_once_and_keeps_empty_and_multiple_roles(self):
         from unittest.mock import patch
         account = json.dumps(server.default_account())
