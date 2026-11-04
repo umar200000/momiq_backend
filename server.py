@@ -1,5 +1,6 @@
 """Momiq local API. Python 3.12+, SQLite; no third-party runtime dependencies."""
 import request_json
+from request_logging import access_record
 import service_area
 import profile_export
 from media_validation import MediaBusy, validate_photo as photo
@@ -230,8 +231,11 @@ class Handler(BaseHTTPRequestHandler):
         # Parser diagnostics may interpolate an entire malformed request line.
         print('http diagnostic')
     def log_request(self, code='-', size='-'):
-        # Paths, query strings, and even HTTP method names are client-controlled.
-        print('http status', int(code) if isinstance(code, int) else 0)
+        if getattr(self,'_in_dispatch',False):
+            self._response_code = int(code)
+        else:
+            # The parser can reject requests before dispatch sets any attributes.
+            print(access_record(getattr(self,'command',''),getattr(self,'path',''),code))
     def reply(self, status, body, cookie=None):
         raw = json.dumps(body, ensure_ascii=False).encode()
         self.send_response(status)
@@ -581,17 +585,45 @@ class Handler(BaseHTTPRequestHandler):
         result = self.messages(con,user)
         con.commit()
         self.reply(200,{'messages':result})
+    def dispatch_response(self):
+        try:
+            self.handle_request()
+            return 'rejected' if self._response_code>=400 else 'ok'
+        except (BrokenPipeError,ConnectionResetError):
+            raise
+        except service_area.OutsideArea as e:
+            status,message,outcome = 400,str(e),'invalid_input'
+        except service_area.AreaUnavailable as e:
+            status,message,outcome = 503,str(e),'rejected'
+        except MediaBusy as e:
+            status,message,outcome = 503,str(e),'media_busy'
+        except (ApiError,request_json.BodyError) as e:
+            status,message,outcome = e.status,e.message,'rejected'
+        except (ValueError,KeyError,TypeError):
+            status,message,outcome = 400,'Ma’lumotlarni tekshiring','invalid_input'
+        except sqlite3.OperationalError as e:
+            if (getattr(e,'sqlite_errorcode',0) & 255) in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED):
+                status,message,outcome = 503,'Xizmat vaqtincha band. Biroz kutib qayta urining.','database_busy'
+            else:
+                status,message,outcome = 500,'Server xatosi','server_error'
+        except Exception:
+            status,message,outcome = 500,'Server xatosi','server_error'
+        self.reply(status,{'error':message})
+        return outcome
+
     def dispatch(self):
-        try: self.handle_request()
-        except service_area.OutsideArea as e: self.reply(400,{'error':str(e)})
-        except service_area.AreaUnavailable as e: self.reply(503,{'error':str(e)})
-        except MediaBusy as e: self.reply(503,{'error':str(e)})
-        except (ApiError,request_json.BodyError) as e: self.reply(e.status,{'error':e.message})
-        except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
-        except (BrokenPipeError,ConnectionResetError): pass
-        except Exception as e:
-            print(type(e).__name__)
-            self.reply(500,{'error':'Server xatosi'})
+        started = time.monotonic()
+        self._in_dispatch = True
+        self._response_code = 0
+        outcome = 'server_error'
+        try:
+            outcome = self.dispatch_response()
+        except (BrokenPipeError,ConnectionResetError):
+            outcome = 'disconnected'
+        finally:
+            self._in_dispatch = False
+            print(access_record(self.command,self.path,self._response_code,
+                                elapsed_seconds=time.monotonic()-started,outcome=outcome),flush=True)
     do_GET = do_POST = do_PUT = do_DELETE = dispatch
 
 if __name__ == '__main__':

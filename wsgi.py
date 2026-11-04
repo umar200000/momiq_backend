@@ -25,6 +25,7 @@ class WsgiHandler(Handler):
 
     def send_response(self, code, message=None):
         self.response_status = code
+        self._response_code = code
         self.response_headers = []
 
     def send_header(self, name, value):

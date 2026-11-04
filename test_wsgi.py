@@ -8,6 +8,58 @@ import server
 from wsgi import application
 
 class ProductionTests(unittest.TestCase):
+    def test_disconnect_while_sending_rejection_is_counted_once(self):
+        from contextlib import redirect_stdout
+        from wsgi import WsgiHandler
+        env = {}
+        setup_testing_defaults(env)
+        handler = WsgiHandler(env)
+        def disconnect(status,body):
+            handler.send_response(status)
+            raise BrokenPipeError('private stream data')
+        output = io.StringIO()
+        with (patch.object(handler,'handle_request',side_effect=server.ApiError(403,'private message')),
+              patch.object(handler,'reply',side_effect=disconnect), redirect_stdout(output)):
+            handler.dispatch()
+        record = json.loads(output.getvalue())
+        self.assertEqual((record['status'],record['outcome']),(403,'disconnected'))
+        self.assertNotIn('private',output.getvalue())
+
+    def test_locked_database_is_retryable_and_diagnostics_exclude_private_fields(self):
+        from contextlib import redirect_stdout
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp, patch.object(server, 'DATA', Path(tmp)), patch.dict(
+                'os.environ', MOMIQ_ADMIN_PASSWORD='TEST-operator-private'):
+            server.setup()
+            original_db = server.db
+            def short_timeout():
+                con = original_db()
+                con.execute('PRAGMA busy_timeout=5')
+                return con
+            payload = {'username':'admin','password':'TEST-operator-private'}
+            output = io.StringIO()
+            with redirect_stdout(output), patch.object(server, 'db', short_timeout):
+                with original_db() as writer:
+                    writer.execute('BEGIN IMMEDIATE')
+                    locked = self.call('/api/admin/login?x=private-marker','POST',payload)
+                self.assertEqual(locked['status'],503)
+                self.assertNotIn('Set-Cookie',locked['headers'])
+                self.assertEqual(self.call('/api/admin/login','POST',payload)['status'],200)
+                with original_db() as con:
+                    con.execute('DROP TABLE attempts')
+                self.assertEqual(self.call('/api/admin/login','POST',payload)['status'],500)
+            rows = [json.loads(line) for line in output.getvalue().splitlines()]
+            self.assertEqual([(r['status'],r['outcome']) for r in rows],
+                             [(503,'database_busy'),(200,'ok'),(500,'server_error')])
+            for row in rows:
+                self.assertEqual(set(row),{'event','group','method','status','durationMs','outcome'})
+                self.assertEqual((row['method'],row['group']),('POST','admin/login'))
+                self.assertGreaterEqual(row['durationMs'],0)
+            self.assertNotIn('private-marker',output.getvalue())
+            self.assertNotIn('TEST-operator-private',output.getvalue())
+
     def call(self, path, method='GET', data=None, origin=None, cookie=None, authorization=None):
         env = {}; setup_testing_defaults(env)
         raw = json.dumps(data).encode() if data is not None else b''

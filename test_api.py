@@ -53,13 +53,20 @@ class ApiTests(unittest.TestCase):
         from socket import create_connection
         output = StringIO()
         with redirect_stdout(output):
-            self.req('/api/health?address=private-marker', token='private-marker')
+            with create_connection(self.http.server_address, timeout=5) as client:
+                client.sendall(b'GET /api/health?address=private-marker HTTP/1.0\r\nAuthorization: Bearer private-marker\r\n\r\n')
+                while client.recv(4096):
+                    pass
             with create_connection(self.http.server_address, timeout=5) as client:
                 client.sendall(b'private-marker malformed request line\r\n\r\n')
                 while client.recv(4096):
                     pass
-        self.assertEqual(output.getvalue().splitlines(),
-                         ['http status 200', 'http diagnostic', 'http status 400'])
+        lines = output.getvalue().splitlines()
+        self.assertEqual(lines.count('http diagnostic'),1)
+        records = [json.loads(line) for line in lines if line!='http diagnostic']
+        self.assertEqual([(r['status'],r['outcome']) for r in records if r['group']=='health'],[(200,'ok')])
+        self.assertEqual([r['status'] for r in records if r['group']=='other'],[400])
+        self.assertNotIn('private-marker',output.getvalue())
     def test_roles_and_server_listings(self):
         login = self.req('/api/auth/login','POST',{'phone':'998909991122','code':'111111','role':'sitter'})
         token, uid = login['token'],login['userId']
