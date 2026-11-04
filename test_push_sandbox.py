@@ -13,6 +13,40 @@ from seed_test_data import fixture_id, seed
 
 
 class PushSandboxTests(unittest.TestCase):
+    def test_muted_and_blocked_notices_remain_in_history_without_late_delivery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'demo'
+            seed_scenarios.build(root)
+            uid=fixture_id('personal')
+            push_sandbox.replay(root,'personal')
+            with closing(sqlite3.connect(root/'momiq.sqlite3')) as con:
+                with con:
+                    con.execute("UPDATE users SET account=json_set(account,'$.notifications',json(?)) WHERE id=?",
+                                (json.dumps({'chat':False,'orders':False,'video':False}),uid))
+                    for kind,status in [('conversation','message'),('booking','accepted'),('care','video_reminder'),
+                                        ('care','video_missing'),('care','video_explanation'),('care','video'),('support','updated')]:
+                        notifications.publish(con,uid,'pref-'+kind+status,kind,'test-target',status,'')
+                before=list(con.iterdump())
+                result=push_sandbox.replay(root,'personal','unavailable')
+                self.assertEqual((result['suppressed'],result['accepted'],result['retryPending']),(6,0,True))
+                self.assertEqual(push_sandbox.replay(root,'personal')['accepted'],1)
+                self.assertEqual(list(con.iterdump()),before)
+                with con:
+                    con.execute("UPDATE users SET blocked=1 WHERE id=?",(uid,))
+                    notifications.publish(con,uid,'blocked-support','support','test-target','updated','')
+                result=push_sandbox.replay(root,'personal')
+                self.assertEqual((result['suppressed'],result['acknowledged'],result['accepted']),(1,0,0))
+                with con:
+                    con.execute("UPDATE users SET blocked=0,account=json_set(account,'$.notifications',json('{}')) WHERE id=?",(uid,))
+                    notifications.publish(con,uid,'new-chat','conversation','test-target','message','')
+                self.assertEqual(push_sandbox.replay(root,'personal')['accepted'],1)
+                expected=[str(row[0]) for row in con.execute(
+                    "SELECT id FROM notifications WHERE user_id=? AND source_key IN ('pref-supportupdated','new-chat') ORDER BY id",(uid,))]
+                with closing(sqlite3.connect(root/'push-sandbox.sqlite3')) as provider:
+                    delivered=[json.loads(row[0])['noticeId'] for row in provider.execute(
+                        'SELECT payload FROM received WHERE owner=? AND notice>=? ORDER BY notice',(uid,int(expected[0])-6))]
+                    self.assertEqual(delivered,expected)
+
     def test_foreign_provider_file_is_preserved_and_an_old_simulator_keeps_its_cursor(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)/'test'

@@ -522,3 +522,8 @@ class BookingEngineTests(unittest.TestCase):
         self.expect_error(409, lambda: self.request(stale))
         accepted = self.act(request)
         self.assertEqual(accepted['snapshot']['address']['address'],'PRIVATE CUSTOMER STREET')
+        with server.db() as con:
+            con.execute("UPDATE users SET account=json_set(account,'$.addresses',json('[]')) WHERE id='customer'")
+        with server.db() as con:
+            self.assertEqual(engine.view(con,accepted['id'],'customer')['snapshot']['address'],accepted['snapshot']['address'])
+        self.expect_error(404,lambda:self.quote(listing='abc:homeVisit',address='home'))

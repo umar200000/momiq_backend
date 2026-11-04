@@ -6,6 +6,19 @@ from pathlib import Path
 import re
 
 
+APPROVED_SHA256 = '259622bcf3e1fe7262cc4b4e47defab2317dcee88de2a57eb117744daffb0f77'
+APPROVED_FILE = Path(__file__).resolve().parent/'boundaries'/'tashkent-city-region.geojson'
+
+
+def configuration(env):
+    if env.get('MOMIQ_ENV')=='production':
+        if 'MOMIQ_AREA_FILE' not in env and 'MOMIQ_AREA_SHA256' not in env:
+            return {**env,'MOMIQ_AREA_FILE':str(APPROVED_FILE),'MOMIQ_AREA_SHA256':APPROVED_SHA256}
+        if env.get('MOMIQ_AREA_SHA256')!=APPROVED_SHA256:
+            raise ValueError('Unapproved production service boundary')
+    return env
+
+
 class AreaUnavailable(Exception):
     pass
 
@@ -96,8 +109,8 @@ def require(area, location, environment):
 
 
 def changed_addresses(area, previous, account, environment):
-    before = {a['id']:a for a in previous.get('addresses',[])}
+    before = {a['id']:a for a in previous.get('addresses',[]) if isinstance(a,dict) and isinstance(a.get('id'),str) and a['id']}
     for address in account.get('addresses',[]):
-        original = before.get(address['id'])
-        if original is None or any(original.get(k) != address.get(k) for k in ('lat','lon','address')):
+        original = before.get(address.get('id'))
+        if original is None or any(original.get(k) != address.get(k) for k in ('lat','lon','address','apartment','label')):
             require(area,address,environment)

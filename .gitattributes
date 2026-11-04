@@ -2,3 +2,4 @@ deploy/bootstrap.sh text eol=lf
 deploy/momiq-deploy text eol=lf
 deploy/momiq-deploy-entry text eol=lf
 fixtures/tashkent-city-region-qa.geojson text eol=lf
+boundaries/*.geojson text eol=lf

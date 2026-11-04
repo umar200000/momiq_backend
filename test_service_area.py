@@ -19,6 +19,18 @@ def geometry(root, value):
 
 
 class AreaTests(unittest.TestCase):
+    def test_approved_release_boundary_includes_province_and_handles_its_edge(self):
+        env=service_area.configuration({'MOMIQ_ENV':'production'})
+        self.assertEqual(env['MOMIQ_AREA_SHA256'],service_area.APPROVED_SHA256)
+        area=service_area.load(env)
+        ring=json.loads(service_area.APPROVED_FILE.read_bytes())['geometry']['coordinates'][0]
+        west,south=min(ring)
+        for lon,lat,expected in [(west,south,True),(west-0.00001,south,False),(69.269,40.217,True),
+                                 (69.5822,41.4689,True),(66.9749,39.6542,False)]:
+            self.assertEqual(service_area.contains(area,lon,lat),expected)
+        with self.assertRaisesRegex(ValueError,'Unapproved'):
+            service_area.configuration({**env,'MOMIQ_AREA_SHA256':'0'*64})
+
     def test_city_and_region_limits_and_hosted_configuration(self):
         path = Path(__file__).resolve().parent/'fixtures/tashkent-city-region-qa.geojson'
         # The reviewed city and surrounding province share an edge. Their union
