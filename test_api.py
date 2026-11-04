@@ -131,6 +131,32 @@ class ApiTests(unittest.TestCase):
         self.req('/api/auth/login','POST',{'phone':'998905555555','code':'111111'},expected=403)
         self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':False},admin=True)
         self.req('/api/me',token=a['token'])
+    def test_parallel_chat_retries_and_conflicting_text(self):
+        from concurrent.futures import ThreadPoolExecutor
+        a=self.login('998900010151')
+        message={'sitter':'hoji','text':'Original','requestId':'test-concurrent'}
+        with ThreadPoolExecutor(4) as pool:
+            results=list(pool.map(lambda _:self.req('/api/messages','POST',message,token=a['token']),range(4)))
+        self.assertTrue(all(len(r['messages'])==1 for r in results))
+        self.assertEqual(len({r['messages'][0]['id'] for r in results}),1)
+        self.req('/api/messages','POST',{**message,'text':'Different'},token=a['token'],expected=409)
+        self.assertEqual(self.req('/api/messages',token=a['token'])['messages'][0]['text'],'Original')
+
+    def test_revoked_sender_and_newly_blocked_recipient_cannot_commit_message(self):
+        from unittest.mock import patch
+        a=self.login('998900010152')
+        message={'sitter':'hoji','text':'Test','requestId':'test-revoked'}
+        def revoke(_):
+            with server.db() as other: other.execute('DELETE FROM sessions WHERE user_id=?',(a['userId'],))
+        def block(_):
+            with server.db() as other: other.execute('UPDATE users SET blocked=1 WHERE id=?',(a['userId'],))
+        with patch.object(server,'photo',revoke):
+            self.req('/api/messages','POST',message,token=a['token'],expected=401)
+        with patch.object(server,'photo',block):
+            self.req('/api/admin/users/'+a['userId']+'/messages','POST',message,admin=True,expected=409)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM messages WHERE user_id=?',(a['userId'],)).fetchone()[0],0)
+            self.assertFalse(con.execute("SELECT 1 FROM audit WHERE action='reply' AND target=?",(a['userId'],)).fetchone())
     def test_validation_origin_and_revocation(self):
         a=self.login('998906666666')
         self.req('/api/messages','POST',{'sitter':'unknown','text':'x'},token=a['token'],expected=400)

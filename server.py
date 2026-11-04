@@ -11,7 +11,6 @@ import secrets
 import sqlite3
 import time
 from datetime import datetime, timezone
-from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -238,17 +237,35 @@ class Handler(BaseHTTPRequestHandler):
         except (request_json.BodyError, ValueError):
             self.close_connection = True
             raise
-    def auth(self, con, role="client"):
-        token = self.headers.get("Authorization", "").removeprefix("Bearer ")
+    def session_token(self, role):
+        # Both transports must choose one credential, including during logout.
         if role == "admin":
-            cookie = SimpleCookie(self.headers.get("Cookie", ""))
-            token = cookie["momiq_admin"].value if "momiq_admin" in cookie else ""
+            values = []
+            for header in self.headers.get_all('Cookie', []):
+                if ',' in header:
+                    raise ApiError(401,"Qayta kiring")
+                for pair in header.split(';'):
+                    name, sep, value = pair.strip().partition('=')
+                    if sep and name.strip() == 'momiq_admin':
+                        values.append(value.strip())
+            if len(values) == 1 and re.fullmatch(r'[A-Za-z0-9_-]{1,128}', values[0]):
+                return values[0]
+        else:
+            values = self.headers.get_all('Authorization', [])
+            if len(values) == 1:
+                match = re.fullmatch(r'Bearer +([A-Za-z0-9_-]{1,128})',values[0],re.ASCII|re.IGNORECASE)
+                if match:
+                    return match[1]
+        raise ApiError(401,"Qayta kiring")
+
+    def auth(self, con, role="client"):
+        token = self.session_token(role)
         digest = hashlib.sha256(token.encode()).hexdigest()
-        session = con.execute("SELECT * FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
+        session = con.execute("SELECT user_id FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
         if not session:
             raise ApiError(401, "Qayta kiring")
         if role == "client":
-            user = con.execute("SELECT * FROM users WHERE id=?", (session["user_id"],)).fetchone()
+            user = con.execute("SELECT blocked FROM users WHERE id=?", (session["user_id"],)).fetchone()
             if not user or user["blocked"]:
                 raise ApiError(403, "Hisob bloklangan")
         return session["user_id"]
@@ -360,11 +377,7 @@ class Handler(BaseHTTPRequestHandler):
             admin = path.startswith("/api/admin/")
             user = self.auth(con,"admin" if admin else "client")
             if path in ["/api/auth/logout", "/api/admin/logout"] and self.command == "POST":
-                if admin:
-                    cookie = SimpleCookie(self.headers.get('Cookie',''))
-                    token = cookie['momiq_admin'].value
-                else:
-                    token = self.headers.get('Authorization','').removeprefix('Bearer ')
+                token = self.session_token("admin" if admin else "client")
                 con.execute('DELETE FROM sessions WHERE hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
                 con.commit()
                 self.reply(200,{"ok":True}, "momiq_admin=; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=0" if admin else None)
@@ -447,16 +460,26 @@ class Handler(BaseHTTPRequestHandler):
         image = photo(data.get('image'))
         if not text and not image: raise ValueError('Xabar yoki rasm kiriting')
         request_id = string(data.get('requestId',secrets.token_hex(16)),100)
+        con.execute('BEGIN IMMEDIATE')
+        sender = self.auth(con,'client' if mine else 'admin')
+        if mine and sender!=user:
+            raise ApiError(401,'Qayta kiring')
+        if not mine:
+            recipient = con.execute('SELECT blocked FROM users WHERE id=?',(user,)).fetchone()
+            if not recipient: raise ApiError(404,'Mijoz topilmadi')
+            if recipient['blocked']: raise ApiError(409,'Hisob bloklangan')
         existing = con.execute('SELECT * FROM messages WHERE user_id=? AND request_id=?',(user,request_id)).fetchone()
         if existing:
-            if bool(existing['mine']) != mine or existing['sitter'] != sitter:
+            if (bool(existing['mine']) != mine or existing['sitter'] != sitter
+                    or existing['text'] != text or existing['image'] != image):
                 raise ApiError(409,'So‘rov identifikatori takrorlangan')
         else:
             con.execute('INSERT INTO messages(id,user_id,sitter,mine,text,image,time,request_id) VALUES(?,?,?,?,?,?,?,?)',
                         (secrets.token_hex(16),user,sitter,int(mine),text,image,now(),request_id))
             if not mine: self.audit(con,'reply',user)
+        result = self.messages(con,user)
         con.commit()
-        self.reply(200,{'messages':self.messages(con,user)})
+        self.reply(200,{'messages':result})
     def dispatch(self):
         try: self.handle_request()
         except MediaBusy as e: self.reply(503,{'error':str(e)})

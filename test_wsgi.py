@@ -8,7 +8,7 @@ import server
 from wsgi import application
 
 class ProductionTests(unittest.TestCase):
-    def call(self, path, method='GET', data=None, origin=None, cookie=None):
+    def call(self, path, method='GET', data=None, origin=None, cookie=None, authorization=None):
         env = {}; setup_testing_defaults(env)
         raw = json.dumps(data).encode() if data is not None else b''
         route, _, query = path.partition('?')
@@ -16,6 +16,7 @@ class ProductionTests(unittest.TestCase):
         env['wsgi.input'] = io.BytesIO(raw)
         if origin is not None: env['HTTP_ORIGIN'] = origin
         if cookie is not None: env['HTTP_COOKIE'] = cookie
+        if authorization is not None: env['HTTP_AUTHORIZATION'] = authorization
         response = {}
         def start(status, headers, exc_info=None): response.update(status=int(status.split()[0]), headers=dict(headers))
         output = validator(application)(env, start)
@@ -110,5 +111,27 @@ class ProductionTests(unittest.TestCase):
             with ThreadPoolExecutor(20) as pool:
                 codes=list(pool.map(attempt,range(20)))
             self.assertCountEqual(codes,[200]*15+[429]*5)
+
+    def test_ambiguous_credentials_cannot_read_or_revoke_a_valid_session(self):
+        import hashlib
+        import time
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        with TemporaryDirectory() as tmp, patch.object(server,'DATA',Path(tmp)):
+            server.setup()
+            with server.db() as con:
+                con.execute('INSERT INTO users VALUES(?,?,?,0,?)',('client','998000000000',json.dumps(server.default_account()),server.now()))
+                for token,owner,role in [('test-client','client','client'),('test-admin','admin','admin')]:
+                    con.execute('INSERT INTO sessions VALUES(?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),owner,role,time.time()+60))
+            for cookie in ('momiq_admin=invalid; momiq_admin=test-admin','momiq_admin=test-admin; momiq_admin=test-admin'):
+                self.assertEqual(self.call('/api/admin/users',cookie=cookie)['status'],401)
+                self.assertEqual(self.call('/api/admin/logout','POST',{},cookie=cookie)['status'],401)
+            self.assertEqual(self.call('/api/admin/users',cookie='other=ok; momiq_admin=test-admin')['status'],200)
+            for auth in ('test-client','Bearer invalid, Bearer test-client','Bearer test-admin'):
+                self.assertEqual(self.call('/api/me',authorization=auth)['status'],401)
+                self.assertEqual(self.call('/api/auth/logout','POST',{},authorization=auth)['status'],401)
+            self.assertEqual(self.call('/api/me',authorization='bearer test-client')['status'],200)
+            self.assertEqual(self.call('/api/auth/logout','POST',{},authorization='bearer test-client')['status'],200)
+            self.assertEqual(self.call('/api/me',authorization='Bearer test-client')['status'],401)
 
 if __name__=='__main__': unittest.main()
