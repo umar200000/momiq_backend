@@ -95,6 +95,12 @@ class AvailabilityTests(unittest.TestCase):
         after=server.validate_account(incoming)
         availability.preserve_omitted(account,after,incoming)
         self.assertEqual(after['sitterProfile']['closedDates'],[])
+        account['sitterProfile']['closedDates']=None
+        incoming['sitterProfile'].pop('closedDates')
+        after=server.validate_account(incoming)
+        availability.preserve_omitted(account,after,incoming)
+        self.assertNotIn('closedDates',after['sitterProfile'])
+        self.assertEqual(availability.public(account)['closedDates'],[])
 
 
 class AvailabilityHttpTests(unittest.TestCase):

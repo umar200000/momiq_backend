@@ -157,15 +157,19 @@ def store(con, root, identity, user, data, source, clock):
 def byte_range(value, size):
     if value is None:
         return 0, size-1, 200
-    match = re.fullmatch(r'bytes=(\d*)-(\d*)', value)
-    if not match or not (match[1] or match[2]):
+    match = re.fullmatch(r'bytes=([0-9]*)-([0-9]*)', value)
+    if not size or not match or not (match[1] or match[2]):
         raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
+    def position(digits):
+        # Larger values are equivalent to EOF; never parse an unbounded integer.
+        digits = digits.lstrip('0') or '0'
+        return size if len(digits)>len(str(size)) else min(int(digits),size)
     if not match[1]:
-        suffix = int(match[2])
+        suffix = position(match[2])
         if suffix <= 0:
             raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
         return max(0,size-suffix),size-1,206
-    start = int(match[1]); end = min(int(match[2]),size-1) if match[2] else size-1
+    start = position(match[1]); end = min(position(match[2]),size-1) if match[2] else size-1
     if start > end or start >= size:
         raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
     return start,end,206

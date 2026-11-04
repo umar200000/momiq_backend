@@ -34,7 +34,7 @@ def calendar_fields(sitter):
 def public(account):
     sitter = account.get('sitterProfile') or {}
     return {'timezone': 'Asia/Tashkent', 'schedule': sitter.get('schedule'),
-            'closedDates': sitter.get('closedDates', []),
+            'closedDates': sitter.get('closedDates') or [],
             'hoursApplyTo': 'endpoints', 'closedDatesApplyTo': 'start',
             'overnightAllowed': True}
 
@@ -46,9 +46,8 @@ def preserve_omitted(before, after, incoming):
     if target is not None and isinstance(source, dict):
         previous = before.get('sitterProfile') or {}
         for key in ('schedule', 'closedDates'):
-            if key not in source and key in previous:
+            if key not in source and previous.get(key) is not None:
                 target[key] = previous[key]
-
 
 
 def reason(account, start, end):

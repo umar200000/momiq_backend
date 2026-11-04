@@ -209,6 +209,11 @@ with server.db() as con:
             self.expect_error(416,lambda:videos.byte_range(header,100))
         self.assertEqual(videos.byte_range('bytes=-10',100),(90,99,206))
         self.assertEqual(videos.byte_range('bytes=10-',100),(10,99,206))
+        large='9'*5000
+        self.assertEqual(videos.byte_range('bytes=3-'+large,100),(3,99,206))
+        self.assertEqual(videos.byte_range('bytes=-'+large,100),(0,99,206))
+        self.assertEqual(videos.byte_range('bytes='+'0'*5000+'3-7',100),(3,7,206))
+        self.expect_error(416,lambda:videos.byte_range('bytes='+large+'-',100))
 
     def test_wsgi_upload_and_range_require_participant_bearer_session(self):
         from wsgi import application
