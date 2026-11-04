@@ -3,7 +3,7 @@ import json
 import re
 import sys
 from urllib.error import HTTPError
-from urllib.request import HTTPRedirectHandler, build_opener
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 API = 'https://api.momiq.net'
 ADMIN = 'https://admin.momiq.net'
@@ -20,9 +20,9 @@ def verify(revision):
     opener = build_opener(NoRedirect())
     checks = []
 
-    def get(base, path, status=200, json_body=True):
+    def get(base, path, status=200, json_body=True, headers=None):
         try:
-            response = opener.open(base + path, timeout=10)
+            response = opener.open(Request(base + path, headers=headers or {}), timeout=10)
         except HTTPError as error:
             response = error
         with response:
@@ -33,6 +33,10 @@ def verify(revision):
             if len(raw)>8*1024*1024:
                 raise ValueError('Response too large')
             checks.append((path[:70],response.status))
+            if base==ADMIN and path=='/admin/':
+                directives={tuple(part.split()) for part in response.headers.get('Content-Security-Policy','').split(';')}
+                if not {('script-src',"'self'"),('frame-ancestors',"'none'")} <= directives:
+                    raise ValueError('Missing admin script or frame restrictions')
             if not json_body:
                 return raw
             if response.headers.get_content_type()!='application/json' or response.headers.get('Cache-Control')!='no-store':
@@ -57,6 +61,9 @@ def verify(revision):
     for path in ('/api/me','/api/me/listings','/api/messages'):
         get(API,path,401)
     get(ADMIN,'/api/admin/users',401)
+    for base,path in ((API,'/api/me'),(ADMIN,'/api/admin/users')):
+        for origin in ('https://foreign.invalid',base+'/extra'):
+            get(base,path,403,headers={'Origin':origin})
     get(API,'/api/admin/users',404,False)
     get(ADMIN,'/api/me',404,False)
     for path,marker in (('/admin/',b'loginForm'),('/admin/app.js',b'/api/admin/'),('/admin/style.css',b'{')):

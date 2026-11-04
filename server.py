@@ -262,9 +262,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.headers.get('X-Real-IP', self.client_address[0])
         return self.client_address[0]
     def throttle(self, con, key):
+        con.execute('BEGIN IMMEDIATE')
+        current = time.time()
         row = con.execute("SELECT * FROM attempts WHERE key=?", (key,)).fetchone()
-        count = row["count"] if row and row["reset"] > time.time() else 0
-        reset = row["reset"] if count else time.time()+60
+        count = row["count"] if row and row["reset"] > current else 0
+        reset = row["reset"] if count else current+60
         if count >= 15:
             raise ApiError(429, "Biroz kutib qayta urinib ko‘ring")
         con.execute("INSERT OR REPLACE INTO attempts VALUES(?,?,?)", (key,count+1,reset))
@@ -284,7 +286,12 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(400,"So‘rov parametrlari juda ko‘p")
         path = target.path
         origin = self.headers.get("Origin")
-        if origin and (urlparse(origin).netloc != self.headers.get("Host") or (PRODUCTION and urlparse(origin).scheme != "https")):
+        host = self.headers.get('Host', '')
+        if (len(self.headers.get_all('Origin', [])) > 1 or len(self.headers.get_all('Host', [])) > 1
+                or re.search(r'[\s,/@?#\\]', host)):
+            raise ApiError(403, "Origin ruxsat etilmagan")
+        allowed_origins = (f'https://{host}',) if PRODUCTION else (f'https://{host}', f'http://{host}')
+        if origin is not None and (not host or origin not in allowed_origins):
             raise ApiError(403, "Origin ruxsat etilmagan")
         if self.command == "GET" and not path.startswith("/api/"):
             name = {"/": "index.html", "/admin": "index.html", "/admin/": "index.html", "/admin/app.js": "app.js", "/admin/style.css": "style.css"}.get(path)

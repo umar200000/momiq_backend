@@ -8,13 +8,14 @@ import server
 from wsgi import application
 
 class ProductionTests(unittest.TestCase):
-    def call(self, path, method='GET', data=None, origin=None):
+    def call(self, path, method='GET', data=None, origin=None, cookie=None):
         env = {}; setup_testing_defaults(env)
         raw = json.dumps(data).encode() if data is not None else b''
         route, _, query = path.partition('?')
         env.update(QUERY_STRING=query, PATH_INFO=route, REQUEST_METHOD=method, CONTENT_LENGTH=str(len(raw)), CONTENT_TYPE='application/json', HTTP_HOST='admin.momiq.net')
         env['wsgi.input'] = io.BytesIO(raw)
-        if origin: env['HTTP_ORIGIN'] = origin
+        if origin is not None: env['HTTP_ORIGIN'] = origin
+        if cookie is not None: env['HTTP_COOKIE'] = cookie
         response = {}
         def start(status, headers, exc_info=None): response.update(status=int(status.split()[0]), headers=dict(headers))
         output = validator(application)(env, start)
@@ -68,5 +69,46 @@ class ProductionTests(unittest.TestCase):
         with patch.object(server,'PRODUCTION',True):
             h=WsgiHandler(env); h.reply(200,{},'session=example; HttpOnly')
             self.assertIn('; Secure',dict(h.response_headers)['Set-Cookie'])
+
+    def test_production_operator_cookie_csrf_and_logout_with_disposable_database(self):
+        from http.cookies import SimpleCookie
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp, patch.object(server,'DATA',Path(tmp)), patch.object(server,'PRODUCTION',True), patch.dict('os.environ',MOMIQ_ADMIN_PASSWORD='test-operator-secret'):
+            server.setup()
+            origin='https://admin.momiq.net'
+            response=self.call('/api/admin/login','POST',{'username':'admin','password':'test-operator-secret'},origin)
+            self.assertEqual(response['status'],200)
+            cookie=SimpleCookie(response['headers']['Set-Cookie'])['momiq_admin']
+            self.assertTrue(cookie['secure'] and cookie['httponly'])
+            self.assertEqual((cookie['samesite'],cookie['path'],cookie['domain']),('Strict','/api/admin',''))
+            token='momiq_admin='+cookie.value
+            for invalid in ('',origin+'/path',origin+'?extra','null','https://foreign.invalid','http://admin.momiq.net'):
+                self.assertEqual(self.call('/api/admin/logout','POST',{},invalid,token)['status'],403)
+            self.assertEqual(self.call('/api/admin/users',origin=origin,cookie=token)['status'],200)
+            closed=self.call('/api/admin/logout','POST',{},origin,token)
+            self.assertEqual(closed['status'],200)
+            self.assertEqual(SimpleCookie(closed['headers']['Set-Cookie'])['momiq_admin']['max-age'],'0')
+            self.assertEqual(self.call('/api/admin/users',origin=origin,cookie=token)['status'],401)
+
+    def test_parallel_login_attempts_share_one_quota(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        import threading
+        with TemporaryDirectory() as tmp, patch.object(server,'DATA',Path(tmp)):
+            server.setup()
+            barrier=threading.Barrier(20)
+            def attempt(_):
+                with server.db() as con:
+                    barrier.wait(timeout=10)
+                    try:
+                        server.Handler.throttle(None,con,'test-quota')
+                    except server.ApiError as error:
+                        return error.status
+                    return 200
+            with ThreadPoolExecutor(20) as pool:
+                codes=list(pool.map(attempt,range(20)))
+            self.assertCountEqual(codes,[200]*15+[429]*5)
 
 if __name__=='__main__': unittest.main()
