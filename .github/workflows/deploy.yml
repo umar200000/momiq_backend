@@ -26,6 +26,9 @@ jobs:
           ref: ${{ env.TESTED_ADMIN_SHA }}
           path: admin-fixture
       - run: python -m pip install -r requirements.txt
+      - name: Verify effective Gunicorn access log fields
+        run: |
+          gunicorn --print-config --access-logfile - wsgi:application | grep -Ex 'access_log_format[[:space:]]*= %\(s\)s %\(b\)s %\(L\)s'
       - name: Audit the pinned runtime before deployment
         run: |
           python -m venv "${RUNNER_TEMP}/momiq-pip-audit"

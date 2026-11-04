@@ -227,8 +227,11 @@ class ApiError(Exception):
 class Handler(BaseHTTPRequestHandler):
     server_version = "MomiqLocal/1"
     def log_message(self, fmt, *args):
-        # Never log request bodies, credentials or tokens.
-        print(self.address_string(), fmt % args)
+        # Parser diagnostics may interpolate an entire malformed request line.
+        print('http diagnostic')
+    def log_request(self, code='-', size='-'):
+        # Paths, query strings, and even HTTP method names are client-controlled.
+        print('http status', int(code) if isinstance(code, int) else 0)
     def reply(self, status, body, cookie=None):
         raw = json.dumps(body, ensure_ascii=False).encode()
         self.send_response(status)

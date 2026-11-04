@@ -47,6 +47,19 @@ class ApiTests(unittest.TestCase):
         return json.loads(response.read())
     def login(self,phone='998901111111'):
         return self.req('/api/auth/login','POST',{'phone':phone,'code':'111111'})
+    def test_native_access_and_parser_logs_omit_request_data(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from socket import create_connection
+        output = StringIO()
+        with redirect_stdout(output):
+            self.req('/api/health?address=private-marker', token='private-marker')
+            with create_connection(self.http.server_address, timeout=5) as client:
+                client.sendall(b'private-marker malformed request line\r\n\r\n')
+                while client.recv(4096):
+                    pass
+        self.assertEqual(output.getvalue().splitlines(),
+                         ['http status 200', 'http diagnostic', 'http status 400'])
     def test_roles_and_server_listings(self):
         login = self.req('/api/auth/login','POST',{'phone':'998909991122','code':'111111','role':'sitter'})
         token, uid = login['token'],login['userId']
