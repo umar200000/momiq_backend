@@ -1,0 +1,26 @@
+{
+  "accounts": 1000,
+  "concurrentAccepts": 100,
+  "bookingStates": {
+    "accepted": 10,
+    "pending": 90
+  },
+  "replayedAccepts": 10,
+  "commissionEntries": 10,
+  "acceptEvents": 10,
+  "walletsReconciled": true,
+  "integrity": "ok",
+  "foreignKeyErrors": 0,
+  "sqlite": "3.46.1",
+  "journal": "wal",
+  "platform": "Linux",
+  "httpLatency": {
+    "count": 100,
+    "p50Ms": 146.68,
+    "p95Ms": 247.55,
+    "p99Ms": 258.76
+  },
+  "gunicornWorkers": 2,
+  "threadsPerWorker": 4,
+  "transport": "loopback HTTP"
+}
