@@ -90,6 +90,12 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-04. M105 — operator javobini uzilishdan keyin takrorlash
+
+- [x] Operator panelida HTTP javobi yo‘qolsa, ochiq formada aynan shu xabarni takrorlash birinchi so‘rov ID’sini ishlatadi. Matn yoki manzil o‘zgarsa, yangi ID beriladi. Birinchi javob hali kelmaganda tugmani qayta bosish ikkinchi POST yubormaydi. Chrome sinovi jonli panel fayllari va brauzer ichida almashtirilgan API bilan bajarildi. Birinchi javob uzilgach matn saqlandi, ikkinchi POST birinchisiga aynan teng bo‘ldi va bitta sinov xabari qoldi. Haqiqiy foydalanuvchiga xabar yuborilmadi. Sahifani qayta yuklash bu sinov doirasiga kirmaydi.
+- [x] Vaqtinchalik SQLite bazasida haqiqiy HTTP xizmat jarayoni commit oldidan va commitdan keyin javob qaytarmasdan to‘xtatildi. Yangi jarayonga javob yozish va xabarni o‘chirish so‘rovlari takrorlandi. Tuzatishdan oldin bitta o‘chirish uchun 2 yoki 3 ta audit yozuvi chiqqan. Tuzatishdan keyin bitta xabar va har bir amal uchun bittadan audit yozuvi qoldi. O‘zgartirilgan matn bilan takrorlash 409 qaytardi, baza yaxlitligi va tashqi kalitlar tekshirildi.
+- [x] Admin `528caf2` va backend `570ce29` chiqarildi. 2 ta panel testi, 41 ta backend testi va yangi reliz juftligi uchun 19 ta ommaviy HTTPS tekshiruvi o‘tdi. Mahalliy admin fayllarini solishtirishda Windows checkout satr oxirlari farq qildi. Git commitining asl baytlari bilan uchala fayl mos keldi. M105 ning tashqi xizmat uzilishi va qolgan fon ishlari bo‘yicha yakuniy qabuli ochiq. [Admin CI](https://github.com/umar200000/momiq_admin/actions/runs/41796470288) · [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41796600376)
+
 ### 2026-11-04. M102/M105 — profil va e’lon tahririda ruxsat
 
 - [x] Eski relizdagi uchta holat vaqtinchalik bazada haqiqiy HTTP so‘rovlari bilan takrorlandi. Sessiya bekor qilingan profil tahriri, enaga profili olib tashlanganidan keyingi e’lon tahriri va bloklangan hisobni faqat profil orqali bilmasdan ochib yuborish tekshiruvlari dastlab xato berdi. Yangi relizda birinchi so‘rov 401, ikkinchisi 403 qaytardi va yozuv saqlanmadi. Uchinchi holatda hisob bloklanganicha qoldi.
