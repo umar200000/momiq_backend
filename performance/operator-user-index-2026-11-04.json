@@ -1,0 +1,46 @@
+{
+  "environment": "Local SQLite, 1000 synthetic users, 40 alternating pairs per case. No network.",
+  "baseline": "5c774e33462e07b96b34e3c99944309ec776e6ce",
+  "matchingPages": 5,
+  "cases": [
+    {
+      "case": "all",
+      "old": {
+        "selects": 23,
+        "medianMs": 0.181,
+        "p95Ms": 0.199
+      },
+      "new": {
+        "selects": 3,
+        "medianMs": 0.161,
+        "p95Ms": 0.188
+      }
+    },
+    {
+      "case": "filtered",
+      "old": {
+        "selects": 403,
+        "medianMs": 1.314,
+        "p95Ms": 1.91
+      },
+      "new": {
+        "selects": 3,
+        "medianMs": 0.264,
+        "p95Ms": 0.406
+      }
+    },
+    {
+      "case": "no match",
+      "old": {
+        "selects": 1002,
+        "medianMs": 6.472,
+        "p95Ms": 6.874
+      },
+      "new": {
+        "selects": 2,
+        "medianMs": 4.139,
+        "p95Ms": 4.62
+      }
+    }
+  ]
+}

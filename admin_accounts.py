@@ -70,18 +70,22 @@ def listing_detail(con, row, item, data):
                 moderation=data['moderation'][item['type']],missing=catalog.completeness(account,item))
 
 
-def index(con, kind, params, roles_for):
+def index(con, kind, params):
     selected,digest,after=filters(params,kind)
     con.execute('BEGIN')
     result=[]
     if kind=='users':
-        for row in con.execute('SELECT * FROM users WHERE id>? ORDER BY id',(after,)):
-            roles=roles_for(con,row['id'])
-            if selected['role']!='all' and selected['role'] not in roles:continue
-            if selected['status']!='all' and bool(row['blocked'])!=(selected['status']=='blocked'):continue
+        query = 'SELECT u.* FROM users u WHERE u.id>?'
+        args = [after]
+        if selected['role']!='all':
+            query += ' AND EXISTS(SELECT 1 FROM user_roles WHERE user_id=u.id AND role=?)'
+            args.append(selected['role'])
+        if selected['status']!='all':
+            query += ' AND u.blocked<>0' if selected['status']=='blocked' else ' AND u.blocked=0'
+        for row in con.execute(query+' ORDER BY u.id',args):
             account=json.loads(row['account']);profile=account.get('profile') or {}
             if selected['q'] not in ' '.join([row['id'],row['phone'],profile.get('first',''),profile.get('last','')]).casefold():continue
-            result.append({'id':row['id'],'phone':row['phone'],'blocked':bool(row['blocked']),'created':row['created'],'roles':roles,'_summary':True,
+            result.append({'id':row['id'],'phone':row['phone'],'blocked':bool(row['blocked']),'created':row['created'],'roles':[],'_summary':True,
                            'account':{'profile':{'first':profile.get('first',''),'last':profile.get('last',''),'photo':None}}})
             if len(result)>20:break
     else:
@@ -104,6 +108,11 @@ def index(con, kind, params, roles_for):
     cursor=base64.urlsafe_b64encode(json.dumps({'last':result[-1]['id'],'query':digest},separators=(',',':')).encode()).decode().rstrip('=') if more else None
     response={kind:result,'nextCursor':cursor}
     if kind=='users':
+        page = {item['id']:item for item in result}
+        if page:
+            placeholders = ','.join('?' for _ in page)
+            for uid,role in con.execute(f'SELECT user_id,role FROM user_roles WHERE user_id IN ({placeholders}) ORDER BY user_id,role',tuple(page)):
+                page[uid]['roles'].append(role)
         # Legacy contact references only; modern contacts are loaded for the selected account.
         response['sitters']={r['id']:json.loads(r['profile']).get('name','') for r in con.execute('SELECT id,profile FROM sitters')}
     return response
@@ -122,7 +131,7 @@ def route(handler, con, actor, path, account_snapshot, roles_for):
     if match:
         params=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
         selected,_,after=filters(params,match[1])
-        result=index(con,match[1],params,roles_for)
+        result=index(con,match[1],params)
         audit_index(con,actor,match[1],selected,after)
         con.commit();handler.reply(200,result)
         return True

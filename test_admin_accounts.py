@@ -3,6 +3,7 @@ import unittest
 from urllib.parse import urlencode
 
 import server
+import admin_accounts
 import test_admin_bookings as fixtures
 
 
@@ -52,6 +53,20 @@ class AdminAccountTests(unittest.TestCase):
         self.admin('/api/admin/users?role=customer&'+urlencode({'after':first['nextCursor']}),status=400)
         for query in ['role=admin','q=a&q=b','after=bogus','status=pending','service=boarding','unknown=1']:
             self.admin('/api/admin/users?'+query,status=400)
+
+    def test_user_index_reads_roles_for_one_page_in_one_query(self):
+        self.seed_accounts()
+        uid = f'{1:024x}'
+        with server.db() as con:
+            con.execute("INSERT INTO user_roles VALUES(?,'customer')",(uid,))
+            con.commit()
+            statements = []
+            con.set_trace_callback(statements.append)
+            page = admin_accounts.index(con,'users',{'role':['sitter'],'status':['blocked']})
+            users = {row['id']:row for row in page['users']}
+            self.assertEqual(users[uid]['roles'],['customer','sitter'])
+            self.assertTrue(all(row['blocked'] for row in users.values()))
+            self.assertEqual(sum(sql.startswith('SELECT') for sql in statements),3)
 
     def test_listing_index_and_detail_use_actual_moderation_without_bulk_addresses(self):
         self.seed_accounts()
