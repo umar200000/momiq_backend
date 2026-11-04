@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 env:
-  TESTED_ADMIN_SHA: 528caf25e1add6c03e4f5f990ddecea939abe2cb
+  TESTED_ADMIN_SHA: e785f9079dc58279c94659a10335675613ccbab0
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false

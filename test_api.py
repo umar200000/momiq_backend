@@ -313,6 +313,20 @@ class ApiTests(unittest.TestCase):
             row=con.execute("SELECT json_extract(account,'$.profile.first'),blocked FROM users WHERE id=?",(a['userId'],)).fetchone()
             self.assertEqual(tuple(row),('New name',1))
 
+    def test_repeated_block_request_records_one_transition(self):
+        from concurrent.futures import ThreadPoolExecutor
+        a = self.login('998900011057')
+        path = '/api/admin/users/'+a['userId']
+        with ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(lambda _:self.req(path,'PUT',{'blocked':True},admin=True),range(2)))
+        self.assertEqual(results,[{'ok':True}]*2)
+        self.req(path,'PUT',{'blocked':False},admin=True)
+        self.req(path,'PUT',{'blocked':False},admin=True)
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT blocked FROM users WHERE id=?',(a['userId'],)).fetchone()[0],0)
+            self.assertEqual(con.execute("SELECT count(*) FROM audit WHERE action='update-user' AND target=?",
+                                         (a['userId'],)).fetchone()[0],2)
+
     def test_revoked_operator_cannot_finish_profile_edit_or_leave_audit(self):
         from unittest.mock import patch
         a=self.login('998900011045')

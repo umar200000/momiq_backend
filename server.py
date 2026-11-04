@@ -498,16 +498,17 @@ class Handler(BaseHTTPRequestHandler):
                     account = validate_account(data['account']) if 'account' in data else None
                     blocked = int(data['blocked']) if 'blocked' in data else None
                     self.begin_write(con,user,role)
+                    current = con.execute('SELECT blocked FROM users WHERE id=?',(uid,)).fetchone()
+                    if not current:
+                        raise ApiError(404,'Mijoz topilmadi')
                     if account is not None:
-                        if blocked is not None:
-                            current = con.execute('SELECT blocked FROM users WHERE id=?',(uid,)).fetchone()
-                            if current and current[0]!=blocked:
-                                raise ApiError(409,'Hisob holati o‘zgargan. Sahifani yangilang.')
+                        if blocked is not None and current[0]!=blocked:
+                            raise ApiError(409,'Hisob holati o‘zgargan. Sahifani yangilang.')
                         check_addresses(con,uid,account)
-                    changed = con.execute("UPDATE users SET account=COALESCE(?,account),blocked=COALESCE(?,blocked) WHERE id=?",
-                                          (json.dumps(account) if account is not None else None,blocked,uid)).rowcount
-                    if not changed: raise ApiError(404,"Mijoz topilmadi")
-                    self.audit(con,'update-user',uid)
+                    if account is not None or current[0]!=blocked:
+                        con.execute("UPDATE users SET account=COALESCE(?,account),blocked=COALESCE(?,blocked) WHERE id=?",
+                                    (json.dumps(account) if account is not None else None,blocked,uid))
+                        self.audit(con,'update-user',uid)
                     con.commit()
                     self.reply(200,{"ok":True})
                     return
