@@ -111,6 +111,17 @@ Vakolatli operator o‘zgarishni bajargach mos SHA juftligi, read-only health/re
 Alert yoki byudjet oshganda kimga va qaysi kanalga xabar borishi kelishilib, test xabari amalda olingandan keyingina monitoring yopiladi. Ushbu hujjat hech kimga xabar yubormaydi va yangi avtomatsiya yaratmaydi.
 
 
+### Video hisobotlar uchun joy va trafik
+
+Bir kunda 100 ta hayvonning har biri uchun ikkita video yuborilsa, kuniga 200 ta hisobot keladi. Quyidagi hisob har kuni tugagan bir kunlik xizmatlarning 30 kunlik videolari uchun. Har bir hisobot bir marta to‘liq ko‘riladi deb olindi. [O‘lchovlar va FFmpeg parametrlari](performance/video-service-volume-2026-11-04.json)
+
+| Sinov videosi | Kunlik yuklash | 6 000 video va muqova uchun joy | Kunlik tomosha trafiki |
+| --- | ---: | ---: | ---: |
+| 10 soniya | 532,48 MiB | 8,24 GiB | 0,27 GiB |
+| 60 soniya | 3 203,47 MiB | 49,54 GiB | 1,65 GiB |
+
+Har ikkala namuna 720p harakatli tasvir va ovoz bilan tayyorlanib, backendda qayta kodlandi. Disk uchun bitta tayyor video va uning muqovasi hajmi 6 000 ga ko‘paytirildi. Qurilma kamerasi, tasvir tafsilotlari va kodek haqiqiy hajmga ta’sir qiladi. Faol xizmatlar, ochiq nizolar sabab uzaygan saqlash, zaxira nusxalari va vaqtinchalik fayllarga alohida joy kerak. Takroriy yuklash, takroriy tomosha va protokol xarajati trafikni oshiradi.
+
 ### Isolated wallet correction process-death evidence
 
 `python -m unittest -q test_wallet_process_recovery` runs three crash scenarios in temporary TEST databases under both SQLite DELETE and WAL journal modes with `synchronous=FULL`. A real child process exits without connection cleanup after the debit, before commit, or after commit but before returning a response. Reopening checks integrity/FKs and all table snapshots: incomplete transactions leave every table unchanged; a committed correction survives and its exact retry leaves ledger, audit and notification counts unchanged. Changed-payload and stale new-request retries are rejected. No server, user balance or production database is contacted.

@@ -1,0 +1,67 @@
+{
+  "scope": "Local synthetic moving image and tone, normalized by video_media.prepare. Reference volume, not a server capacity limit or price.",
+  "platform": "Windows",
+  "ffmpeg": "ffmpeg version 9.0.2-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+  "inputOptions": [
+    "-f",
+    "lavfi",
+    "-i",
+    "testsrc2=size=1280x720:rate=24",
+    "-f",
+    "lavfi",
+    "-i",
+    "sine=frequency=440:sample_rate=48000",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "24",
+    "-pix_fmt",
+    "yuv420p",
+    "-threads",
+    "2",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "96k"
+  ],
+  "scenario": {
+    "petsPerDay": 100,
+    "reportWindowsPerPetPerDay": 2,
+    "completedDailyCohorts": 30,
+    "reportsPerDay": 200,
+    "reportsIn30CompletedCohorts": 6000,
+    "fullViewsPerReport": 1
+  },
+  "exclusions": [
+    "active services",
+    "disputes extending retention",
+    "backup copies",
+    "temporary transcode files",
+    "network/protocol overhead",
+    "retried or partial views"
+  ],
+  "samples": [
+    {
+      "durationSeconds": 10,
+      "inputBytes": 2791717,
+      "playbackBytes": 1463493,
+      "posterBytes": 11887,
+      "processingWallSeconds": 1.205,
+      "uploadBytesPer200Reports": 558343400,
+      "storedBytesPer6000Reports": 8852280000,
+      "playbackBytesPer200FullViews": 292698600
+    },
+    {
+      "durationSeconds": 60,
+      "inputBytes": 16795425,
+      "playbackBytes": 8854345,
+      "posterBytes": 11887,
+      "processingWallSeconds": 6.191,
+      "uploadBytesPer200Reports": 3359085000,
+      "storedBytesPer6000Reports": 53197392000,
+      "playbackBytesPer200FullViews": 1770869000
+    }
+  ]
+}
