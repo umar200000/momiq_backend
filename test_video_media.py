@@ -9,6 +9,22 @@ import video_media as media
 
 
 class VideoMediaTests(unittest.TestCase):
+    def test_unlaunchable_decoder_is_retryable_and_releases_worker(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            decoder = root / 'unlaunchable.exe'
+            decoder.write_bytes(b'TEST invalid executable')
+            source = root / 'report.mp4'
+            source.write_bytes(b'\x00\x00\x00\x18ftypisom' + bytes(24))
+            with patch.dict(media.os.environ, MOMIQ_FFPROBE=str(decoder)):
+                if media.os.name == 'posix':
+                    self.assertFalse(media.available())
+                    decoder.chmod(0o700)
+                for _ in range(3):
+                    with self.assertRaisesRegex(media.VideoUnavailable, 'mavjud emas'):
+                        media.prepare(source, root)
+                self.assertFalse((root / 'playback.mp4').exists())
+
     def test_audio_cannot_extend_report_beyond_video_duration(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'audio-tail.mp4'

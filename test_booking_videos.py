@@ -234,6 +234,12 @@ with server.db() as con:
             self.assertEqual(call('POST',path,urlencode(data),source.read_bytes())['status'],401)
             self.assertEqual(call('POST',path,urlencode(data),source.read_bytes(),'customer')['status'],403)
             self.assertEqual(call('POST',path,urlencode(data),b'not a video container','abc')['status'],400)
+            with patch.object(video_media.subprocess, 'run', side_effect=PermissionError('TEST private path')):
+                failed = call('POST',path,urlencode(data),source.read_bytes(),'abc')
+            self.assertEqual(failed['status'],503)
+            self.assertNotIn(b'TEST private path',failed['body'])
+            with server.db() as con:
+                self.assertEqual(con.execute('SELECT count(*) FROM booking_videos').fetchone()[0],0)
             uploaded=call('POST',path,urlencode(data),source.read_bytes(),'abc')
             self.assertEqual(uploaded['status'],200,uploaded['body'])
             video=json.loads(uploaded['body'])['id']

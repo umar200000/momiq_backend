@@ -37,9 +37,21 @@ def missing(con,row):
 
 
 def tick(con,environment,now,limit):
+    if con.in_transaction:
+        raise RuntimeError('Booking operation requires a fresh transaction')
+    engine.test_gate(con,environment)
+    instant = engine.stamp(now)
+    unscheduled = (" FROM bookings b JOIN booking_events e ON e.booking_id=b.id"
+                   " AND e.action='start' AND e.status='active' WHERE NOT EXISTS"
+                   "(SELECT 1 FROM video_schedules s WHERE s.booking_id=b.id)")
+    pending = con.execute("SELECT EXISTS(SELECT 1 FROM video_checks WHERE checked=0 AND due_at<=?)"
+                          " OR EXISTS(SELECT 1 FROM video_checks WHERE reminded=0 AND remind_at<=?)"
+                          " OR EXISTS(SELECT 1"+unscheduled+")", (instant,instant)).fetchone()[0]
+    if not pending:
+        return 0
     engine.begin(con);engine.test_gate(con,environment)
     # Upgrade/restart backfill uses persisted two-party activation, not phone time.
-    legacy=con.execute("SELECT b.*,MAX(e.created) AS activated FROM bookings b JOIN booking_events e ON e.booking_id=b.id AND e.action='start' AND e.status='active' WHERE NOT EXISTS(SELECT 1 FROM video_schedules s WHERE s.booking_id=b.id) GROUP BY b.id ORDER BY b.seq LIMIT 5").fetchall()
+    legacy=con.execute("SELECT b.*,MAX(e.created) AS activated"+unscheduled+" GROUP BY b.id ORDER BY b.seq LIMIT 5").fetchall()
     for row in legacy:schedule(con,row,engine.parse(row['activated']))
     total=0
     for stage,column,cutoff in [('video_missing','checked','due_at'),('video_reminder','reminded','remind_at')]:

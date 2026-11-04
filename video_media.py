@@ -71,9 +71,9 @@ def executable(name):
     configured = os.environ.get('MOMIQ_'+name.upper())
     local = Path(__file__).parent/'.local/toolchains/ffmpeg-9.0.2/ffmpeg-9.0.2-essentials_build/bin'/f'{name}.exe'
     found = configured or (str(local) if os.name == 'nt' and local.is_file() else shutil.which(name))
-    if not found or not Path(found).is_file():
+    if not found or not Path(found).is_file() or not os.access(found, os.X_OK):
         raise VideoUnavailable('Video qayta ishlash xizmati hozir mavjud emas')
-    return found
+    return str(Path(found).resolve())
 
 
 def available():
@@ -91,6 +91,8 @@ def run(name, args, timeout=15):
                                 timeout=timeout, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     except subprocess.TimeoutExpired as error:
         raise ValueError('Videoni qayta ishlash vaqti tugadi; kichikroq video tanlang') from error
+    except OSError as error:
+        raise VideoUnavailable('Video qayta ishlash xizmati hozir mavjud emas') from error
     if result.returncode or len(result.stdout) > 32768:
         raise ValueError('Video ochilmadi yoki buzilgan; MP4/MOV video tanlang')
     return result.stdout

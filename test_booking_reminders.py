@@ -25,6 +25,22 @@ class ReminderTests(unittest.TestCase):
     def tick(self, minutes):
         return booking_worker.run_once(server.db,'local',now=self.start+timedelta(minutes=minutes),batch_size=1)
 
+    def test_idle_worker_skips_unrelated_writer_and_later_delivers_due_work_once(self):
+        self.act(self.request())
+        def short_timeout_db():
+            con = server.db()
+            con.execute('PRAGMA busy_timeout=1')
+            return con
+        with server.db() as writer:
+            writer.execute('BEGIN IMMEDIATE')
+            self.assertEqual(booking_worker.run_once(short_timeout_db, 'local', now=self.start), 0)
+        self.assertEqual(self.tick(15), 1)
+        with server.db() as writer:
+            writer.execute('BEGIN IMMEDIATE')
+            self.assertEqual(booking_worker.run_once(short_timeout_db, 'local',
+                             now=self.start + timedelta(minutes=15)), 0)
+        self.assertEqual(len(self.notices()), 2)
+
     def test_exact_boundaries_restart_and_no_money_or_status_change(self):
         booking=self.act(self.request())
         with server.db() as con:

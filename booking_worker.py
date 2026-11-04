@@ -15,7 +15,8 @@ def remind_due(con, environment, current, stage, limit):
         'complaint_available': (30, 'Boshlanish tasdig‘i hali tugallanmagan. Xizmat boshlanmagan bo‘lsa, buyurtma ichida kelmaslik haqida murojaat qilishingiz mumkin.'),
     }
     minutes,message=messages[stage]
-    engine.begin(con)
+    if con.in_transaction:
+        raise RuntimeError('Booking operation requires a fresh transaction')
     engine.test_gate(con,environment)
     cutoff=engine.stamp(current-timedelta(minutes=minutes))
     clause='';args=[cutoff]
@@ -24,9 +25,14 @@ def remind_due(con, environment, current, stage, limit):
         clause=' AND b.starts_at>?'
         args.append(engine.stamp(current-timedelta(minutes=30)))
     prefix='booking-reminder:'
-    args.extend([prefix,':'+stage+':',prefix,':'+stage+':',limit])
-    rows=con.execute("SELECT b.* FROM bookings b WHERE b.status='accepted' AND b.starts_at<=?"+clause+
-        " AND (NOT EXISTS(SELECT 1 FROM notifications n WHERE n.source_key=?||b.id||?||b.customer_id) OR NOT EXISTS(SELECT 1 FROM notifications n WHERE n.source_key=?||b.id||?||b.sitter_id)) ORDER BY b.starts_at,b.id LIMIT ?",args).fetchall()
+    args.extend([prefix,':'+stage+':',prefix,':'+stage+':'])
+    candidates = (" FROM bookings b WHERE b.status='accepted' AND b.starts_at<=?"+clause+
+        " AND (NOT EXISTS(SELECT 1 FROM notifications n WHERE n.source_key=?||b.id||?||b.customer_id) OR NOT EXISTS(SELECT 1 FROM notifications n WHERE n.source_key=?||b.id||?||b.sitter_id))")
+    if not con.execute('SELECT 1'+candidates+' LIMIT 1',args).fetchone():
+        return 0
+    engine.begin(con)
+    engine.test_gate(con,environment)
+    rows=con.execute('SELECT b.*'+candidates+' ORDER BY b.starts_at,b.id LIMIT ?',[*args,limit]).fetchall()
     for row in rows:
         for user in (row['customer_id'],row['sitter_id']):
             notifications.publish(con,user,f'{prefix}{row["id"]}:{stage}:{user}','booking',row['id'],stage,message)
