@@ -1,6 +1,7 @@
 """Momiq local API. Python 3.12+, SQLite; no third-party runtime dependencies."""
 import request_json
 import service_area
+import profile_export
 from media_validation import MediaBusy, validate_photo as photo
 import hashlib
 import hmac
@@ -398,6 +399,13 @@ class Handler(BaseHTTPRequestHandler):
                 con.execute('DELETE FROM sessions WHERE hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
                 con.commit()
                 self.reply(200,{"ok":True}, "momiq_admin=; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=0" if admin else None)
+                return
+            if path == '/api/me/profile-export':
+                if self.command!='GET': raise ApiError(405,'GET yuboring')
+                if target.query: raise ValueError('Profile export accepts no query')
+                result=profile_export.read(con,user)
+                con.commit()
+                self.reply(200,result)
                 return
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":

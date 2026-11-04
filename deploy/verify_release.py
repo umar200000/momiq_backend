@@ -77,7 +77,7 @@ def verify(revision, *, admin_dir=None, admin_only=False):
     get(API,'/api/health?'+'&'.join(['q=1']*33),400)
     # Gunicorn can reject the request line before the application returns 414.
     get(API,'/api/health?q='+'x'*4096,(400,414),False)
-    for path in ('/api/me','/api/me/listings','/api/messages'):
+    for path in ('/api/me','/api/me/listings','/api/me/profile-export','/api/messages'):
         get(API,path,401)
     get(ADMIN,'/api/admin/users',401)
     for base,path in ((API,'/api/me'),(ADMIN,'/api/admin/users')):

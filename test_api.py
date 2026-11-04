@@ -166,6 +166,33 @@ class ApiTests(unittest.TestCase):
         self.req('/api/auth/logout','POST',{},token=a['token'])
         self.req('/api/me',token=a['token'],expected=401)
 
+    def test_profile_export_uses_session_owner_and_excludes_media_and_internal_fields(self):
+        path='/api/me/profile-export'
+        owner=self.login('998900010811')
+        other=self.login('998900010812')
+        data=owner['account']
+        data.update(profile={'first':'Exported','last':'TEST','photo':'PRIVATE photo'},
+                    addresses=[{'id':'test','address':'TEST outside fixture','apartment':'Gate 1','unknown':'PRIVATE'}],
+                    pets=[{'id':'pet','name':'Cat','photo':'PRIVATE image','notes':{'file':'PRIVATE'}}],
+                    sitterProfile={'housing':'house','years':3,'about':'Owner','homePhotos':['PRIVATE']},
+                    support=[{'text':'PRIVATE message'}],session='PRIVATE token')
+        with server.db() as con:
+            con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(data),owner['userId']))
+        self.req(path,expected=401)
+        self.req(path,admin=True,expected=401)
+        self.req(path+'?owner='+owner['userId'],token=other['token'],expected=400)
+        self.req(path,'POST',{},token=owner['token'],expected=405)
+        output=self.req(path,token=owner['token'])
+        self.assertEqual((output['format'],output['ownerId'],output['profile']['phone']),
+                         ('momiq-profile-v1',owner['userId'],'998900010811'))
+        self.assertEqual(output['addresses'][0]['apartment'],'Gate 1')
+        self.assertEqual(output['pets'],[{'id':'pet','name':'Cat'}])
+        self.assertNotIn('PRIVATE',json.dumps(output))
+        self.assertNotIn('Exported',json.dumps(self.req(path,token=other['token'])))
+        with server.db() as con:
+            con.execute('UPDATE users SET blocked=1 WHERE id=?',(owner['userId'],))
+        self.req(path,token=owner['token'],expected=403)
+
     def test_approved_city_and_province_addresses_and_sitter_listing(self):
         from unittest.mock import patch
         import service_area
