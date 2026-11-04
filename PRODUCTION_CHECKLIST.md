@@ -90,6 +90,12 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-04. M102/M105 — profil va e’lon tahririda ruxsat
+
+- [x] Eski relizdagi uchta holat vaqtinchalik bazada haqiqiy HTTP so‘rovlari bilan takrorlandi. Sessiya bekor qilingan profil tahriri, enaga profili olib tashlanganidan keyingi e’lon tahriri va bloklangan hisobni faqat profil orqali bilmasdan ochib yuborish tekshiruvlari dastlab xato berdi. Yangi relizda birinchi so‘rov 401, ikkinchisi 403 qaytardi va yozuv saqlanmadi. Uchinchi holatda hisob bloklanganicha qoldi.
+- [x] Admin faqat blok holatini o‘zgartirayotganda mijozning parallel profil tahriri saqlandi. Admin sessiyasi forma tekshirilayotganda bekor qilinsa, tahrir rad etildi va auditga bajarilgan amal sifatida yozilmadi. Besh regressiya testi bilan jami 40 ta reliz testi o‘tdi.
+- [x] Production’da `e6101de` o‘rnatildi. API va admin domenlarida 19 ta faqat o‘qish sinovi qayta o‘tdi, test kirishi yoqilgan. M102 uchun barcha obyekt/rollar va qurilma qabuli, M105 uchun uzilish mashqi ochiq. [Test va deploy](https://github.com/umar200000/momiq_backend/actions/runs/41785635742)
+
 ### 2026-11-04. M102/M105 — sessiya va xabarni qayta yuborish
 
 - [x] Production backendda ikki admin cookie yuborilgan so‘rov sinovdan avval 200 qaytargan. O‘qish va logout uchun bitta aniq sessiya talab qilinadi. Vaqtinchalik bazadagi haqiqiy test sessiyalari bilan noaniq so‘rov 401 qaytardi va sessiyani bekor qilmadi. Yaroqli Bearer bilan chiqilgach, keyingi GET 401 qaytardi.
