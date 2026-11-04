@@ -36,5 +36,5 @@ def preserve_omitted(before, after, incoming):
     if target is not None and isinstance(source, dict):
         previous = before.get('sitterProfile') or {}
         for key in ('schedule', 'closedDates'):
-            if key not in source and key in previous:
+            if key not in source and previous.get(key) is not None:
                 target[key] = previous[key]

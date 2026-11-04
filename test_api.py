@@ -354,6 +354,10 @@ class ApiTests(unittest.TestCase):
         cleared=save({**account,'sitterProfile':{'schedule':None,'closedDates':[]}})['account']['sitterProfile']
         self.assertIsNone(cleared.get('schedule'))
         self.assertEqual(cleared['closedDates'],[])
+        with server.db() as con:
+            con.execute("UPDATE users SET account=json_set(account,'$.sitterProfile.closedDates',NULL) WHERE id=?",
+                        (owner['userId'],))
+        self.assertNotIn('closedDates',save(legacy)['account']['sitterProfile'])
 
     def test_address_identity_is_unambiguous_without_blocking_legacy_profile_edits(self):
         owner=self.login('998900010316')
