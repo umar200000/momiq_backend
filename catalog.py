@@ -229,7 +229,21 @@ def profile(con,environment,identity,*,interval=None):
     return next(iter_profiles(con,environment,interval=interval,owner=owner,service=service),None)
 
 
-def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=None,favorites=None):
+def listing_filters(min_price, max_price, pet):
+    """Predicates on the individual JSON listing aliased as j, with bound values."""
+    conditions = []
+    args = []
+    if min_price or max_price != 999999999:
+        conditions.append(" AND json_extract(j.value,'$.price') BETWEEN ? AND ?")
+        args.extend((min_price,max_price))
+    if pet is not None:
+        conditions.append(" AND EXISTS(SELECT 1 FROM json_each(j.value,'$.pets') pet WHERE pet.value=?)")
+        args.append(pet)
+    return ''.join(conditions), args
+
+
+def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=None,favorites=None,
+                  min_price=0,max_price=999999999,pet=None):
     after_key=tuple(after.split(':',1)) if after else ('','')
     owner_clause=' AND m.user_id=?' if owner is not None else ''
     service_clause=' AND m.service=?' if service is not None else ''
@@ -248,6 +262,12 @@ def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=No
         favorite_clause = (" AND (m.user_id,m.service) IN (SELECT json_extract(value,'$[0]'),"
                            "json_extract(value,'$[1]') FROM json_each(?))")
         args.append(json.dumps(keys))
+    filters, values = listing_filters(min_price,max_price,pet)
+    listing_clause = ''
+    if filters:
+        listing_clause = (" AND EXISTS(SELECT 1 FROM json_each(l.data,'$.listings') j"
+                          " WHERE j.type='object' AND json_extract(j.value,'$.type')=m.service"+filters+")")
+        args.extend(values)
     # Read in the moderation primary-key order. Reputation stays in the same
     # read snapshot without one additional Python/SQLite call per listing.
     rows=con.execute("""SELECT u.id,u.account,l.data,m.service moderated_service,
@@ -260,7 +280,7 @@ def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=No
         WHERE (m.user_id,m.service)>(?,?) AND m.status='approved' AND u.blocked=0
         AND w.balance_minor>=?
         AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=m.user_id AND r.role='sitter')"""
-        +owner_clause+service_clause+favorite_clause+' ORDER BY m.user_id,m.service',args)
+        +owner_clause+service_clause+favorite_clause+listing_clause+' ORDER BY m.user_id,m.service',args)
     for row in rows:
         account=json.loads(row['account']);data=json.loads(row['data'])
         if interval and sitter_availability.reason(account,*interval): continue

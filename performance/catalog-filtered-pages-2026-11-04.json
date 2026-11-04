@@ -1,0 +1,87 @@
+{
+  "scope": "Local SQLite; 40 alternating pairs, no network",
+  "baseline": "862964e8f0c88d89508e34ed58aef0502378f4a8",
+  "accounts": 1000,
+  "sitters": 100,
+  "identicalPages": 21,
+  "firstPage": [
+    {
+      "case": "all",
+      "before": {
+        "fullProfiles": 21,
+        "p50Ms": 0.782,
+        "p95Ms": 0.952
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 0.783,
+        "p95Ms": 1.248
+      }
+    },
+    {
+      "case": "common",
+      "before": {
+        "fullProfiles": 29,
+        "p50Ms": 1.084,
+        "p95Ms": 2.253
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 1.002,
+        "p95Ms": 1.936
+      }
+    },
+    {
+      "case": "selective",
+      "before": {
+        "fullProfiles": 67,
+        "p50Ms": 2.388,
+        "p95Ms": 3.131
+      },
+      "after": {
+        "fullProfiles": 13,
+        "p50Ms": 0.978,
+        "p95Ms": 1.542
+      }
+    },
+    {
+      "case": "absent",
+      "before": {
+        "fullProfiles": 167,
+        "p50Ms": 5.277,
+        "p95Ms": 6.118
+      },
+      "after": {
+        "fullProfiles": 0,
+        "p50Ms": 0.748,
+        "p95Ms": 0.823
+      }
+    },
+    {
+      "case": "saved",
+      "before": {
+        "fullProfiles": 68,
+        "p50Ms": 2.377,
+        "p95Ms": 2.823
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 1.239,
+        "p95Ms": 1.609
+      }
+    },
+    {
+      "case": "savedProximity",
+      "before": {
+        "fullProfiles": 68,
+        "p50Ms": 2.73,
+        "p95Ms": 3.556
+      },
+      "after": {
+        "fullProfiles": 40,
+        "p50Ms": 2.134,
+        "p95Ms": 2.848
+      }
+    }
+  ]
+}

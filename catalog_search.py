@@ -93,18 +93,11 @@ def nearby_profiles(con,environment,selected,interval,after):
     con.create_function('momiq_catalog_distance',2,rank,deterministic=True)
     # Apply explicit filters to the same listing that supplies the sort point.
     # Full profiles still pass moderation, fingerprint and availability checks.
-    filters = []
-    args = [catalog.MINIMUM_BALANCE_MINOR]
+    extra, values = catalog.listing_filters(selected['minPrice'],selected['maxPrice'],selected['pet'])
+    args = [catalog.MINIMUM_BALANCE_MINOR,*values]
     if selected['service'] is not None:
-        filters.append('m.service=?')
+        extra += ' AND m.service=?'
         args.append(selected['service'])
-    if selected['minPrice'] or selected['maxPrice']!=999999999:
-        filters.append("json_extract(j.value,'$.price') BETWEEN ? AND ?")
-        args.extend((selected['minPrice'],selected['maxPrice']))
-    if selected['pet'] is not None:
-        filters.append("EXISTS(SELECT 1 FROM json_each(j.value,'$.pets') pet WHERE pet.value=?)")
-        args.append(selected['pet'])
-    extra = ''.join(' AND '+condition for condition in filters)
     rows=con.execute("""SELECT m.user_id,m.service,
              momiq_catalog_distance(json_extract(j.value,'$.location.lat'),json_extract(j.value,'$.location.lon')) distance
            FROM listing_moderation m JOIN users u ON u.id=m.user_id
@@ -141,7 +134,8 @@ def page(con, environment, params, *, user=None):
     ranked=selected['origin'] is not None and favorites is None
     source=(nearby_profiles(con,environment,selected,interval,after) if ranked else
             catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',
-                                  service=selected['service'],favorites=favorites))
+                                  service=selected['service'],favorites=favorites,pet=selected['pet'],
+                                  min_price=selected['minPrice'],max_price=selected['maxPrice']))
     def matches():
         for item in source:
             service=catalog.SERVICES[item['service']]

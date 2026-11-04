@@ -58,6 +58,18 @@ class SearchHttpTests(unittest.TestCase):
             self.assertEqual(absent['sitters'],[])
             profiles.assert_not_called()
 
+    def test_price_and_pet_filters_without_location_skip_unmatched_full_profiles(self):
+        self.clones()
+        path='/api/sitters?minPrice=10005&maxPrice=10006'
+        with patch.object(catalog,'fingerprint',wraps=catalog.fingerprint) as fingerprint:
+            rows=self.req(path)['sitters']
+            self.assertEqual([row['id'] for row in rows],['sitter-05:boarding','sitter-06:boarding'])
+            self.assertEqual(fingerprint.call_count,2)
+        missing='dog' if rows[0]['pets']==['Mushuk'] else 'cat'
+        with patch.object(catalog,'fingerprint',wraps=catalog.fingerprint) as fingerprint:
+            self.assertEqual(self.req(path+'&pet='+missing)['sitters'],[])
+            fingerprint.assert_not_called()
+
     setUp=http_fixtures.BookingHttpTests.setUp
     save=http_fixtures.BookingHttpTests.save
     review=http_fixtures.BookingHttpTests.review
