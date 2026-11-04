@@ -26,6 +26,11 @@ jobs:
           ref: ${{ env.TESTED_ADMIN_SHA }}
           path: admin-fixture
       - run: python -m pip install -r requirements.txt
+      - name: Audit the pinned runtime before deployment
+        run: |
+          python -m venv "${RUNNER_TEMP}/momiq-pip-audit"
+          "${RUNNER_TEMP}/momiq-pip-audit/bin/python" -m pip install pip-audit==2.10.1
+          "${RUNNER_TEMP}/momiq-pip-audit/bin/python" -m pip_audit --disable-pip --require-hashes -r requirements.lock
       - run: python -m unittest -q
         env:
           MOMIQ_ADMIN_DIR: ${{ github.workspace }}/admin-fixture
