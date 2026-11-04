@@ -1,1 +1,2 @@
 server.py export-subst
+boundaries/*.geojson text eol=lf

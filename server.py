@@ -1,5 +1,6 @@
 """Momiq local API. Python 3.12+, SQLite; no third-party runtime dependencies."""
 import request_json
+import service_area
 from media_validation import MediaBusy, validate_photo as photo
 import hashlib
 import hmac
@@ -19,6 +20,8 @@ ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("MOMIQ_DATA_DIR", ROOT / "data"))
 ADMIN = Path(os.environ.get("MOMIQ_ADMIN_DIR", ROOT.parent / "momiq_admin_panel"))
 PRODUCTION = os.environ.get("MOMIQ_ENV") == "production"
+AREA_CONFIG = service_area.configuration(os.environ)
+AREA = service_area.load(AREA_CONFIG)
 DEV_LOGIN = not PRODUCTION or os.environ.get("MOMIQ_ALLOW_TEST_LOGIN") == "1"
 HOST = os.environ.get("MOMIQ_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MOMIQ_PORT", "8080"))
@@ -210,6 +213,12 @@ def validate_listings(data):
 def roles_for(con, uid):
     return [r[0] for r in con.execute('SELECT role FROM user_roles WHERE user_id=? ORDER BY role',(uid,))]
 
+
+def check_addresses(con,uid,account):
+    row = con.execute('SELECT account FROM users WHERE id=?',(uid,)).fetchone()
+    if not row: raise ApiError(404,'Mijoz topilmadi')
+    service_area.changed_addresses(AREA,json.loads(row[0]),account,'production' if PRODUCTION else 'local')
+
 class ApiError(Exception):
     def __init__(self, status, message):
         self.status, self.message = status, message
@@ -330,7 +339,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.command == "GET" and path in ("/api/health","/api/ready"):
             result = {"ok":True,"mode":"production" if PRODUCTION else "local","releaseSha":RELEASE_SHA}
             if path == "/api/health":
-                result.update(sms=False,clientLoginEnabled=DEV_LOGIN,testLogin=DEV_LOGIN)
+                result.update(sms=False,clientLoginEnabled=DEV_LOGIN,testLogin=DEV_LOGIN,
+                              serviceAreaSha256=AREA_CONFIG.get('MOMIQ_AREA_SHA256'))
             else:
                 try:
                     result["schemaVersion"] = ready()
@@ -393,6 +403,7 @@ class Handler(BaseHTTPRequestHandler):
                 if self.command == "PUT":
                     account = validate_account(self.body())
                     self.begin_write(con,user,role)
+                    check_addresses(con,user,account)
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
                         con.execute("INSERT OR IGNORE INTO user_roles VALUES(?,'sitter')",(user,))
@@ -405,6 +416,9 @@ class Handler(BaseHTTPRequestHandler):
                     initial = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
                     if not initial.get('sitterProfile'): raise ApiError(403,'Avval enaga profilini to‘ldiring')
                     data = validate_listings(self.body())
+                    for listing in data['listings']:
+                        if listing['active'] and listing['type']!='homeVisit':
+                            service_area.require(AREA,listing['location'],'production' if PRODUCTION else 'local')
                     self.begin_write(con,user,role)
                 account = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
                 if self.command == 'PUT':
@@ -457,11 +471,13 @@ class Handler(BaseHTTPRequestHandler):
                     data = self.body()
                     if type(data.get('blocked',False)) is not bool:
                         raise ValueError('Holat noto‘g‘ri')
-                    account = json.dumps(validate_account(data['account'])) if 'account' in data else None
+                    account = validate_account(data['account']) if 'account' in data else None
                     blocked = int(data['blocked']) if 'blocked' in data else None
                     self.begin_write(con,user,role)
+                    if account is not None:
+                        check_addresses(con,uid,account)
                     changed = con.execute("UPDATE users SET account=COALESCE(?,account),blocked=COALESCE(?,blocked) WHERE id=?",
-                                          (account,blocked,uid)).rowcount
+                                          (json.dumps(account) if account is not None else None,blocked,uid)).rowcount
                     if not changed: raise ApiError(404,"Mijoz topilmadi")
                     self.audit(con,'update-user',uid)
                     con.commit()
@@ -508,6 +524,8 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200,{'messages':result})
     def dispatch(self):
         try: self.handle_request()
+        except service_area.OutsideArea as e: self.reply(400,{'error':str(e)})
+        except service_area.AreaUnavailable as e: self.reply(503,{'error':str(e)})
         except MediaBusy as e: self.reply(503,{'error':str(e)})
         except (ApiError,request_json.BodyError) as e: self.reply(e.status,{'error':e.message})
         except (ValueError,KeyError,TypeError): self.reply(400,{'error':'Ma’lumotlarni tekshiring'})

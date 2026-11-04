@@ -3,6 +3,7 @@ import json
 import re
 import sys
 import argparse
+import hashlib
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -66,6 +67,10 @@ def verify(revision, *, admin_dir=None, admin_only=False):
             raise ValueError('Unexpected release or database state')
         if path=='/api/ready' and type(body.get('schemaVersion')) is not int:
             raise ValueError('Missing database version')
+        if path=='/api/health':
+            boundary=Path(__file__).resolve().parents[1]/'boundaries'/'tashkent-city-region.geojson'
+            if body.get('serviceAreaSha256')!=hashlib.sha256(boundary.read_bytes()).hexdigest():
+                raise ValueError('Unexpected service boundary on the running server')
     if not isinstance(get(API,'/api/sitters').get('sitters'),list):
         raise ValueError('Invalid public catalog')
     get(API,'/api/health?'+'&'.join(['q=1']*32))

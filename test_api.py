@@ -166,6 +166,34 @@ class ApiTests(unittest.TestCase):
         self.req('/api/auth/logout','POST',{},token=a['token'])
         self.req('/api/me',token=a['token'],expected=401)
 
+    def test_approved_city_and_province_addresses_and_sitter_listing(self):
+        from unittest.mock import patch
+        import service_area
+        conf=service_area.configuration({'MOMIQ_ENV':'production'})
+        owner=self.login('998900010291')
+        other=self.login('998900010292')
+        profile=owner['account']
+        profile['profile'].update(first='TEST',last='address')
+        profile['sitterProfile']={'housing':'house'}
+        with patch.object(server,'AREA',service_area.load(conf)):
+            for lon,lat in [(69.2797,41.3112),(69.5822,41.4689),(70.1436,41.0167),(69.269,40.217)]:
+                address={'id':'one','label':'TEST','address':'private road','apartment':'Gate 7','lat':lat,'lon':lon}
+                profile['addresses']=[address]
+                saved=self.req('/api/me','PUT',profile,token=owner['token'])
+                self.assertEqual(saved['account']['addresses'],[address])
+            outside={**address,'lon':66.9749,'lat':39.6542}
+            rejected={**profile,'addresses':[outside]}
+            self.req('/api/me','PUT',rejected,token=owner['token'],expected=400)
+            self.req('/api/admin/users/'+owner['userId'],'PUT',{'account':rejected},admin=True,expected=400)
+            self.assertEqual(self.req('/api/me',token=owner['token'])['account']['addresses'],[address])
+            self.assertEqual(self.req('/api/me',token=other['token'])['account']['addresses'],[])
+            listing={'type':'personal','pets':['cat'],'price':50000,'active':True,'location':outside}
+            self.req('/api/me/listings','PUT',{'housing':'house','listings':[listing]},token=owner['token'],expected=400)
+            listing['location']=address
+            self.req('/api/me/listings','PUT',{'housing':'house','listings':[listing]},token=owner['token'])
+            profile['addresses']=[]
+            self.assertEqual(self.req('/api/me','PUT',profile,token=owner['token'])['account']['addresses'],[])
+
     def test_revocation_during_profile_validation_prevents_write(self):
         from unittest.mock import patch
         a=self.login('998900011041')
