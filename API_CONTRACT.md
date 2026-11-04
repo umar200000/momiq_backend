@@ -819,3 +819,8 @@ python tool/verify_mobile_contracts.py --app ../momiq_app --dart <path-to-dart-e
 ```
 
 For new fields and version transitions, follow **Upgrade compatibility** above. Consumers preserve null and absent-field distinctions defined per endpoint. Financial ledger fields ending in `Minor` are integer tiyin (100 per so‘m). A listing's `price` is per animal in whole so‘m. Use the timestamp or local-date format of the specific endpoint and return the server-issued cursor unchanged for the same filters. The historical replay covers these seven payloads. The method index covers the larger service surface through the backend tests.
+
+
+### Pending account erasure requests
+
+An owner may confirm an `account_deletion` support request while either participant has an accepted, active or disputed booking or an open case. The existing ticket represents the request. Its detail is recalculated in the current database snapshot. `deletionReview.state` is `waiting_for_obligations` when either `openBooking` or `openDispute` is true and becomes `awaiting_verification` on the same ticket once both are false. A new request ID for a second outstanding request is rejected with HTTP 409. An exact retry returns the original acknowledgement. Operator replies keep the request open. Generic ticket resolution cannot erase the account or remove it from this queue. Actual erasure still requires ownership verification and the retention/recovery policy. Historical resolved tickets require a fresh owner confirmation for a new request.

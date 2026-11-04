@@ -31,6 +31,17 @@ def public(row):
     return {k:row[v] for k,v in [('id','id'),('bookingId','booking_id'),('subject','subject'),('topic','topic'),('status','status'),('revision','revision'),('created','created'),('updated','updated')]}
 
 
+def deletion_review(con,owner):
+    # The request remains attached to the original ticket as obligations change.
+    bookings,disputes=con.execute("""SELECT
+        EXISTS(SELECT 1 FROM bookings WHERE (customer_id=? OR sitter_id=?)
+            AND status IN ('accepted','active','disputed')),
+        EXISTS(SELECT 1 FROM booking_disputes d JOIN bookings b ON b.id=d.booking_id
+            WHERE d.status='open' AND (b.customer_id=? OR b.sitter_id=?))""",(owner,)*4).fetchone()
+    return {'state':'waiting_for_obligations' if bookings or disputes else 'awaiting_verification',
+            'openBooking':bool(bookings),'openDispute':bool(disputes)}
+
+
 def dispute_decision(con,booking):
     # The existing schema makes the resolved case, its decision event and a
     # ticket's booking/topic immutable. No private dispute evidence is copied.
@@ -60,11 +71,13 @@ def view(con,identity,user,admin=False,before=None):
                            JOIN booking_videos v ON v.id=r.video_id WHERE r.ticket_id=?""",(identity,)).fetchone()
     dispute=dispute_decision(con,row['booking_id']) if row['topic']=='dispute_appeal' else None
     appeal=dispute is not None or (target and target['purpose']=='appeal')
-    can_resolve=bool(admin and (not appeal or operator_access.role_for(con,user)=='administrator'))
+    deletion=deletion_review(con,row['owner_id']) if row['topic']=='account_deletion' and row['status']!='resolved' else None
+    can_resolve=bool(admin and not deletion and (not appeal or operator_access.role_for(con,user)=='administrator'))
     resolutions=support_resolutions.message_rows(con,identity,rows[:20],admin)
     return {'ticket':public(row),'items':[{'id':str(m['id']),'revision':m['revision'],'authorRole':m['author_role'],'action':m['action'],'text':m['text'],'hasImage':bool(m['image']),'created':m['created'],**({'resolution':resolutions[m['id']]} if m['id'] in resolutions else {})} for m in reversed(rows[:20])],
             'nextCursor':str(rows[19]['id']) if len(rows)>20 else None,
             'target':target,'canResolve':can_resolve,
+            **({'deletionReview':deletion} if deletion else {}),
             **({'canRequestReportedPhoto':True} if admin and target and target['snapshot'].get('media') else {}),
             **({'disputeAppeal':dispute if not admin or can_resolve else
                 {k:dispute[k] for k in ('bookingId','revision','eventId')}} if dispute else {}),
@@ -149,6 +162,13 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
     if previous:
         if previous['fingerprint']!=fingerprint:raise engine.BookingError(409,'So‘rov boshqa murojaat uchun ishlatilgan')
         return write_result(con,previous['ticket_id'],user,admin,key,data)
+    if not creating and action=='resolve' and row['topic']=='account_deletion':
+        raise engine.BookingError(409,'Hisobni o‘chirish so‘rovi alohida tekshiruvni kutadi')
+    if not creating and row['topic']=='account_deletion' and row['status']=='resolved':
+        raise engine.BookingError(409,'Yangi o‘chirish so‘rovini hisob egasi tasdiqlashi kerak')
+    if deletion_request and con.execute("""SELECT 1 FROM support_tickets
+            WHERE owner_id=? AND topic='account_deletion' AND status!='resolved' LIMIT 1""",(user,)).fetchone():
+        raise engine.BookingError(409,'O‘chirish so‘rovingiz yordam bo‘limida hali ochiq')
     decision=None
     if existing_target and existing_target['purpose']=='appeal':
         decision=support_resolutions.checked_context(con,existing_target,data.get('decisionVersion'))
@@ -184,7 +204,7 @@ def write(con,user,identity,data,validate_photo,admin=False,environment='product
             con.execute('INSERT INTO support_video_reports VALUES(?,?)',(identity,data['reportVideoId']))
         row=ticket(con,identity,user)
     elif row['revision']!=revision:raise engine.BookingError(409,'Murojaat o‘zgargan. Yangilang')
-    state='resolved' if action=='resolve' else ('waiting_user' if admin else 'open')
+    state='resolved' if action=='resolve' else ('waiting_user' if admin and row['topic']!='account_deletion' else 'open')
     con.execute('UPDATE support_tickets SET status=?,revision=revision+1,updated=? WHERE id=?',(state,current,identity))
     message=con.execute('INSERT INTO support_messages(ticket_id,revision,actor,author_role,action,text,image,created) VALUES(?,?,?,?,?,?,?,?)',(identity,revision+1,key,'support' if admin else 'owner',action,body,image,current)).lastrowid
     if decision:support_resolutions.attach(con,identity,message,decision,current)

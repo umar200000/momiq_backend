@@ -19,6 +19,37 @@ from test_media import fixture_image
 
 
 class SupportTests(unittest.TestCase):
+    def test_deletion_request_waits_for_both_parties_and_survives_end_of_obligation(self):
+        b=self.book()
+        self.req('/api/bookings/'+b['id']+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')
+        paths=[]
+        for owner in ('abc','customer'):
+            data=self.data(topic='account_deletion',confirmAccountRequest=True)
+            created=self.req('/api/support','POST',data,user=owner)
+            path='/api/support/'+created['ticket']['id']
+            self.assertEqual(created['deletionReview'],{'state':'waiting_for_obligations','openBooking':True,'openDispute':False})
+            self.assertEqual(self.req('/api/support','POST',data,user=owner)['ticket']['id'],created['ticket']['id'])
+            self.req('/api/support','POST',{**data,'requestId':secrets.token_hex(16)},user=owner,status=409)
+            self.req(path,user='stranger',status=404)
+            admin_path=path.replace('/api/','/api/admin/')
+            self.assertFalse(self.admin(admin_path)['canResolve'])
+            self.admin(admin_path,self.reply(action='resolve'),status=409)
+            self.assertEqual(self.admin(admin_path,self.reply())['ticket']['status'],'open')
+            paths.append((owner,path))
+        self.req('/api/bookings/'+b['id']+'/cancel','POST',{'revision':1,'requestId':secrets.token_hex(16),'reason':'TEST'})
+        for owner,path in paths:
+            updated=self.req(path,user=owner)
+            self.assertEqual(updated['ticket']['status'],'open')
+            self.assertEqual(updated['deletionReview'],{'state':'awaiting_verification','openBooking':False,'openDispute':False})
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM support_tickets WHERE topic='account_deletion'").fetchone()[0],2)
+            self.assertFalse(con.execute("SELECT 1 FROM audit WHERE action='support-resolve'").fetchone())
+            # An unresolved case independently prevents erasure even if a historical
+            # booking already has a terminal state.
+            con.execute("""INSERT INTO booking_disputes(booking_id,kind,reporter,prior_status,status,revision,created,deadline)
+                VALUES(?,'service','customer','accepted','open',1,?,?)""",(b['id'],server.now(),server.now()))
+        self.assertEqual(self.req(paths[1][1])['deletionReview'],{'state':'waiting_for_obligations','openBooking':False,'openDispute':True})
+
     setUp=test_booking_http.BookingHttpTests.setUp
     quote=test_booking_http.BookingHttpTests.quote
     book=test_booking_http.BookingHttpTests.book
