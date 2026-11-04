@@ -33,6 +33,8 @@ Manba skani `lib/**/*.dart`, runtime Python modullari va admin JavaScript’ida 
 
 ## Joriy qabul shartlari
 
+**2026-11-04, M019 dan tashqari 41 band.** Qabul jadvalidagi 41 ta noyob ID asosiy rejada ochiq. M099 uchun jonli readiness ko‘rsatgan backend `b82b215` manbasi tekshirildi: unda buyurtma API’si yo‘q. Shu relizda parallel bron orqali bazani tanlash sinovini o‘tkazib bo‘lmaydi. M100 uchun `.local/backups` ichidagi 36 ta SQLite nusxasining muhit belgisi faqat o‘qish rejimida tekshirildi. Hammasi `local`; eski hosted bazadan olingani tasdiqlangan nusxa topilmadi. Flutter hozir Windows, Chrome va Edge’ni ko‘radi, Android/iPhone qurilmasi aniqlanmadi. Mavjud dalillar bilan yangi to‘liq yopilgan band yo‘q.
+
 2026-11-03. Sana bo‘yicha katalog bandlikni guruhlab oladi. 100 faol mijozli ikki juft lokal sinovda p95 pasaydi. E’lon javoblari o‘z versiyasiga bog‘landi, oltita o‘qish yo‘lida javob yuborilayotganda baza band bo‘lib qolishi tuzatildi. Izolyatsiyalangan reliz tekshiruvi noto‘g‘ri katalog satri va 401 javobiga qo‘shilgan maxfiy maydonni aniqlaydi. Tiklash sinovi asosiy faylga qo‘shilmay qolgan SQLite jurnalini rad etadi. Ushbu bosqichlar va o‘lchovlar asosiy rejaning bajarilish jurnalida belgilandi.
 
 2026-11-03. M133 bo‘yicha hujjat auditi shu branchga nisbatan yakunlandi. M103, M112 va M106 serverda yopilgach, quyida qolgan 42 ta joriy band bittadan asosiy bog‘liqlik bo‘yicha guruhlangan. Har bandning batafsil qabul sharti pastdagi jadvalda. M008 va avvaldan oxiriga ajratilgan 12 band alohida hisoblanadi.
