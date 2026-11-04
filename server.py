@@ -277,6 +277,8 @@ class Handler(BaseHTTPRequestHandler):
         session = con.execute("SELECT user_id FROM sessions WHERE hash=? AND role=? AND expires>?", (digest,role,time.time())).fetchone()
         if not session:
             raise ApiError(401, "Qayta kiring")
+        if role == 'admin' and not con.execute("SELECT 1 FROM admins WHERE username=?", (session["user_id"],)).fetchone():
+            raise ApiError(401, "Qayta kiring")
         if role == "client":
             user = con.execute("SELECT blocked FROM users WHERE id=?", (session["user_id"],)).fetchone()
             if not user or user["blocked"]:
@@ -385,10 +387,17 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/admin/login" and self.command == "POST":
                 data = self.body()
                 self.throttle(con, "admin:" + self.client_ip())
-                row = con.execute("SELECT * FROM admins WHERE username=?", (string(data.get("username","")),)).fetchone()
-                if not row or not hmac.compare_digest(row["hash"],password_hash(string(data.get("password",""),200),row["salt"])):
+                username = string(data.get("username",""))
+                password = string(data.get("password",""),200)
+                credentials = "SELECT salt,hash FROM admins WHERE username=?"
+                row = con.execute(credentials,(username,)).fetchone()
+                digest = password_hash(password, row['salt'] if row else '0' * 32)
+                if not hmac.compare_digest(digest, row['hash'] if row else '0' * 64) or not row:
                     raise ApiError(401,"Login yoki parol noto‘g‘ri")
-                token = self.session(con,row["username"],"admin")
+                con.execute('BEGIN IMMEDIATE')
+                if con.execute(credentials,(username,)).fetchone() != row:
+                    raise ApiError(401,"Login yoki parol noto‘g‘ri")
+                token = self.session(con,username,"admin")
                 con.commit()
                 self.reply(200, {"ok":True}, "momiq_admin="+token+"; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=604800")
                 return

@@ -92,6 +92,35 @@ class ProductionTests(unittest.TestCase):
             self.assertEqual(SimpleCookie(closed['headers']['Set-Cookie'])['momiq_admin']['max-age'],'0')
             self.assertEqual(self.call('/api/admin/users',origin=origin,cookie=token)['status'],401)
 
+    def test_password_changed_during_operator_login_cannot_issue_a_session(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp, patch.object(server, 'DATA', Path(tmp)), patch.dict(
+                'os.environ', MOMIQ_ADMIN_PASSWORD='TEST-previous-password'):
+            server.setup()
+            original = server.password_hash
+            def rotate_while_checking(password, salt):
+                with server.db() as writer:
+                    writer.execute("UPDATE admins SET hash=? WHERE username='admin'",
+                                   (original('TEST-updated-password', salt),))
+                return original(password, salt)
+
+            with patch.object(server, 'password_hash', side_effect=rotate_while_checking):
+                response = self.call('/api/admin/login', 'POST',
+                                     {'username':'admin', 'password':'TEST-previous-password'})
+            self.assertEqual(response['status'], 401)
+            self.assertNotIn('Set-Cookie', response['headers'])
+            with server.db() as con:
+                self.assertEqual(con.execute("SELECT count(*) FROM sessions").fetchone()[0], 0)
+            response = self.call('/api/admin/login', 'POST',
+                                 {'username':'admin', 'password':'TEST-updated-password'})
+            self.assertEqual(response['status'], 200)
+            cookie = response['headers']['Set-Cookie'].split(';')[0]
+            with server.db() as con:
+                con.execute("DELETE FROM admins WHERE username='admin'")
+            self.assertEqual(self.call('/api/admin/users', cookie=cookie)['status'], 401)
+
     def test_parallel_login_attempts_share_one_quota(self):
         from concurrent.futures import ThreadPoolExecutor
         from pathlib import Path
