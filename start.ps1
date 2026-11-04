@@ -19,7 +19,7 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
 & $pythonExe -c 'import PIL; import sys; assert sys.version_info[:2] == (3,12)'
 if ($LASTEXITCODE -ne 0) { throw 'Python 3.12+ is required.' }
 $saved = @{}
-foreach ($key in @('MOMIQ_ENV','MOMIQ_DATA_DIR','MOMIQ_PORT','MOMIQ_HOST','MOMIQ_ALLOW_TEST_LOGIN')) {
+foreach ($key in @('MOMIQ_ENV','MOMIQ_DATA_DIR','MOMIQ_PORT','MOMIQ_HOST','MOMIQ_ALLOW_TEST_LOGIN','MOMIQ_AREA_FILE','MOMIQ_AREA_SHA256')) {
     $saved[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
 }
 try {
@@ -30,11 +30,16 @@ try {
     $env:MOMIQ_ALLOW_TEST_LOGIN = '1'
     Push-Location $backendRoot
     try {
+        if (-not $env:MOMIQ_AREA_FILE -and -not $env:MOMIQ_AREA_SHA256) {
+            $env:MOMIQ_AREA_FILE = Join-Path $backendRoot 'boundaries/tashkent-city-region.geojson'
+            $env:MOMIQ_AREA_SHA256 = & $pythonExe -c 'import service_area; print(service_area.APPROVED_SHA256)'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not load the approved service area pin.' }
+        }
         $instanceId = & $pythonExe -c 'import server; print(server.instance_id())'
         if ($LASTEXITCODE -ne 0) { throw 'Invalid runtime settings.' }
         $health = $null
         try { $health = Invoke-RestMethod "$baseUrl/api/health" -TimeoutSec 2 } catch {}
-        if ($health -and ($health.mode -ne 'local' -or $health.instanceId -ne $instanceId)) {
+        if ($health -and ($health.mode -ne 'local' -or $health.instanceId -ne $instanceId -or $health.serviceAreaSha256 -ne $env:MOMIQ_AREA_SHA256)) {
             throw "Port $Port belongs to a different/older server. Use another -Port; no process was stopped."
         }
         if ($Seed) {
@@ -50,7 +55,7 @@ try {
                 if ($health -or $serverProcess.HasExited) { break }
                 Start-Sleep -Milliseconds 200
             }
-            if (-not $health -or $health.instanceId -ne $instanceId -or $health.mode -ne 'local') {
+            if (-not $health -or $health.instanceId -ne $instanceId -or $health.mode -ne 'local' -or $health.serviceAreaSha256 -ne $env:MOMIQ_AREA_SHA256) {
                 throw "Backend did not start correctly. See $DataDir/server-error.log"
             }
             # The Windows venv launcher may spawn the interpreter as a child.

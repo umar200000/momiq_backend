@@ -13,6 +13,8 @@ Backend papkasidan:
 ./start.ps1 -Port 8081 -Seed
 ```
 
+The preview launcher loads the same approved Tashkent city and province boundary as the hosted backend. To use a different isolated test polygon, set both `MOMIQ_AREA_FILE` and `MOMIQ_AREA_SHA256` before launch. An already-running instance must report the selected digest as well as the expected environment and instance ID.
+
 Bu `.local/preview` ichida alohida SQLite bazasi yaratadi va serverni yashirin fonda ochadi. Admin: `http://127.0.0.1:8081/admin/`. Admin paroli `.local/preview/admin-login.txt` ichida; Gitga kirmaydi. Takror ishga tushirish ayni serverni ishlatadi. Portda boshqa baza/eski server tursa skript uni o‘chirmaydi, boshqa port tanlashni talab qiladi.
 
 Fixtures: `998000000001` mijoz; `998000000002` uyda qarash; `998000000003` uyga borib qarash; `998000000004` shaxsiy enaga. Faqat local/test kirish kodi `111111`. Ismlar `TEST` bilan belgilanadi, rasmlar sintetik, katalog haqiqiy xizmatni anglatmaydi. Bron/chat/hisobot fixturelari tegishli modellar tayyor bo‘lgach qo‘shiladi.
