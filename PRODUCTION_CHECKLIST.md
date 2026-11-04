@@ -66,7 +66,7 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Joriy bajarish navbati — 2026-11-03**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 85 bajarilgan, 54 ochiq**. **38 ta band joriy navbatda. M019 SMSni, M008 stagingni kutadi. M042 xarita xizmati ochilguncha, M100 eski server bazasidagi yakuniy sinovgacha keyinga qoldirildi**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 85 bajarilgan, 54 ochiq**. **37 ta band joriy navbatda. M019 SMSni, M008 stagingni kutadi. M042 xarita xizmati ochilguncha, M100 eski server bazasidagi yakuniy sinovgacha keyinga qoldirildi. M116 monitoring va xabarnoma egasi bilan yakunda ko‘riladi**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
@@ -82,7 +82,7 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 | 8 | M078, M139 | Video/chek/QR picker, progress, cancel/retry, process-death qoralamasi va maxfiylikning avtomatlashtiriladigan qismlari. | APK install bloklangan; native kamera/playback/haqiqiy iPhone qabul sinovi oxirida. |
 | 9 | M081, M082, M083, M084, M085 | In-app notice, afzallik, event/dedupe va sahifaga o‘tish qamrovini tekshirish; providerga bog‘liq bo‘lmagan kamchiliklarni tuzatish. | Push loyihasi/kalitlar, APNs, OS token delivery va haqiqiy qurilma sinovi. |
 | 10 | M092, M099, M104, M107 | Operator huquqlari, bazaning concurrency dalillari, media/secrets inventari va konfiguratsiya tekshiruvlari. | MFA recovery siyosati, saqlash joyi/credential/budjet va kalit rotatsiyasi. |
-| 11 | M106, M109, M110, M111, M113, M114, M115, M116, M117 (M112 yopildi) | Release juftligi, CI, read-only smoke, HTTPS/origin/rate limit, backup/recovery va monitoring vositalari hamda yo‘riqnomalarining tekshiriladigan qismlari. | Root bootstrap, haqiqiy staging/promotion, offsite encryption/storage, tashqi alert egasi va real recovery mashqi. |
+| 11 | M106, M109, M110, M111, M113, M114, M115, M117 (M112 yopildi) | Release juftligi, CI, read-only smoke, HTTPS/origin/rate limit, backup/recovery va monitoring vositalari hamda yo‘riqnomalarining tekshiriladigan qismlari. | Root bootstrap, haqiqiy staging/promotion, offsite encryption/storage, tashqi alert egasi va real recovery mashqi. |
 | 12 | M122, M125 | Haqiqiy imkoniyatlarga mos review/material inventari, versiya/artifact/symbol/pilot tayyorgarligi. | Signed build, store hisoblari, haqiqiy screenshot va public support/privacy/delete manzillari. |
 | 13 | M128, M129, M130, M131 (M133 yopildi) | Izolyatsiyalangan nosozlik/parallel testlar, API va dependency qamrovi; hujjat/placeholder cheklovlari va dalillarni yangilash. | M055ga bog‘langan live E2E, ikki qurilma, hosted/provider uzilishi va pilot qabul sinovlari. |
 
@@ -91,6 +91,9 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 **Bajarilish jurnali — 2026-10-27**
 
 ### 2026-11-04. Tasdiqlangan hudud, parallel bron va hisob so‘rovlari
+
+- [x] **M105, bazaning vaqtincha bandligi.** Amaldagi WSGI relizi bilan vaqtinchalik bazaga yozish qulfi qo‘yildi. Tuzatishdan oldin operator kirishi 500 qaytargan edi. Endi qulf band bo‘lsa 503 qaytadi, sessiya berilmaydi, qulf bo‘shatilgach kirish 200 bo‘ladi. Kerakli jadval yo‘q bo‘lsa haqiqiy server xatosi 500 saqlanadi. Logda maxfiy so‘rov qiymatlari chiqmasligi va rad javobini yuborishda aloqa uzilishi bitta hodisa bo‘lib yozilishi tekshirildi. Ushbu reliz M116 bo‘yicha qarordan oldin push qilingan. [CI va deploy](https://github.com/umar200000/momiq_backend/actions/runs/41823254806)
+- [x] **M108, enaga ma’lumotlarini eksport qilish.** Profil JSON nusxasiga enaganing xizmat turi, o‘zi kiritgan narxi, hayvon turlari, faol holati va uyda qarash sig‘imi qo‘shildi. Ikki hisobning narxlari aralashmadi. Xizmat manzili, surat va moderatorning izohi xizmatlar bo‘limiga kirmadi. Eski e’lon qoralamasi buzilgan bo‘lsa, profilning qolgan qismi saqlandi. Mobil fayl tanlash testi xizmat narxini JSON baytlaridan qayta o‘qidi va begona hisob javobini rad etdi.
 
 - [x] **M007/M099, amaldagi operator paneli.** Amaldagi API foydalanuvchilar ro‘yxatidagi barcha rollarni bir so‘rovda oladi. 1 000 ta sintetik hisobda rolsiz va ikki rolli foydalanuvchilar bilan eski va yangi HTTP javoblari baytma-bayt teng chiqdi. Faqat rollar uchun SQL o‘qishlari 1 000 tadan bittaga tushdi. Yakuniy relizda 48 ta test hamda deploydan so‘ng ikkala domendagi 20 ta HTTPS tekshiruvi o‘tdi. [Production deploy](https://github.com/umar200000/momiq_backend/actions/runs/41819239947) · [Reliz tarmog‘i CI](https://github.com/umar200000/momiq_backend/actions/runs/41819067439)
 - [x] **M102/M105/M124, operator profil tahriri.** Production panel ism, familiya va suratdan faqat o‘zgargan maydonning eski va yangi qiymatini yuboradi. Server operator sessiyasini yozish tranzaksiyasida qayta tekshiradi. Eskirgan maydon 409 qaytaradi va forma tahrirni saqlaydi. Parallel blok o‘zgarishi ismni saqlashda yo‘qolmadi. Avvalgi panelning eskirgan blok qiymati bilan qo‘shma yozuvi ham rad etildi. Ikki ketma-ket surat tanlovida oxirgi tanlov saqlandi. Parallel bloklash va takroriy blokdan chiqarish testida avval 4 ta tarix yozuvi chiqqan edi. Tuzatishdan so‘ng 2 ta haqiqiy o‘zgarishga 2 ta yozuv qoldi. Ikki operator sessiyasi bilan Chrome sinovi vaqtinchalik bazada o‘tdi. Yakuniy backend 47 ta testdan o‘tdi, ikkala domenda 20 ta HTTPS javobi va panelning uchta fayli tekshirildi. [Backend deploy](https://github.com/umar200000/momiq_backend/actions/runs/41818736764) · [Panel deploy](https://github.com/umar200000/momiq_admin/actions/runs/41818627934)
@@ -1008,7 +1011,6 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [ ] M113 — Jarayon va infratuzilmani tekshirish: service restart, proxy timeout/body limit, firewall, HTTPS yangilanishi va filesystem huquqlari; nginx/systemd/bootstrap o‘zgarishi oddiy push bilan o‘rnatilmasligi hisobga olinadi.
 - [ ] M114 — Alohida joydagi backupni sozlash: DB va media uchun shifrlash, retention, kirish cheklovi, backup yoshi/hajmi ogohlantirishi; shu server yo‘qolsa nusxa saqlanib qoladi.
 - [ ] M115 — Tiklash va rollback mashqini bajarish: toza muhitda DB+media mos tiklanadi, belgilangan vaqt/yo‘qotish chegarasi o‘lchanadi; to‘lov va o‘chirilgan hisob holatlari qayta tekshiriladi.
-- [ ] M116 — Monitoring va xato hisobotlarini ulash: uptime, xato ulushi, kechikish, disk/RAM/DB lock, navbat, SMS/payment/storage xatosi va mobil crash; mas’ulga amaliy signal keladi.
 - [ ] M117 — Operatsion yo‘riqnoma va xarajat nazoratini tayyorlash: incident, provider uzilishi, kalit almashtirish, maintenance, disk/release/log tozalash, SMS/video limitlari; mas’ul va tiklash qadamlari aniq.
 
 **P. Reliz sifati va tarqatish**
@@ -1132,6 +1134,12 @@ Momiq nomiga Yandex MapKit va manzil qidirish xizmati hali ochilmagan. Egasi xiz
 - [ ] M100 — Versiyalangan migratsiya va eski ma’lumotni ko‘chirishni joriy etish: backup, dry-run, idempotency va moslik; JSON/draft/demo yozuvlari real hisoblarni yo‘qotmasdan ko‘chadi.
 
 Egasi M100 ni yakuniy navbatga ko‘chirdi. Qolgan qabul sharti — eski server bazasining shaxssizlantirilgan nusxasida migratsiyani tekshirish va yozuvlarni solishtirish.
+
+**2026-11-04 kuni yakunga qoldirilgan monitoring bandi**
+
+- [ ] M116 — Monitoring va xato hisobotlarini ulash: uptime, xato ulushi, kechikish, disk/RAM/DB lock, navbat, SMS/payment/storage xatosi va mobil crash; mas’ulga amaliy signal keladi.
+
+Egasi M116 ni yakuniy navbatga qoldirdi. Signal oluvchi xodim, kanal va haqiqiy yetkazish sinovi o‘sha bosqichda belgilanadi.
 
 **Davom etayotgan bandlarning tashqi qabul bosqichlari**
 

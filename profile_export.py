@@ -12,6 +12,34 @@ def fields(record, names):
             (record[name] is None or type(record[name]) in (str,int,float,bool))}
 
 
+def owner_services(con, owner):
+    row = con.execute('SELECT data FROM listings WHERE user_id=?', (owner,)).fetchone()
+    if row is None:
+        return []
+    try:
+        document = json.loads(row[0])
+    except (TypeError, ValueError):
+        return []  # A damaged legacy draft must not prevent the owner exporting their profile.
+    items = document.get('listings') if isinstance(document, dict) else None
+    if not isinstance(items, list):
+        return []
+    services = []
+    for item in items:
+        if not isinstance(item, dict) or item.get('type') not in ('boarding','homeVisit','personal'):
+            continue
+        service = {'type': item['type']}
+        if type(item.get('price')) is int:
+            service['price'] = item['price']
+        if type(item.get('active')) is bool:
+            service['active'] = item['active']
+        if item['type']=='boarding' and type(item.get('capacity')) is int:
+            service['capacity'] = item['capacity']
+        if isinstance(item.get('pets'), list):
+            service['pets'] = [pet for pet in item['pets'] if pet in ('dog','cat')]
+        services.append(service)
+    return services
+
+
 def read(con,owner):
     con.execute('BEGIN')
     row=con.execute('SELECT phone,account FROM users WHERE id=? AND blocked=0',(owner,)).fetchone()
@@ -22,6 +50,9 @@ def read(con,owner):
     sitter_fields = None
     if isinstance(sitter, dict):
         sitter_fields = fields(sitter, ('housing','years','about'))
+        services = owner_services(con, owner)
+        if services:
+            sitter_fields['services'] = services
         schedule = sitter.get('schedule')
         if isinstance(schedule, dict):
             days = schedule.get('days')

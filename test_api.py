@@ -95,6 +95,31 @@ class ApiTests(unittest.TestCase):
         self.assertNotIn('SECRET',json.dumps(own))
         self.assertNotIn(first['token'],json.dumps(own))
         self.assertNotIn('OWNER',json.dumps(self.req(path,token=second['token'])))
+    def test_export_services_include_only_owner_rates_and_supported_pet_types(self):
+        owner=self.login('998900222831')
+        other=self.login('998900222832')
+        def clear_drafts():
+            with server.db() as con:
+                con.execute('DELETE FROM listings WHERE user_id IN (?,?)',(owner['userId'],other['userId']))
+        self.addCleanup(clear_drafts)
+        service={'type':'boarding','price':500000,'capacity':2,'pets':['cat'],'active':False}
+        with server.db() as con:
+            for user,price in [(owner,500000),(other,700000)]:
+                account={**user['account'],'sitterProfile':{'housing':'house','homePhotos':['PRIVATE']}}
+                con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(account),user['userId']))
+                listing={**service,'price':price,'pets':['cat',{'PRIVATE':'photo'}],'location':{'address':'PRIVATE'},
+                         'moderation':{'reason':'PRIVATE'},'homePhotos':['PRIVATE']}
+                doc={'listings':[listing,{'type':'PRIVATE'},None]}
+                con.execute('INSERT INTO listings(user_id,data,updated) VALUES(?,?,?)',(user['userId'],json.dumps(doc),server.now()))
+        path='/api/me/profile-export'
+        for user,price in [(owner,500000),(other,700000)]:
+            payload=self.req(path,token=user['token'])
+            self.assertEqual(payload['sitterProfile']['services'],[{**service,'price':price}])
+            self.assertNotIn('PRIVATE',json.dumps(payload))
+        with server.db() as con:
+            con.execute('UPDATE listings SET data=? WHERE user_id=?',('broken old draft',owner['userId']))
+        self.assertEqual(self.req(path,token=owner['token'])['sitterProfile'],{'housing':'house'})
+
     def test_notifications_are_owner_scoped_paginated_and_read_idempotently(self):
         import notifications
         a=self.login('998900000011');b=self.login('998900000012')
