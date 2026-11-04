@@ -147,6 +147,8 @@ class InflightAuthorizationTests(unittest.TestCase):
         self.assertEqual(self.send('/api/admin/me','GET',admin=True)[0], 200)
 
     def test_slow_json_reader_does_not_hold_catalog_or_account_snapshots(self):
+        identity='c'*32
+        self.pending_topup(identity)
         with server.db() as setup:
             self.assertEqual(setup.execute('PRAGMA journal_mode=DELETE').fetchone()[0], 'delete')
         original_reply = server.Handler.reply
@@ -164,9 +166,25 @@ class InflightAuthorizationTests(unittest.TestCase):
 
         with patch.object(server.Handler,'reply',probe):
             for path in ('/api/sitters','/api/sitters?favorites=1','/api/notifications',
-                         '/api/me/dashboard','/api/me/profile-export','/api/me/listings'):
+                         '/api/me/dashboard','/api/me/profile-export','/api/me/listings',
+                         '/api/wallet','/api/wallet/topups',
+                         f'/api/wallet/topups/{identity}/receipt',f'/api/wallet/topups/{identity}/history',
+                         f'/api/wallet/topups/{identity}/history/0/receipt'):
                 self.assertEqual(self.send(path,'GET',client='abc')[0],200)
         self.assertEqual(locked,[])
+
+    def test_topup_list_checks_sitter_role_in_the_page_snapshot(self):
+        self.pending_topup('c'*32)
+        original=server.ClosingConnection.execute
+        def revoke_before_snapshot(con,sql,parameters=()):
+            if sql=='BEGIN' and con.request_authorizer:
+                with server.db() as writer:
+                    writer.execute("DELETE FROM user_roles WHERE user_id='abc' AND role='sitter'")
+            return original(con,sql,parameters)
+        with patch.object(server.ClosingConnection,'execute',revoke_before_snapshot):
+            status,body=self.send('/api/wallet/topups','GET',client='abc')
+        self.assertEqual(status,403)
+        self.assertEqual(set(body),{'error'})
 
     def test_dashboard_uses_role_from_same_snapshot_as_private_data(self):
         original = server.ClosingConnection.execute

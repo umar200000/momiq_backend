@@ -129,7 +129,7 @@ def acknowledge_topup(handler, con, identity, request_id, revision, status):
 
 
 def topup_page(handler, con, uid, admin=False):
-    if not con.in_transaction:con.execute('BEGIN')
+    if not con.in_transaction:con.execute('BEGIN IMMEDIATE' if admin else 'BEGIN')
     query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
     if set(query)-{'status','cursor'} or any(len(v)!=1 for v in query.values()):raise ValueError('Invalid top-up query')
     predicates=[];args=[]
@@ -186,7 +186,7 @@ def route(handler, con, uid, path, photo, environment):
         if set(query)-allowed or any(len(v)!=1 for v in query.values()):raise ValueError('Invalid history query')
         before=query.get('before',[None])[0]
         if before is not None and not re.fullmatch(r'[0-9]{1,9}',before):raise ValueError('Invalid history cursor')
-        con.execute('BEGIN')
+        con.execute('BEGIN IMMEDIATE' if history_match[1]=='admin' else 'BEGIN')
         row=con.execute('SELECT user_id FROM topup_requests WHERE id=?',(history_match[2],)).fetchone()
         if history_match[1]=='wallet': require_sitter(con,uid)
         if not row or (history_match[1]=='wallet' and row['user_id']!=uid): raise WalletError(404,'So‘rov topilmadi')
@@ -195,25 +195,25 @@ def route(handler, con, uid, path, photo, environment):
             if not evidence: raise WalletError(404,'Chek nusxasi topilmadi')
             if history_match[1]=='admin':
                 audit_read(con,uid,'topup-history-receipt-view',history_match[2],revision=int(history_match[3]))
-                con.commit()
+            con.commit()
             handler.reply(200,{'receipt':evidence['receipt']});return True
         rows=con.execute('SELECT * FROM topup_history WHERE topup_id=?'+(' AND revision<?' if before is not None else '')+' ORDER BY revision DESC LIMIT 21',
                          (history_match[2],int(before)) if before is not None else (history_match[2],)).fetchall()
         if history_match[1]=='admin':
             audit_read(con,uid,'topup-history-view',history_match[2],before=int(before) if before is not None else None)
-            con.commit()
+        con.commit()
         handler.reply(200,{'items':[dict(topup_history.view(r),actor=r['actor']) if history_match[1]=='admin' else topup_history.view(r) for r in rows[:20]],'nextCursor':str(rows[19]['revision']) if len(rows)>20 else None});return True
     receipt_match=re.fullmatch(r'/api/(admin|wallet)/topups/([a-f0-9]{32})/receipt',path)
     if receipt_match and method=='GET':
         if parse_qs(urlparse(handler.path).query,keep_blank_values=True):raise ValueError('Receipt has no query parameters')
-        con.execute('BEGIN')
+        con.execute('BEGIN IMMEDIATE' if receipt_match[1]=='admin' else 'BEGIN')
         row=con.execute('SELECT t.user_id,t.receipt,t.revision,s.qr_image,s.version,s.recipient_name,s.payment_instructions,s.test_only FROM topup_requests t JOIN platform_settings s ON s.version=t.qr_version WHERE t.id=?',(receipt_match[2],)).fetchone()
         if receipt_match[1]=='wallet': require_sitter(con,uid)
         if not row or (receipt_match[1]=='wallet' and row['user_id']!=uid):
             raise WalletError(404,'Chek topilmadi')
         if receipt_match[1]=='admin':
             audit_read(con,uid,'topup-receipt-view',receipt_match[2],revision=row['revision'])
-            con.commit()
+        con.commit()
         handler.reply(200,{'receipt':row['receipt'],'revision':row['revision'],'paymentSnapshot':{'version':row['version'],
             'qrImage':row['qr_image'],'recipientName':row['recipient_name'],
             'paymentInstructions':row['payment_instructions'],'testOnly':bool(row['test_only'])}});return True
@@ -279,14 +279,20 @@ def route(handler, con, uid, path, photo, environment):
         entries=[{'id':r['id'],'amountMinor':r['amount_minor'],'balanceAfter':r['balance_after'],'kind':r['kind'],'reason':r['reason'],'created':r['created'],'topupId':r['topup_id']}
                  for r in con.execute('SELECT e.*,c.topup_id FROM wallet_entries e LEFT JOIN wallet_corrections c ON c.entry_id=e.id WHERE e.user_id=? ORDER BY e.created DESC,e.id DESC LIMIT 50',(uid,))]
         value=balance(con,uid)
+        config=settings(con)
+        con.commit()
         handler.reply(200,{'balanceMinor':value,'currency':'UZS','minimumBalanceMinor':MINIMUM_BALANCE_MINOR,
-                           'balanceEligible':value>=MINIMUM_BALANCE_MINOR,'entries':entries,'config':settings(con)})
+                           'balanceEligible':value>=MINIMUM_BALANCE_MINOR,'entries':entries,'config':config})
         return True
     if path == '/api/wallet/topups' and method in ('GET','POST'):
-        require_sitter(con,uid)
         if method=='GET':
-            handler.reply(200,topup_page(handler,con,uid))
+            con.execute('BEGIN')
+            require_sitter(con,uid)
+            page=topup_page(handler,con,uid)
+            con.commit()
+            handler.reply(200,page)
             return True
+        require_sitter(con,uid)
         data=mutation(handler,TOPUP_FIELDS)
         value=amount(data.get('amountMinor'))
         receipt=photo(data.get('receipt'))
