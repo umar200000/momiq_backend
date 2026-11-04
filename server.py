@@ -269,6 +269,10 @@ class Handler(BaseHTTPRequestHandler):
             if not user or user["blocked"]:
                 raise ApiError(403, "Hisob bloklangan")
         return session["user_id"]
+    def begin_write(self,con,user,role):
+        con.execute('BEGIN IMMEDIATE')
+        if self.auth(con,role)!=user:
+            raise ApiError(401,'Qayta kiring')
     def session(self, con, user, role):
         token = secrets.token_urlsafe(40)
         con.execute("DELETE FROM sessions WHERE expires<?", (time.time(),))
@@ -375,7 +379,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200, {"ok":True}, "momiq_admin="+token+"; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=604800")
                 return
             admin = path.startswith("/api/admin/")
-            user = self.auth(con,"admin" if admin else "client")
+            role = "admin" if admin else "client"
+            if self.command=='GET':
+                con.execute('BEGIN')
+            user = self.auth(con,role)
             if path in ["/api/auth/logout", "/api/admin/logout"] and self.command == "POST":
                 token = self.session_token("admin" if admin else "client")
                 con.execute('DELETE FROM sessions WHERE hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
@@ -385,6 +392,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/me" and self.command in ["GET","PUT"]:
                 if self.command == "PUT":
                     account = validate_account(self.body())
+                    self.begin_write(con,user,role)
                     con.execute("UPDATE users SET account=? WHERE id=?", (json.dumps(account),user))
                     if account.get('sitterProfile') is not None:
                         con.execute("INSERT OR IGNORE INTO user_roles VALUES(?,'sitter')",(user,))
@@ -393,14 +401,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200,{"userId":user,"phone":row["phone"],"account":json.loads(row["account"])})
                 return
             if path == '/api/me/listings' and self.command in ['GET','PUT']:
+                if self.command == 'PUT':
+                    initial = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
+                    if not initial.get('sitterProfile'): raise ApiError(403,'Avval enaga profilini to‘ldiring')
+                    data = validate_listings(self.body())
+                    self.begin_write(con,user,role)
                 account = json.loads(con.execute('SELECT account FROM users WHERE id=?',(user,)).fetchone()[0])
                 if self.command == 'PUT':
                     if not account.get('sitterProfile'): raise ApiError(403,'Avval enaga profilini to‘ldiring')
-                    data = validate_listings(self.body())
                     con.execute('INSERT INTO listings VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated=excluded.updated',(user,json.dumps(data),now()))
-                    con.commit()
                 row = con.execute('SELECT data FROM listings WHERE user_id=?',(user,)).fetchone()
-                self.reply(200,json.loads(row[0]) if row else {'housing':(account.get('sitterProfile') or {}).get('housing','apartment'),'listings':[]})
+                result=json.loads(row[0]) if row else {'housing':(account.get('sitterProfile') or {}).get('housing','apartment'),'listings':[]}
+                con.commit()
+                self.reply(200,result)
                 return
             if path == '/api/admin/listings' and self.command == 'GET':
                 items = []
@@ -408,16 +421,20 @@ class Handler(BaseHTTPRequestHandler):
                     data = json.loads(r['data'])
                     for item in data['listings']:
                         items.append(dict(item,id=r['user_id']+':'+item['type'],userId=r['user_id'],phone=r['phone'],profile=json.loads(r['account'])['profile'],blocked=bool(r['blocked']),housing=data['housing'],updated=r['updated']))
+                con.commit()
                 self.reply(200,{'listings':items})
                 return
             if path == "/api/messages" and self.command == "GET":
-                self.reply(200,{"messages":self.messages(con,user)})
+                messages=self.messages(con,user)
+                con.commit()
+                self.reply(200,{"messages":messages})
                 return
             if path == "/api/messages" and self.command == "POST":
                 self.save_message(con,user,True,self.body())
                 return
             if path == "/api/admin/users" and self.command == "GET":
                 users = [{"id":r["id"],"phone":r["phone"],"blocked":bool(r["blocked"]),"created":r["created"],"roles":roles_for(con,r["id"]),"account":json.loads(r["account"])} for r in con.execute("SELECT * FROM users ORDER BY created DESC")]
+                con.commit()
                 self.reply(200,{"users":users,"sitters":sitter_names()})
                 return
             match = re.fullmatch(r"/api/admin/users/([a-f0-9]+)(/messages)?", path)
@@ -427,7 +444,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not row:
                     raise ApiError(404,"Mijoz topilmadi")
                 if chat and self.command == "GET":
-                    self.reply(200,{"messages":self.messages(con,uid)})
+                    messages=self.messages(con,uid)
+                    con.commit()
+                    self.reply(200,{"messages":messages})
                     return
                 if chat and self.command == "POST":
                     if row['blocked']:
@@ -438,14 +457,19 @@ class Handler(BaseHTTPRequestHandler):
                     data = self.body()
                     if type(data.get('blocked',False)) is not bool:
                         raise ValueError('Holat noto‘g‘ri')
-                    account = validate_account(data['account']) if 'account' in data else json.loads(row['account'])
-                    con.execute("UPDATE users SET account=?,blocked=? WHERE id=?", (json.dumps(account),int(data.get('blocked',False)),uid))
+                    account = json.dumps(validate_account(data['account'])) if 'account' in data else None
+                    blocked = int(data['blocked']) if 'blocked' in data else None
+                    self.begin_write(con,user,role)
+                    changed = con.execute("UPDATE users SET account=COALESCE(?,account),blocked=COALESCE(?,blocked) WHERE id=?",
+                                          (account,blocked,uid)).rowcount
+                    if not changed: raise ApiError(404,"Mijoz topilmadi")
                     self.audit(con,'update-user',uid)
                     con.commit()
                     self.reply(200,{"ok":True})
                     return
             match = re.fullmatch(r"/api/admin/messages/([a-f0-9]+)",path)
             if match and self.command == 'DELETE':
+                self.begin_write(con,user,role)
                 changed = con.execute("UPDATE messages SET deleted=1,text='',image=NULL WHERE id=?", (match[1],)).rowcount
                 if not changed: raise ApiError(404,'Xabar topilmadi')
                 self.audit(con,'delete-message',match[1])

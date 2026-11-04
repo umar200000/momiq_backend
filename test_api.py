@@ -165,6 +165,76 @@ class ApiTests(unittest.TestCase):
         self.req('/api/admin/users',admin=True,origin='https://evil.example',expected=403)
         self.req('/api/auth/logout','POST',{},token=a['token'])
         self.req('/api/me',token=a['token'],expected=401)
+
+    def test_revocation_during_profile_validation_prevents_write(self):
+        from unittest.mock import patch
+        a=self.login('998900011041')
+        changed={**a['account'],'profile':{'first':'Attempt','last':'TEST'}}
+        validate=server.validate_account
+        def revoke(data):
+            result=validate(data)
+            with server.db() as writer:
+                writer.execute('DELETE FROM sessions WHERE user_id=?',(a['userId'],))
+            return result
+        with patch.object(server,'validate_account',revoke):
+            self.req('/api/me','PUT',changed,token=a['token'],expected=401)
+        with server.db() as con:
+            saved=json.loads(con.execute('SELECT account FROM users WHERE id=?',(a['userId'],)).fetchone()[0])
+            self.assertEqual(saved,a['account'])
+
+    def test_removed_sitter_profile_cannot_publish_after_validation(self):
+        from unittest.mock import patch
+        a=self.login('998900011042')
+        profile={**a['account'],'profile':{'first':'Sitter','last':'TEST'},'sitterProfile':{'housing':'house'}}
+        self.req('/api/me','PUT',profile,token=a['token'])
+        validate=server.validate_listings
+        def remove_profile(data):
+            result=validate(data)
+            with server.db() as writer:
+                writer.execute("UPDATE users SET account=json_set(account,'$.sitterProfile',NULL) WHERE id=?",(a['userId'],))
+            return result
+        with patch.object(server,'validate_listings',remove_profile):
+            self.req('/api/me/listings','PUT',{'housing':'house','listings':[]},token=a['token'],expected=403)
+        with server.db() as con:
+            self.assertFalse(con.execute('SELECT 1 FROM listings WHERE user_id=?',(a['userId'],)).fetchone())
+
+    def test_admin_profile_only_edit_keeps_blocked_account_blocked(self):
+        a=self.login('998900011043')
+        path='/api/admin/users/'+a['userId']
+        self.req(path,'PUT',{'blocked':True},admin=True)
+        profile={**a['account'],'profile':{'first':'Edited','last':'TEST'}}
+        self.req(path,'PUT',{'account':profile},admin=True)
+        self.req('/api/me',token=a['token'],expected=403)
+
+    def test_admin_block_only_edit_keeps_concurrent_profile_update(self):
+        from unittest.mock import patch
+        a=self.login('998900011044')
+        original=server.Handler.body
+        def edit_during_request(handler):
+            data=original(handler)
+            with server.db() as writer:
+                writer.execute("UPDATE users SET account=json_set(account,'$.profile.first','New name') WHERE id=?",(a['userId'],))
+            return data
+        with patch.object(server.Handler,'body',edit_during_request):
+            self.req('/api/admin/users/'+a['userId'],'PUT',{'blocked':True},admin=True)
+        with server.db() as con:
+            row=con.execute("SELECT json_extract(account,'$.profile.first'),blocked FROM users WHERE id=?",(a['userId'],)).fetchone()
+            self.assertEqual(tuple(row),('New name',1))
+
+    def test_revoked_operator_cannot_finish_profile_edit_or_leave_audit(self):
+        from unittest.mock import patch
+        a=self.login('998900011045')
+        original=server.validate_account
+        def revoke(data):
+            with server.db() as writer:
+                writer.execute("DELETE FROM sessions WHERE role='admin'")
+            return original(data)
+        with patch.object(server,'validate_account',revoke):
+            self.req('/api/admin/users/'+a['userId'],'PUT',
+                     {'account':{**a['account'],'profile':{'first':'Attempt','last':'TEST'}}},admin=True,expected=401)
+        with server.db() as con:
+            self.assertEqual(json.loads(con.execute('SELECT account FROM users WHERE id=?',(a['userId'],)).fetchone()[0]),a['account'])
+            self.assertFalse(con.execute("SELECT 1 FROM audit WHERE action='update-user' AND target=?",(a['userId'],)).fetchone())
     def test_photo_settings_and_persistence(self):
         a=self.login('998907777777')
         from io import BytesIO
