@@ -93,7 +93,8 @@ def nearby_profiles(con,environment,selected,interval,after):
     con.create_function('momiq_catalog_distance',2,rank,deterministic=True)
     # Apply explicit filters to the same listing that supplies the sort point.
     # Full profiles still pass moderation, fingerprint and availability checks.
-    extra, values = catalog.listing_filters(selected['minPrice'],selected['maxPrice'],selected['pet'])
+    extra, values = catalog.listing_filters(selected['minPrice'],selected['maxPrice'],selected['pet'],
+                                           selected['animals'],selected['service'])
     args = [catalog.MINIMUM_BALANCE_MINOR,*values]
     if selected['service'] is not None:
         extra += ' AND m.service=?'
@@ -135,7 +136,7 @@ def page(con, environment, params, *, user=None):
     source=(nearby_profiles(con,environment,selected,interval,after) if ranked else
             catalog.iter_profiles(con,environment,interval=interval,after=after['last'] if after and not selected['origin'] else '',
                                   service=selected['service'],favorites=favorites,pet=selected['pet'],
-                                  min_price=selected['minPrice'],max_price=selected['maxPrice']))
+                                  min_price=selected['minPrice'],max_price=selected['maxPrice'],animals=selected['animals']))
     def matches():
         for item in source:
             service=catalog.SERVICES[item['service']]

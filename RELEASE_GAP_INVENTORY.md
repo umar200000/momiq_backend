@@ -59,7 +59,7 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 
 | Band | Tekshirilgan qism yoki amaldagi dalil | Yopish uchun qolgan ish |
 | --- | --- | --- |
-| M001 | Production serveriga joylangan Jahon banki poligoni bilan vaqtinchalik bazada uchala xizmatning narx taklifi tekshirildi. Toshkent va Chirchiq uchun oltita HTTP 201, Samarqand uchun uchta HTTP 400 qaytdi. Sinov bron yaratmadi. | Uchala xizmatni Android va iOS qurilmalarida boshidan oxirigacha tekshirish. |
+| M001 | Tasdiqlangan hudud bilan uchala xizmatda Toshkent va Chirchiq uchun narx olindi, Samarqand rad etildi. Vaqtinchalik bazada uchala xizmat uchun tungi bron, ish vaqtining tugash chegarasi va yopiq sanada boshlash qoidasi katalog va narx taklifi orqali solishtirildi. Production profilida jadval eski ilova yozuvlaridan keyin ham saqlanishi reliz sinovida tekshirildi. | Uchala xizmatni Android va iOS qurilmalarida boshidan oxirigacha tekshirish. |
 | M007 | Avvalgi juft o‘lchovda katalog p95 4,69 s dan 0,89 s ga tushdi. API qoidalariga mos yangi 167 e’lonli sinovda 1 000 hisob va 100 faol mijoz bilan p95 0,75 s, 5 829 so‘rov o‘tdi. | Hosted muhitda o‘lchash, tezlik, mavjudlik, RPO/RTO va infratuzilma budjetini kelishish. |
 | M008 | Muhit belgilari, bazaning muhiti hamda admin va runtime kataloglarining ajratilishi tekshirildi. | M008 egasi qarori bilan joriy navbatdan alohida yakuniy kutishga ko‘chirildi. Staging domeni, baza, storage va kirish usuli keyin kelishiladi. |
 | M009 | Hosted build loopback taxalluslari va .invalid namuna domenini rad etadi. Production API porti 443. | Staging konfiguratsiyasi bilan haqiqiy build va hosted qabul. |

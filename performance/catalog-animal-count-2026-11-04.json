@@ -1,0 +1,99 @@
+{
+  "scope": "Local SQLite, no network, 60 alternating pairs",
+  "baseline": "048c05d61c7ae5717b0d838c485b040508e784a6",
+  "accounts": 1000,
+  "identicalPages": 29,
+  "firstPage": [
+    {
+      "case": "single",
+      "before": {
+        "fullProfiles": 21,
+        "p50Ms": 0.784,
+        "p95Ms": 0.925
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 0.782,
+        "p95Ms": 0.927
+      }
+    },
+    {
+      "case": "two",
+      "before": {
+        "fullProfiles": 32,
+        "p50Ms": 1.215,
+        "p95Ms": 1.496
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 1.059,
+        "p95Ms": 1.351
+      }
+    },
+    {
+      "case": "threeBoarding",
+      "before": {
+        "fullProfiles": 65,
+        "p50Ms": 2.32,
+        "p95Ms": 2.657
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 1.205,
+        "p95Ms": 1.404
+      }
+    },
+    {
+      "case": "personalTwo",
+      "before": {
+        "fullProfiles": 33,
+        "p50Ms": 1.092,
+        "p95Ms": 1.329
+      },
+      "after": {
+        "fullProfiles": 0,
+        "p50Ms": 0.159,
+        "p95Ms": 0.194
+      }
+    },
+    {
+      "case": "thirtyVisits",
+      "before": {
+        "fullProfiles": 21,
+        "p50Ms": 0.79,
+        "p95Ms": 0.93
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 0.795,
+        "p95Ms": 1.086
+      }
+    },
+    {
+      "case": "nearestFour",
+      "before": {
+        "fullProfiles": 63,
+        "p50Ms": 3.978,
+        "p95Ms": 4.432
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 2.042,
+        "p95Ms": 2.287
+      }
+    },
+    {
+      "case": "savedTwo",
+      "before": {
+        "fullProfiles": 32,
+        "p50Ms": 1.37,
+        "p95Ms": 1.957
+      },
+      "after": {
+        "fullProfiles": 21,
+        "p50Ms": 1.271,
+        "p95Ms": 1.493
+      }
+    }
+  ]
+}

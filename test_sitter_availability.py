@@ -110,6 +110,7 @@ class AvailabilityHttpTests(unittest.TestCase):
         start=datetime.fromisoformat(self.payload['startsAt'])
         date=start.astimezone(availability.ZONE).date().isoformat()
         before['sitterProfile']['closedDates']=[date]
+        before['sitterProfile']['schedule']={'days':[False]*7,'start':540,'end':1080}
         after=self.req('/api/me','PUT',before,user='abc')['account']
         self.req('/api/me','PUT',stale,user='abc',status=409)
         public=self.req('/api/sitters')['sitters']
@@ -117,12 +118,17 @@ class AvailabilityHttpTests(unittest.TestCase):
         self.assertFalse(public[0]['availabilityKnown'])
         query=urlencode({k:self.payload[k] for k in ('startsAt','endsAt')})
         self.assertEqual(self.req('/api/sitters?'+query)['sitters'],[])
-        for query in ['startsAt=bad','startsAt=&endsAt=','startsAt=2026-11-01&endsAt=2026-11-02',query+'&startsAt=duplicate']:
-            self.req('/api/sitters?'+query,status=400)
+        for invalid in ['startsAt=bad','startsAt=&endsAt=','startsAt=2026-11-01&endsAt=2026-11-02',query+'&startsAt=duplicate']:
+            self.req('/api/sitters?'+invalid,status=400)
         after['sitterProfile'].pop('closedDates')
+        after['sitterProfile'].pop('schedule')
         saved=self.req('/api/me','PUT',after,user='abc')['account']
         self.assertEqual(saved['sitterProfile']['closedDates'],[date])
+        self.assertEqual(saved['sitterProfile']['schedule']['days'],[False]*7)
         saved['sitterProfile']['closedDates']=[]
+        saved=self.req('/api/me','PUT',saved,user='abc')['account']
+        self.assertEqual(self.req('/api/sitters?'+query)['sitters'],[])
+        self.req('/api/bookings/quotes','POST',self.payload,status=409)
+        saved['sitterProfile']['schedule']=None
         self.req('/api/me','PUT',saved,user='abc')
-        query=urlencode({k:self.payload[k] for k in ('startsAt','endsAt')})
         self.assertEqual(len(self.req('/api/sitters?'+query)['sitters']),1)

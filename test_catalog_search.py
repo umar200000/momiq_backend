@@ -70,6 +70,27 @@ class SearchHttpTests(unittest.TestCase):
             self.assertEqual(self.req(path+'&pet='+missing)['sitters'],[])
             fingerprint.assert_not_called()
 
+    def test_animal_count_filter_uses_each_service_capacity_before_profile_load(self):
+        self.clones()
+        with server.db() as con:
+            for n,kind in enumerate(('boarding','homeVisit','personal')):
+                uid=f'sitter-{n:02}'
+                account=json.loads(con.execute('SELECT account FROM users WHERE id=?',(uid,)).fetchone()[0])
+                data=json.loads(con.execute('SELECT data FROM listings WHERE user_id=?',(uid,)).fetchone()[0])
+                item=data['listings'][0]
+                item.update(type=kind, capacity=2 if kind=='boarding' else None)
+                if kind=='homeVisit':
+                    item['location']=None
+                con.execute('UPDATE listings SET data=? WHERE user_id=?',(json.dumps(data),uid))
+                con.execute('UPDATE listing_moderation SET service=?,approved_hash=? WHERE user_id=?',
+                            (kind,catalog.fingerprint(account,data['housing'],item),uid))
+        for animals,expected in [(1,{'boarding','homeVisit','personal'}),(2,{'boarding','homeVisit'}),(3,{'homeVisit'})]:
+            for origin in ('','&lat=41.3&lon=69.27'):
+                with self.subTest(animals=animals,origin=origin), patch.object(catalog,'fingerprint',wraps=catalog.fingerprint) as calls:
+                    rows=self.req(f'/api/sitters?minPrice=10000&maxPrice=10002&animals={animals}'+origin)['sitters']
+                    self.assertEqual({row['id'].split(':')[1] for row in rows},expected)
+                    self.assertEqual(calls.call_count,len(expected))
+
     setUp=http_fixtures.BookingHttpTests.setUp
     save=http_fixtures.BookingHttpTests.save
     review=http_fixtures.BookingHttpTests.review

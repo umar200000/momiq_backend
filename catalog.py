@@ -229,7 +229,7 @@ def profile(con,environment,identity,*,interval=None):
     return next(iter_profiles(con,environment,interval=interval,owner=owner,service=service),None)
 
 
-def listing_filters(min_price, max_price, pet):
+def listing_filters(min_price, max_price, pet, animals, service):
     """Predicates on the individual JSON listing aliased as j, with bound values."""
     conditions = []
     args = []
@@ -239,11 +239,15 @@ def listing_filters(min_price, max_price, pet):
     if pet is not None:
         conditions.append(" AND EXISTS(SELECT 1 FROM json_each(j.value,'$.pets') pet WHERE pet.value=?)")
         args.append(pet)
+    if animals > 1 and service != 'homeVisit':
+        conditions.append(" AND (m.service='homeVisit' OR"
+                          " (m.service='boarding' AND json_extract(j.value,'$.capacity')>=?))")
+        args.append(animals)
     return ''.join(conditions), args
 
 
 def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=None,favorites=None,
-                  min_price=0,max_price=999999999,pet=None):
+                  min_price=0,max_price=999999999,pet=None,animals=1):
     after_key=tuple(after.split(':',1)) if after else ('','')
     owner_clause=' AND m.user_id=?' if owner is not None else ''
     service_clause=' AND m.service=?' if service is not None else ''
@@ -262,7 +266,7 @@ def iter_profiles(con,environment,*,interval=None,after='',owner=None,service=No
         favorite_clause = (" AND (m.user_id,m.service) IN (SELECT json_extract(value,'$[0]'),"
                            "json_extract(value,'$[1]') FROM json_each(?))")
         args.append(json.dumps(keys))
-    filters, values = listing_filters(min_price,max_price,pet)
+    filters, values = listing_filters(min_price,max_price,pet,animals,service)
     listing_clause = ''
     if filters:
         listing_clause = (" AND EXISTS(SELECT 1 FROM json_each(l.data,'$.listings') j"

@@ -271,15 +271,7 @@ def validate_account(data):
         if housing not in ['apartment','house']: raise ValueError('Uy turi noto‘g‘ri')
         result['sitterProfile'] = {'years': years, 'about': string(sitter.get('about',''),4000),
                                   'homePhotos': [photo(v) for v in homes], 'housing': housing}
-        schedule = sitter.get('schedule')
-        if 'closedDates' in sitter:
-            result['sitterProfile']['closedDates'] = sitter_availability.closed_dates(sitter['closedDates'])
-        if schedule is not None:
-            if not isinstance(schedule,dict): raise ValueError('Jadval noto‘g‘ri')
-            days, start, end = schedule.get('days'), schedule.get('start'), schedule.get('end')
-            if not isinstance(days,list) or len(days)!=7 or any(type(v) is not bool for v in days): raise ValueError('Hafta kunlari noto‘g‘ri')
-            if type(start) is not int or type(end) is not int or not 0<=start<end<1440: raise ValueError('Ish vaqti noto‘g‘ri')
-            result['sitterProfile']['schedule'] = {'days':days,'start':start,'end':end,'timezone':'Asia/Tashkent'}
+        result['sitterProfile'].update(sitter_availability.calendar_fields(sitter))
     result['support'] = normalized_support
     return result
 
