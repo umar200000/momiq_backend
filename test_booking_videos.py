@@ -121,13 +121,16 @@ with server.db() as con:
             with self.assertRaises(sqlite3.IntegrityError):con.execute("UPDATE booking_videos SET day='2026-01-01'")
         class Handler:
             headers=Message();headers['Range']='bytes=0-15';wfile=BytesIO();response={}
-            def send_response(self,status):self.status=status
+            def send_response(self,status):
+                self.status=status
+                self.transaction_at_response=con.in_transaction
             def send_header(self,key,value):self.response[key]=value
             def end_headers(self):pass
         h=Handler()
         with server.db() as con:
             videos.download(h,con,server.DATA,b['id'],'customer',first['id'],'playback')
         self.assertEqual(h.status,206);self.assertEqual(len(h.wfile.getvalue()),16)
+        self.assertFalse(h.transaction_at_response)
         self.assertEqual(h.response['Cache-Control'],'private, no-store')
         h.headers['Range']='bytes=16-31'
         with server.db() as con:
@@ -261,6 +264,17 @@ with server.db() as con:
             protected=call('GET',admin_path+'/'+video+'/playback',byte_range='bytes=0-11',admin=True)
             self.assertEqual((protected['status'],protected['headers']['Vary'],protected['body']),
                              (206,'Cookie',response['body']))
+            stored=server.DATA/'care-videos'/video/'playback.mp4'
+            intact=stored.read_bytes()
+            stored.write_bytes(intact[:-1])
+            try:
+                for headers in ({},{'byte_range':'bytes=0-11'}):
+                    damaged=call('GET',playback,user='customer',**headers)
+                    self.assertEqual(damaged['status'],503)
+                    self.assertEqual(set(json.loads(damaged['body'])),{'error'})
+            finally:
+                stored.write_bytes(intact)
+            self.assertEqual(call('GET',playback,user='customer')['body'],intact)
             self.assertEqual(media['status'],200);self.assertEqual(media['headers']['Vary'],'Cookie')
             self.assertEqual(call('DELETE',admin_path,admin=True)['status'],405)
             payload={'topic':'safety','subject':'TEST video','text':'TEST reason','image':None,
@@ -284,3 +298,40 @@ with server.db() as con:
                     con.execute('DELETE FROM support_video_reports')
             with server.db() as con:
                 self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action IN ('admin-view-booking-videos','admin-view-booking-video')").fetchone()[0],3)
+            original_auth=server.Handler.auth
+            def revoke_after_initial_auth(handler,con,role='client',*,bind=True):
+                actor=original_auth(handler,con,role,bind=bind)
+                if bind:
+                    with server.db() as writer:
+                        writer.execute('DELETE FROM sessions WHERE user_id=? AND role=?',(actor,role))
+                return actor
+            with patch.object(server.Handler,'auth',revoke_after_initial_auth):
+                denied=call('GET',playback,user='customer',byte_range='bytes=0-11')
+                self.assertEqual(denied['status'],401)
+                self.assertEqual(set(json.loads(denied['body'])),{'error'})
+                self.assertEqual(call('GET',admin_path+'/'+video+'/poster',admin=True)['status'],401)
+
+    def test_video_overview_commits_before_reply_and_reserves_its_audit_write(self):
+        booking=self.active()
+        class Handler:
+            command='GET'
+            def reply(inner,status,body):
+                self.assertEqual(status,200)
+                self.assertFalse(con.in_transaction)
+                self.assertEqual(body['items'],[])
+        handler=Handler()
+        handler.path='/api/bookings/'+booking['id']+'/videos'
+        with server.db() as con:
+            self.assertTrue(videos.route(handler,con,'customer',handler.path,server.DATA,lambda:self.start))
+        handler.path='/api/admin/bookings/'+booking['id']+'/videos'
+        original=videos.readable
+        def compete(*args):
+            with server.db() as writer:
+                writer.execute('PRAGMA busy_timeout=1')
+                with self.assertRaises(sqlite3.OperationalError) as error:
+                    writer.execute('BEGIN IMMEDIATE')
+                self.assertEqual(error.exception.sqlite_errorcode & 255,sqlite3.SQLITE_BUSY)
+            return original(*args)
+        with server.db() as con, patch.object(videos,'readable',side_effect=compete):
+            self.assertTrue(videos.admin_route(handler,con,'TEST operator',handler.path,server.DATA))
+            self.assertEqual(con.execute("SELECT count(*) FROM audit WHERE action='admin-view-booking-videos'").fetchone()[0],1)

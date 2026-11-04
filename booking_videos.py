@@ -78,7 +78,8 @@ def readable(con, identity, user, admin=False):
 
 
 def overview(con, identity, user, day, now, *, admin=False):
-    con.execute('BEGIN')
+    # Operator reads also append an audit entry before this snapshot is committed.
+    con.execute('BEGIN IMMEDIATE' if admin else 'BEGIN')
     booking = readable(con, identity, user, admin)
     rules = policy.policy(now)
     day = rules['today'] if day is None else care.day_value(day)
@@ -171,6 +172,10 @@ def byte_range(value, size):
 
 
 def download(handler, con, root, identity, user, video, kind, *, admin=False):
+    own_transaction = not con.in_transaction
+    if own_transaction:
+        # The request authorizer checks the session again inside this snapshot.
+        con.execute('BEGIN IMMEDIATE' if admin else 'BEGIN')
     readable(con, identity, user, admin)
     row = con.execute('SELECT * FROM booking_videos WHERE id=? AND booking_id=?', (video,identity)).fetchone()
     if not row:
@@ -179,6 +184,8 @@ def download(handler, con, root, identity, user, video, kind, *, admin=False):
         raise engine.BookingError(410, 'Videoning saqlash muddati tugagan')
     with open_derivative(root, row['id'], kind) as stream:
         size = os.fstat(stream.fileno()).st_size
+        if kind=='playback' and size!=row['bytes']:
+            raise media.VideoUnavailable('Video fayli hozir mavjud emas')
         ranges = handler.headers.get_all('Range', [])
         if len(ranges) > 1:
             raise engine.BookingError(416, 'Noto‘g‘ri video oralig‘i')
@@ -186,6 +193,7 @@ def download(handler, con, root, identity, user, video, kind, *, admin=False):
         if admin:
             con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
                 (user,'admin-view-booking-video',engine.encode({'bookingId':identity,'videoId':video,'kind':kind}),engine.stamp(datetime.now(timezone.utc))))
+        if own_transaction or admin:
             con.commit()
         handler.send_response(status)
         for key,value in {'Content-Type':'video/mp4' if kind=='playback' else 'image/jpeg',
@@ -202,7 +210,9 @@ def download(handler, con, root, identity, user, video, kind, *, admin=False):
         stream.seek(start); remaining = end-start+1
         while remaining:
             chunk = stream.read(min(65536,remaining))
-            if not chunk: break
+            if not chunk:
+                handler.close_connection=True
+                raise ConnectionResetError('Incomplete private media range')
             handler.wfile.write(chunk); remaining -= len(chunk)
 
 
@@ -242,7 +252,9 @@ def route(handler, con, user, path, root, clock=lambda: datetime.now(timezone.ut
             download(handler,con,root,match[1],user,match[2],match[3])
         else:
             if set(query)-{'day'}: raise ValueError('Unexpected video query')
-            handler.reply(200,overview(con,match[1],user,query.get('day',[None])[0],clock()))
+            result=overview(con,match[1],user,query.get('day',[None])[0],clock())
+            con.commit()
+            handler.reply(200,result)
         return True
     if handler.command != 'POST' or match[2]:
         raise engine.BookingError(405, 'Amal mavjud emas')
