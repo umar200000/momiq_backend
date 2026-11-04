@@ -66,7 +66,7 @@ Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda 
 
 **Joriy bajarish navbati — 2026-11-03**
 
-Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 83 bajarilgan, 56 ochiq**. Dastlabki 48 ochiq banddan **43 tasi joriy/qisman (M019 SMSni kutadi, boshqa bandlar 42 ta)**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
+Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 84 bajarilgan, 55 ochiq**. Dastlabki 48 ochiq banddan **42 tasi joriy/qisman (M019 SMSni kutadi, boshqa bandlar 41 ta)**, **M008 alohida staging kutishida**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 
 Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalillar saqlanadi; ilova/backend bo‘yicha ajratilmaydi.
 
@@ -89,6 +89,13 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 **To‘liq bajarildi** belgisi kod va kerakli tekshiruvlar tugagandagina qo‘yiladi. Har ichki bosqich dalili bajarilish jurnaliga qo‘shiladi. Staging yoki providerga bog‘liq yakuniy tekshiruv qolsa band ochiq turadi; uning boshqa mustaqil qismi davom etadi.
 
 **Bajarilish jurnali — 2026-10-27**
+
+### 2026-11-04. M106 yopildi, M109 va M113 server dalillari
+
+- [x] **M106.** Backend `09fd406` production’da. API va admin domenlari HTTP’dan HTTPS’ga 301 bilan o‘tkazdi va TLS 1.3 ulanishi tasdiqlandi. Noto‘g‘ri Origin oldin autentifikatsiya bosqichigacha yetgan edi. Tuzatishdan so‘ng begona va yo‘l qo‘shilgan Origin ikkala domenda 403 qaytardi. Nginx yettinchi anonim login yo‘li so‘rovini 429 bilan to‘xtatdi, yuborilgan X-Real-IP qiymatlarini almashtirish cheklovni chetlab o‘tmadi. Backendda parallel 20 urinishdan 15 tasi kvotadan o‘tdi va 5 tasi rad etildi. Chrome haqiqiy domenning HTML va JavaScript fayllari bilan sintetik profil nomidagi XSS matnini oddiy matn sifatida chiqardi. API javobi faqat brauzer sinovida berildi, operator hisobiga kirilmadi.
+- [x] **M106 cookie tekshiruvi.** Reliz sinovida vaqtinchalik bazadagi operator production rejimida kirdi. Cookie Secure, HttpOnly, SameSite=Strict va Path=/api/admin bilan chiqdi. Begona Origin bilan logout rad etildi, asl Origin bilan logout sessiyani bekor qildi va takroriy GET 401 qaytardi. 32 test o‘tdi. Ommaviy domenlarda 19 ta o‘qish sinovi CI va alohida qayta tekshiruvda o‘tdi. [Yakuniy CI va deploy](https://github.com/umar200000/momiq_backend/actions/runs/41782810193)
+- **M109 ochiq.** Ishlayotgan backend SHA tasdiqlandi. Admin domenida berilgan index.html, app.js va style.css fayllari admin main dagi `f474aaa` fayllari bilan baytma-bayt teng. GitHub API uchala main tarmog‘i uchun protected=false qaytardi. Egasining qaroriga muvofiq audit qayd etildi. Serverda juftlikni majburiy tekshiradigan root deploy skriptini o‘rnatish qolgan.
+- **M113 ochiq.** Ikkala domen sertifikati tekshiruv vaqtida ishonchli va 2027-01-19 gacha yaroqli. Avtomatik yangilanish timeri, firewall va xizmat fayllari huquqlarini serverdagi vakolatli ko‘rikda tasdiqlash kerak.
 
 ### 2026-11-03. M103 va M112 production serverida yopildi
 
@@ -934,7 +941,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [x] M103 — Barcha kirishlar va uploadni chegaralash: uzunlik, son, sana, koordinata, MIME/haqiqiy format, fayl/piksel/video hajmi; zararli yoki ortiqcha resurs talab qiluvchi fayl rad etiladi.
 - [ ] M104 — Rasmlar/videolarni object storage’ga ko‘chirish: bazada metadata, thumbnail, maxfiy media uchun ruxsatli URL, EXIF maxfiyligi, yetim fayl tozalash; DB javobi Base64 bilan shishmaydi.
 - [ ] M105 — Timeout, retry va background ishlarni ishonchli qilish: xavfsiz retry faqat mos amallarda, idempotency, rejalangan ishlarni deduplikatsiya va server restartidan keyingi davom ettirish.
-- [ ] M106 — HTTPS, cookie, CSRF/origin, XSS va rate limit himoyalarini tekshirish: reverse proxy va real domenlarda sinov; admin va mijoz chegarasi saqlanadi, ishlamayotgan cheklov bordek hisoblanmaydi.
+- [x] M106 — HTTPS, cookie, CSRF/origin, XSS va rate limit himoyalarini tekshirish: reverse proxy va real domenlarda sinov; admin va mijoz chegarasi saqlanadi, ishlamayotgan cheklov bordek hisoblanmaydi.
 - [ ] M107 — Secret va bog‘liqliklarni boshqarish: Git/history/log skan, kalit rotatsiyasi, provider cheklovi, dependency/litsenziya tekshiruvi; secretlar CI/runtime orqali beriladi, lokal fayllar repoga kirmaydi.
 - [ ] M108 — Shaxsiy ma’lumotlar hayot davrini tugatish: ko‘rish/eksport/o‘chirish huquqi, retention, rozilikni qaytarish, backupdan tiklaganda o‘chirilgan hisob qayta ochilmasligi; loglarda telefon/manzil/token niqoblanadi.
 

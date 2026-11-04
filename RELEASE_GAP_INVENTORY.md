@@ -35,14 +35,14 @@ Manba skani `lib/**/*.dart`, runtime Python modullari va admin JavaScript’ida 
 
 2026-11-03. Sana bo‘yicha katalog bandlikni guruhlab oladi. 100 faol mijozli ikki juft lokal sinovda p95 pasaydi. E’lon javoblari o‘z versiyasiga bog‘landi, oltita o‘qish yo‘lida javob yuborilayotganda baza band bo‘lib qolishi tuzatildi. Izolyatsiyalangan reliz tekshiruvi noto‘g‘ri katalog satri va 401 javobiga qo‘shilgan maxfiy maydonni aniqlaydi. Tiklash sinovi asosiy faylga qo‘shilmay qolgan SQLite jurnalini rad etadi. Ushbu bosqichlar va o‘lchovlar asosiy rejaning bajarilish jurnalida belgilandi.
 
-2026-11-03. M133 bo‘yicha hujjat auditi shu branchga nisbatan yakunlandi. M103 va M112 serverda yopilgach, quyida qolgan 43 ta joriy band bittadan asosiy bog‘liqlik bo‘yicha guruhlangan. Har bandning batafsil qabul sharti pastdagi jadvalda. M008 va avvaldan oxiriga ajratilgan 12 band alohida hisoblanadi.
+2026-11-03. M133 bo‘yicha hujjat auditi shu branchga nisbatan yakunlandi. M103, M112 va M106 serverda yopilgach, quyida qolgan 42 ta joriy band bittadan asosiy bog‘liqlik bo‘yicha guruhlangan. Har bandning batafsil qabul sharti pastdagi jadvalda. M008 va avvaldan oxiriga ajratilgan 12 band alohida hisoblanadi.
 
 | To‘liq yopish uchun kerak | Bandlar |
 | --- | --- |
 | Tasdiqlangan Toshkent shahri va viloyati geometriyasi, xarita kaliti yoki kvotasi | M001, M029, M042 |
 | Provayder loyihasi, tashqi xabarni qurilmada olish va OS ruxsatlari | M014, M081, M082, M083, M084, M085 |
 | Biznes egasi, moliya mutaxassisi yoki operator qarori, saqlash, MFA yoki litsenziya shartlari | M024, M066, M090, M092, M097, M107, M108 |
-| Server konfiguratsiyasi, eski baza, vakolatli deploy yoki hosted yuklama va uzilish mashqi | M007, M009, M019, M099, M100, M102, M105, M106, M109, M110, M111, M113, M130 |
+| Server konfiguratsiyasi, eski baza, vakolatli deploy yoki hosted yuklama va uzilish mashqi | M007, M009, M019, M099, M100, M102, M105, M109, M110, M111, M113, M130 |
 | Tashqi storage, backup va tiklash, monitoring manzili yoki amaliy navbatchilik | M104, M114, M115, M116, M117 |
 | Haqiqiy qurilma, ikkala platformadagi oqimlar yoki native media | M078, M123, M124, M128, M129, M131, M139 |
 | Store manzillari, review kirishi, imzolangan paket yoki pilot guruhi | M122, M125 |
@@ -81,10 +81,10 @@ Jadval bosqich boshidagi 49 bandning mahalliy dalili va qolgan ishini ajratadi. 
 | M103 | URL, JSON va rasm chegaralari relizga chiqarildi. Serverda 32/33 parametr, uzun URL, katta hajm, JSON va media turi tekshirildi. | Yopildi. Production dalili asosiy bajarilish jurnalida. |
 | M104 | Lokal private media, lease bilan himoyalangan vaqtinchalik fayllar va yetim derivativlar haqiqiy process-exit bilan tekshirildi. | Object storage provayderi, bucket, kalitlar, migratsiya va yetim obyektlarni tozalash. |
 | M105 | Profil versiyasi to‘qnashgach enaga server nusxasini qayta ochib yangi versiya bilan saqlashi tekshirildi. Noaniq chek takrori asl dalilni saqlaydi. Kredit va tuzatish process-exitdan keyin qayta tekshirildi. | Hosted worker/service restart va tashqi xizmat uzilishi qabuli. |
-| M106 | Ochiq domenlarda anonim hisob/admin hamda begona origin o‘qishlari rad etildi. | Haqiqiy Nginx/Gunicorn va TLS bilan cookie/CSRF/rate-limit lokal Linux’da tekshirildi. Reliz domenida hosted qabul stagingdan keyin. |
+| M106 | HTTPS, Origin, cookie, kvota, CSP va XSS reliz tekshiruvlari bajarildi. | 2026-11-04 kuni yopildi. [CI va production deploy](https://github.com/umar200000/momiq_backend/actions/runs/41782810193) |
 | M107 | CI’da history va dependency skanlari, lock va litsenziya dalillari mavjud. Quicksand va Baloo 2 uchun repodagi ikki asl matn ilovaning yordam bo‘limidan oflayn ochiladi. | Kalit egasi, rotatsiya, native kutubxona va provayder shartlari ochiq. 16 ta ilova rasmi, 17 ta SVG va bitta brend ikonkasining foydalanish huquqini tasdiqlash kerak. |
 | M108 | Hisob o‘chirish murojaati va tiklangan moliyaviy ma’lumot tekshiruvi mavjud. | Egasiga tegishli profil JSON eksporti va fayl tanlash oqimi tekshirildi. Qolgan toifadagi arxiv, haqiqiy o‘chirish, retention, rozilik va backupdan qayta ochilishni to‘sish ochiq. |
-| M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Qolgan qism root deploy skriptini o‘rnatish va hosted juftlikni tasdiqlash. |
+| M109 | Uch repo main holati read-only tekshirildi. Aniq admin commit bilan moslik tekshirildi. | Egasi faqat auditni qayd etishni tanladi. Hosted backend 09fd406 bilan admin f474aaa aktivlari solishtirildi. Root deploy skripti orqali juftlik nazoratini o‘rnatish qolgan. |
 | M110 | Draft PR va testlangan backend/admin juftligi mavjud. | Alohida stagingdan aynan sinovdan o‘tgan artefaktni productionga chiqarish. |
 | M111 | Rollback oldingi kodning schema mosligini va qaytgandan keyin xizmat javobini tekshiradi. | Vakolatli serverda yangilangan deploy skripti bilan migration/rollback mashqi. |
 | M112 | Health va SQLite readiness serverdagi commit SHA’sini tasdiqladi. API va admin domenida 15 ta GET o‘tdi. | Yopildi. [Production deploy](https://github.com/umar200000/momiq_backend/actions/runs/41646251673). |
