@@ -35,6 +35,16 @@ readlink -f /opt/momiq/current/admin
 
 Logni ruxsatli terminalda ko‘ring; eski/proxy error loglari maxfiy bo‘lishi mumkin. Ulardan ommaviy nusxa tayyorlamang. `event=http` yozuvlarida faqat method/group/status/durationMs/outcome yig‘iladi. `database_busy` + 503 bazadagi lock kutishini bildiradi; generic 500 bilan aralashtirmang. Handler vaqti mijozga to‘liq yetkazish vaqti emas.
 
+### Server konsolida M109 va M113 ni tekshirish
+
+M109 va M113 bo‘yicha vakolatli operator ko‘rib chiqilgan `tool/host_audit.py` faylini production server konsolida quyidagi buyruq bilan ishlatadi. Hisobot faqat holat belgilarini chiqaradi. Xizmat sozlamalari va maxfiy fayllarning mazmuni chiqmaydi.
+
+```sh
+sudo python3 tool/host_audit.py --deploy-sha256 31accc907d4cca9541688f3664b32102ebd0a830cc0a4ec744c7c1788f3ec79c
+```
+
+Xesh 2026-11-04 kuni foundations tarmog‘ida ko‘rib chiqilgan deploy skriptiga tegishli. `false` talab bilan farq borligini yoki xizmat holati tasdiqlanmaganini, `null` esa o‘lchov olinmaganini bildiradi. Operator firewall istisnolarini va TLS yangilanishining oxirgi natijasini ham ko‘radi. Deploy skripti farq qilsa, o‘rnatishni rejalashda amaldagi backend va admin relizlariga mosligini tekshiradi.
+
 ### Loglardan cheklangan diagnostika hisobotini olish
 
 [tool/request_report.py](tool/request_report.py) mavjud log faylini faqat o‘qiydi yoki `-` bilan stdin qabul qiladi; JSON hisobot stdoutga chiqadi. Masalan, backend katalogida:

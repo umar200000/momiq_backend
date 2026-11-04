@@ -90,6 +90,11 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-04. Backend va admin versiyalarining mosligi, host ko‘rigi
+
+- [x] **M109.** Backend CI admin fayllarini aynan `f474aaa4fb85235ff3b807fe0a14cf9cf8d288bc` dan oladi. SSH deploydan avval uchta ommaviy admin fayli sinalgan nusxaga baytma-bayt solishtiriladi. Deploy tugagach, bu solishtirish HTTPS smoke tarkibida takrorlanadi. Salbiy tekshiruvda HTML, JS va CSS nusxasining har biriga bittadan bo‘sh joy qo‘shildi. Uchala tafovut ham aniqlandi. Ishlayotgan backend `3c23fd7`, health’da test kirishi yoqilgan. [Test va deploy](https://github.com/umar200000/momiq_backend/actions/runs/41783639869)
+- [x] **M109/M113.** Vakolatli operator uchun faqat o‘qiydigan host hisoboti qo‘shildi. U xizmat holati, tinglanayotgan manzil, firewall, TLS yangilanish timeri, fayl huquqlari va o‘rnatilgan deploy skripti xeshini tekshiradi. Linux sinovida xavfsiz test muhiti, tashqariga ochiq port, yetishmayotgan dalil, keng fayl huquqi va symlink ajratildi. Production konsolidan natija hali olinmagan. [Operator yo‘riqnomasi](OPERATIONS.md)
+
 ### 2026-11-04. M106 yopildi, M109 va M113 server dalillari
 
 - [x] **M106.** Backend `09fd406` production’da. API va admin domenlari HTTP’dan HTTPS’ga 301 bilan o‘tkazdi va TLS 1.3 ulanishi tasdiqlandi. Noto‘g‘ri Origin oldin autentifikatsiya bosqichigacha yetgan edi. Tuzatishdan so‘ng begona va yo‘l qo‘shilgan Origin ikkala domenda 403 qaytardi. Nginx yettinchi anonim login yo‘li so‘rovini 429 bilan to‘xtatdi, yuborilgan X-Real-IP qiymatlarini almashtirish cheklovni chetlab o‘tmadi. Backendda parallel 20 urinishdan 15 tasi kvotadan o‘tdi va 5 tasi rad etildi. Chrome haqiqiy domenning HTML va JavaScript fayllari bilan sintetik profil nomidagi XSS matnini oddiy matn sifatida chiqardi. API javobi faqat brauzer sinovida berildi, operator hisobiga kirilmadi.
