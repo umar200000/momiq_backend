@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  TESTED_ADMIN_SHA: f474aaa4fb85235ff3b807fe0a14cf9cf8d288bc
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
@@ -21,6 +23,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: umar200000/momiq_admin
+          ref: ${{ env.TESTED_ADMIN_SHA }}
           path: admin-fixture
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest -q
@@ -35,6 +38,14 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Fetch admin files tested with this release
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: umar200000/momiq_admin
+          ref: ${{ env.TESTED_ADMIN_SHA }}
+          path: admin-fixture
+      - name: Verify active admin files before deploying backend
+        run: python deploy/verify_release.py --admin-only --admin-dir admin-fixture
       - name: Deploy tested commit
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -48,4 +59,4 @@ jobs:
           trap 'rm -f ~/.ssh/momiq' EXIT
           ssh -i ~/.ssh/momiq -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 momiq-deploy@95.182.119.218 "$COMMIT_SHA"
       - name: Verify HTTPS
-        run: python deploy/verify_release.py "${{ github.sha }}"
+        run: python deploy/verify_release.py "${{ github.sha }}" --admin-dir admin-fixture

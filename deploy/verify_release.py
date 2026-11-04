@@ -2,6 +2,8 @@
 import json
 import re
 import sys
+import argparse
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -14,9 +16,11 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def verify(revision):
-    if not re.fullmatch('[0-9a-f]{40}', revision):
+def verify(revision, *, admin_dir=None, admin_only=False):
+    if not admin_only and not re.fullmatch('[0-9a-f]{40}', revision or ''):
         raise ValueError('Full commit required')
+    if admin_only and admin_dir is None:
+        raise ValueError('Pinned admin files required')
     opener = build_opener(NoRedirect())
     checks = []
 
@@ -46,6 +50,16 @@ def verify(revision):
                 raise ValueError('Invalid API response shape')
             return body
 
+    def admin_assets():
+        for path,name,marker in (('/admin/','index.html',b'loginForm'),('/admin/app.js','app.js',b'/api/admin/'),
+                                 ('/admin/style.css','style.css',b'{')):
+            raw=get(ADMIN,path,200,False)
+            if marker not in raw or (admin_dir is not None and raw!=(admin_dir/name).read_bytes()):
+                raise ValueError('Served admin asset differs from tested version: '+name)
+
+    if admin_only:
+        admin_assets()
+        return {'checks':checks}
     for path in ('/api/health','/api/ready'):
         body=get(API,path)
         if body.get('ok') is not True or body.get('mode')!='production' or body.get('releaseSha')!=revision:
@@ -66,11 +80,14 @@ def verify(revision):
             get(base,path,403,headers={'Origin':origin})
     get(API,'/api/admin/users',404,False)
     get(ADMIN,'/api/me',404,False)
-    for path,marker in (('/admin/',b'loginForm'),('/admin/app.js',b'/api/admin/'),('/admin/style.css',b'{')):
-        if marker not in get(ADMIN,path,200,False):
-            raise ValueError('Unexpected admin asset: '+path)
+    admin_assets()
     return {'releaseSha':revision,'checks':checks}
 
 
 if __name__=='__main__':
-    print(json.dumps(verify(sys.argv[1])))
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('revision',nargs='?')
+    parser.add_argument('--admin-dir',type=Path)
+    parser.add_argument('--admin-only',action='store_true')
+    args=parser.parse_args()
+    print(json.dumps(verify(args.revision,admin_dir=args.admin_dir,admin_only=args.admin_only)))
