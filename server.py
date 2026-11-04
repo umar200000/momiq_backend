@@ -14,6 +14,7 @@ import re
 import secrets
 import sqlite3
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -223,7 +224,20 @@ def prepare_account_write(con,uid,account,incoming):
     if not row: raise ApiError(404,'Mijoz topilmadi')
     previous = json.loads(row[0])
     sitter_availability.preserve_omitted(previous,account,incoming)
-    service_area.changed_addresses(AREA,previous,account,'production' if PRODUCTION else 'local')
+    addresses = account.get('addresses',[])
+    existing = list(previous.get('addresses',[]))
+    ids = Counter(a.get('id','').strip() for a in addresses)
+    changed = []
+    for address in addresses:
+        if address in existing:
+            # Match each persisted occurrence only once, including legacy duplicates.
+            existing.remove(address)
+            continue
+        key = address.get('id','').strip()
+        if not key or key!=address.get('id') or ids[key]>1 or not address.get('address','').strip():
+            raise ValueError('Manzil ID yoki matni noto‘g‘ri')
+        changed.append(address)
+    service_area.changed_addresses(AREA,previous,{'addresses':changed},'production' if PRODUCTION else 'local')
 
 class ApiError(Exception):
     def __init__(self, status, message):

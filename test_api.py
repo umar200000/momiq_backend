@@ -355,6 +355,32 @@ class ApiTests(unittest.TestCase):
         self.assertIsNone(cleared.get('schedule'))
         self.assertEqual(cleared['closedDates'],[])
 
+    def test_address_identity_is_unambiguous_without_blocking_legacy_profile_edits(self):
+        owner=self.login('998900010316')
+        account=owner['account']
+        account['profile'].update(first='TEST',last='Owner')
+        home={'id':'home','address':'TEST Tashkent','lat':41.30,'lon':69.27}
+        def save(rows,status=200):
+            return self.req('/api/me','PUT',{**account,'addresses':rows},token=owner['token'],expected=status)
+        save([home])
+        for extra in ({**home,'label':'Other'}, {**home,'id':' home '},
+                      {**home,'id':'   '}, {**home,'id':'new','address':'  '}):
+            save([home,extra],400)
+        self.assertEqual(self.req('/api/me',token=owner['token'])['account']['addresses'],[home])
+        self.req('/api/admin/users/'+owner['userId'],'PUT',
+                 {'account':{**account,'addresses':[home,home]}},admin=True,expected=400)
+        old=[{**home,'address':'TEST historical','lat':39.65,'lon':66.97},home]
+        with server.db() as con:
+            con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps({**account,'addresses':old}),owner['userId']))
+        account['language']='ru'
+        from unittest.mock import patch
+        import service_area
+        area=service_area.load(service_area.configuration({'MOMIQ_ENV':'production'}))
+        with patch.object(server,'AREA',area):
+            self.assertEqual(save(old)['account']['language'],'ru')
+        save([*old,{**home,'label':'Third duplicate'}],400)
+        self.assertEqual(save([old[1]])['account']['addresses'],[old[1]])
+
     def test_admin_users_loads_roles_once_and_keeps_empty_and_multiple_roles(self):
         from unittest.mock import patch
         account = json.dumps(server.default_account())
