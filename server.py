@@ -471,6 +471,10 @@ class Handler(BaseHTTPRequestHandler):
                 con.commit()
                 self.reply(200,{"users":users,"sitters":sitter_names()})
                 return
+            profile_match = re.fullmatch(r"/api/admin/users/([a-f0-9]+)/profile",path)
+            if profile_match and self.command == 'PUT':
+                self.edit_profile(con,user,profile_match[1],self.body())
+                return
             match = re.fullmatch(r"/api/admin/users/([a-f0-9]+)(/messages)?", path)
             if match:
                 uid, chat = match.groups()
@@ -489,12 +493,16 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if not chat and self.command == "PUT":
                     data = self.body()
-                    if type(data.get('blocked',False)) is not bool:
+                    if not data or data.keys()-{'account','blocked'} or type(data.get('blocked',False)) is not bool:
                         raise ValueError('Holat noto‘g‘ri')
                     account = validate_account(data['account']) if 'account' in data else None
                     blocked = int(data['blocked']) if 'blocked' in data else None
                     self.begin_write(con,user,role)
                     if account is not None:
+                        if blocked is not None:
+                            current = con.execute('SELECT blocked FROM users WHERE id=?',(uid,)).fetchone()
+                            if current and current[0]!=blocked:
+                                raise ApiError(409,'Hisob holati o‘zgargan. Sahifani yangilang.')
                         check_addresses(con,uid,account)
                     changed = con.execute("UPDATE users SET account=COALESCE(?,account),blocked=COALESCE(?,blocked) WHERE id=?",
                                           (json.dumps(account) if account is not None else None,blocked,uid)).rowcount
@@ -515,6 +523,33 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200,{"ok":True})
                 return
             raise ApiError(404,"Topilmadi")
+    def edit_profile(self,con,operator,uid,data):
+        if set(data) != {'before','after'}:
+            raise ValueError('Profil maydonlari noto‘g‘ri')
+        before,after = data['before'],data['after']
+        if (not isinstance(before,dict) or not isinstance(after,dict) or not before
+                or before.keys()!=after.keys() or before.keys()-{'first','last','photo'}):
+            raise ValueError('Profil maydonlari noto‘g‘ri')
+        changes = {key:photo(value) if key=='photo' else string(value) for key,value in after.items()}
+        self.begin_write(con,operator,'admin')
+        row = con.execute('SELECT account FROM users WHERE id=?',(uid,)).fetchone()
+        if not row:
+            raise ApiError(404,'Mijoz topilmadi')
+        account = json.loads(row[0])
+        profile = account['profile']
+        current = {key:profile.get(key,None if key=='photo' else '') for key in changes}
+        if current != changes:
+            if current != before:
+                raise ApiError(409,'Profil o‘zgargan. Yangilab, qayta urinib ko‘ring.')
+            profile.update(changes)
+            if not profile.get('first') or not profile.get('last'):
+                raise ValueError('Ism va familiya majburiy')
+            con.execute('UPDATE users SET account=? WHERE id=?',(json.dumps(account),uid))
+            con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',
+                        (operator,'update-user',uid,now()))
+        con.commit()
+        self.reply(200,{'ok':True})
+
     def save_message(self,con,user,mine,data):
         sitter = data.get('sitter')
         if sitter not in sitter_names(): raise ValueError('Enaga topilmadi')

@@ -266,11 +266,35 @@ class ApiTests(unittest.TestCase):
         with server.db() as con:
             self.assertFalse(con.execute('SELECT 1 FROM listings WHERE user_id=?',(a['userId'],)).fetchone())
 
+    def test_operator_edits_only_changed_profile_fields_and_rejects_stale_values(self):
+        a = self.login('998900011056')
+        uid = a['userId']
+        path = '/api/admin/users/'+uid+'/profile'
+        saved = {**a['account'], 'language':'en', 'profile':{'first':'Alice','last':'New','photo':None}}
+        with server.db() as con:
+            con.execute('UPDATE users SET account=?,blocked=1 WHERE id=?',(json.dumps(saved),uid))
+        edit = {'before':{'first':'Alice'},'after':{'first':'Anna'}}
+        self.req(path,'PUT',edit,admin=True)
+        self.req(path,'PUT',edit,admin=True)
+        self.req(path,'PUT',{'before':{'first':'Alice'},'after':{'first':'Other'}},admin=True,expected=409)
+        self.req(path,'PUT',{**edit,'blocked':False},admin=True,expected=400)
+        self.req(path,'PUT',{'before':{'last':'New'},'after':{'last':''}},admin=True,expected=400)
+        self.req(path,'PUT',{'before':{'blocked':True},'after':{'blocked':False}},admin=True,expected=400)
+        self.req(path,'PUT',edit,token=a['token'],expected=401)
+        with server.db() as con:
+            account,blocked = con.execute('SELECT account,blocked FROM users WHERE id=?',(uid,)).fetchone()
+            saved['profile']['first'] = 'Anna'
+            self.assertEqual((json.loads(account),blocked),(saved,1))
+            self.assertEqual(con.execute("SELECT count(*) FROM audit WHERE action='update-user' AND target=?",(uid,)).fetchone()[0],1)
+
     def test_admin_profile_only_edit_keeps_blocked_account_blocked(self):
         a=self.login('998900011043')
         path='/api/admin/users/'+a['userId']
         self.req(path,'PUT',{'blocked':True},admin=True)
         profile={**a['account'],'profile':{'first':'Edited','last':'TEST'}}
+        self.req(path,'PUT',{'account':profile,'blocked':False},admin=True,expected=409)
+        self.req(path,'PUT',{'role':'admin','blocked':False},admin=True,expected=400)
+        self.req(path,'PUT',{},admin=True,expected=400)
         self.req(path,'PUT',{'account':profile},admin=True)
         self.req('/api/me',token=a['token'],expected=403)
 
