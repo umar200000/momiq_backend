@@ -27,6 +27,8 @@ Test seed/cleanup, vaqtinchalik fixture va provayder chegaralari: [TEST_DATA_BOU
 
 ## Dalil chegarasi
 
+2026-11-07, keyingi tekshiruvlar. M105/M129/M130 uchun fon vazifalarida 18 ta, video tozalashda 8 ta haqiqiy process-exit DELETE/WAL nusxalarida sinaldi. Qayta ishga tushirish dublikat xabar, pul yoki audit yaratmadi. M123/M124 uchun uch tilda katta shrift/klaviatura bilan sharh tasdig‘i va retry, ikonkalarning semantics ma’lumoti tekshirildi. M102/M124 bo‘yicha adminning buzilgan 401 javobi eski maxfiy ko‘rinishni yopishi tuzatildi; kech javob yangi operatorni chiqarmaydi. Adminning 84 testi o‘tdi. Bu mustaqil ichki qismlar bajarildi; quyidagi hosted, qurilma, tashqi xizmat va egasi qaroriga bog‘liq qabul mezonlari o‘zgarishsiz ochiq. Hisob: 85 yopiq, 37 joriy ochiq, 17 alohida kutishda.
+
 Manba skani `lib/**/*.dart`, runtime Python modullari va admin JavaScript’ida TODO/FIXME/mock/placeholder hamda “hali ulanmagan” markerlari, so‘ng tegishli chaqiruvlar va muhit guardlarini o‘qish orqali bajarildi. Test fixture’lari va oddiy HTML input placeholderlari mahsulotning tayyor bo‘lmagan imkoniyati deb sanalmadi. Dependency kataloglari, secret/runtime fayllari va foydalanuvchi ma’lumotlari bu inventarga ko‘chirilmadi.
 
 2026-11-03 dagi qayta skanda ilovada qolgan markerlar profil, sozlama va login keshini tozalash, MyID va tashqi pushning holatini bildirish bilan bog‘liq. Backenddagi markerlar sintetik seed va SMS mavjud bo‘lmagandagi javobga tegishli. Admin JS dagi input yordam matni hamda iOS storyboard’dagi First Responder elementlari interfeysning ishlatiladigan qismi. Ishlatiladigan test kalitlari eski qurilmalardagi keshni o‘qish va tozalash uchun saqlandi.
