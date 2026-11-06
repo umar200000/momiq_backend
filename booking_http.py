@@ -43,9 +43,9 @@ def route(handler, con, user, path, environment, data_root, *, area=None):
             result = booking_reviews.owner_view(con, review[1], user, now)
         elif handler.command == 'POST':
             result = booking_reviews.write(con, review[1], user, handler.body(), now)
-            con.commit()
         else:
             raise engine.BookingError(404, 'Topilmadi')
+        con.commit()
         handler.reply(200, result)
         return True
     if path == '/api/bookings/policy' and handler.command == 'GET':
@@ -91,7 +91,9 @@ def route(handler, con, user, path, environment, data_root, *, area=None):
         engine.expire_due(con, environment=environment, now=now, owner=user)
         con.commit()
         con.execute('BEGIN')
-        handler.reply(200, booking_index.page(con, user, query))
+        result = booking_index.page(con, user, query)
+        con.commit()
+        handler.reply(200, result)
         return True
     amendment = re.fullmatch(r'/api/bookings/([a-f0-9]{32})(?:/(change|extend))?', path)
     if amendment and ((amendment[2] and handler.command == 'POST') or
@@ -101,7 +103,10 @@ def route(handler, con, user, path, environment, data_root, *, area=None):
     media = re.fullmatch(r'/api/bookings/([a-f0-9]{32})/pets/([^/]{1,300})/(photo|passport)', path)
     if media and handler.command == 'GET':
         identity, pet, kind = media.groups()
-        handler.reply(200,engine.animal_image(con,identity,user,unquote(pet),kind))
+        con.execute('BEGIN')
+        result = engine.animal_image(con, identity, user, unquote(pet), kind)
+        con.commit()
+        handler.reply(200, result)
         return True
     match = re.fullmatch(r'/api/bookings/([a-f0-9]{32})(?:/(accept|reject|cancel|start|complete))?', path)
     if not match:
@@ -130,6 +135,8 @@ def route(handler, con, user, path, environment, data_root, *, area=None):
         engine.expire_due(con, environment=environment, now=now, identity=identity, limit=1)
         con.commit()
         con.execute('BEGIN')
-        handler.reply(200, engine.view(con, identity, user))
+        result = engine.view(con, identity, user)
+        con.commit()
+        handler.reply(200, result)
         return True
     raise engine.BookingError(404, 'Topilmadi')

@@ -99,11 +99,16 @@ def store(con, root, identity, user, data, source, clock):
     """Owns its transaction: decode outside DB lock, recheck before publication."""
     options(data)
     fingerprint = engine.retry_key(data['requestId'], {'booking': identity, **data, 'sha256': media.sha256(source)})
-    care.access(con, identity, user)
-    old = prior(con, user, fingerprint, data['requestId'])
-    if old:
-        return acknowledgement(old,identity)
-    writable(con, identity, user, data, clock())
+    con.execute('BEGIN')
+    try:
+        care.access(con, identity, user)
+        old = prior(con, user, fingerprint, data['requestId'])
+        if old:
+            return acknowledgement(old,identity)
+        writable(con, identity, user, data, clock())
+    finally:
+        # Release the read snapshot before decoding or replying to an exact retry.
+        con.rollback()
     root = media.private_directory(root)
     with media_maintenance.workspace(root,'.processing-') as temporary:
         prepared = media.prepare(source, temporary)

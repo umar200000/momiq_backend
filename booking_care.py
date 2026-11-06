@@ -163,8 +163,8 @@ def route(handler, con, user, path, now):
         result = history(con,match[1],user,query.get('before',[None])[0]) if match[2] else overview(con,match[1],user,query.get('day',[None])[0],now)
     elif handler.command == 'POST' and not match[2] and not query:
         result = save(con,match[1],user,handler.body(),now)
-        con.commit()
     else:
         raise engine.BookingError(404, 'Topilmadi')
+    con.commit()
     handler.reply(200,result)
     return True

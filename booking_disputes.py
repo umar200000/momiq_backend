@@ -262,7 +262,7 @@ def route(handler,con,user,path,photo,environment):
         if is_admin and not image:
             audit_view(con,user,'dispute-detail-view' if identity else 'dispute-list-view',
                        {'bookingId':identity,'before':int(before) if before else None,'status':status},current)
-            con.commit()
+        con.commit()
         handler.reply(200,result);return True
     if handler.command=='POST' and identity and not image:
         if owner:result=write(con,identity,user,handler.body(),photo,current,environment)

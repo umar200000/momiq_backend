@@ -90,6 +90,12 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 **Bajarilish jurnali — 2026-10-27**
 
+### 2026-11-07. Maxfiy ma’lumotlarni o‘qish va baza bandligi
+
+- [x] **M102/M105/M124, bron va parvarish o‘qishlari.** Bronlar ro‘yxati, tafsilot, sharh, parvarish, parvarish tarixi va nizo javobi uzatilayotganda boshqa ulanish yozuvini saqlay olmasligi takrorlandi. Endi natija bir tranzaksiyada olinadi, tranzaksiya javobdan avval yopiladi. Hayvon pasporti va ommaviy sharhlar bilan jami sakkiz GET yo‘lida SQLite DELETE rejimida, nol kutish vaqti bilan ikkinchi ulanish yozuvni saqladi.
+- [x] **M102, hayvon dalillari.** Dastlabki autentifikatsiyadan keyin bekor qilingan sessiya pasport rasmini 200 bilan olayotgani takrorlandi. Rasm o‘qish tranzaksiyasida sessiya qayta tekshiriladi. Mijoz va enaga uchun bekor qilingan sessiya 401 qaytardi, javobga rasm kirmadi.
+- [x] **M078/M102/M105, video qayta yuborish.** Video tanasi yuklanib bo‘lgach sessiya bekor qilinsa, ayni eski so‘rovning tasdig‘i avval 200 bilan qaytgan. Endi dastlabki o‘qish ham tranzaksiyada qayta tekshiriladi va 401 qaytadi. Yaroqli takroriy so‘rov avvalgi tasdiqni oladi. Video qayta kodlanishidan avval o‘qish tranzaksiyasi yopiladi. Video, bron, parvarish, sharh va sessiya bo‘yicha 60 ta test, nizo va operator o‘qishlari bilan 38 ta test o‘tdi.
+
 ### 2026-11-04. Tasdiqlangan hudud, parallel bron va hisob so‘rovlari
 
 - [x] **M123/M124/M130, CI dalili.** Mobil `b6ff8d1` versiyasi Android tekshiruvi va iOS buildidan o‘tdi. iPhone 16 Pro, iOS 18.6 simulyatorida rol tanlash ekrani birinchi ishga tushirish va jarayonni qayta ochishda tasdiqlandi. Ikkala PNG va aynan shu commitga tegishli natija fayli tekshirildi. Backend `6244e3f` uchun Linux CI uzilish va qayta urinish sinovlari bilan o‘tdi. [Mobil CI](https://github.com/umar200000/momiq_app/actions/runs/41837081767) · [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/41838490286)
@@ -1189,4 +1195,4 @@ Quyida ochiq bandlarning tashqi shart kutayotgan qismlari sanalgan.
 
 - **2026-11-03, M097.** Audit tarixini saqlash muddati va arxivni o‘qishga vakolatli rol bo‘yicha qaror egasining ko‘rsatmasiga asosan yakuniy muhokamaga qoldirildi.
 
-Ochiq bandlar sanog‘i tekshiruvi: **81 yopiq + 45 joriy/qisman + 1 staging kutishida + 12 avvalgi yakuniy navbat = 139**. Yakuniy navbatga ko‘chirish vazifani bekor qilish yoki bajarildi deb belgilash emas.
+2026-11-07 kuni ochiq bandlar sanog‘i tekshirildi. **85 yopiq + 37 joriy/qisman + 17 alohida kutishdagi band = 139**. Alohida kutishdagi 17 band avvalgi 12 band, M008, M019, M042, M100 va M116 dan iborat. Joriy bandlar ichida ham egasi keyinga qoldirgan yakuniy qabul shartlari bor.

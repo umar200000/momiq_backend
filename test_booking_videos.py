@@ -303,6 +303,17 @@ with server.db() as con:
                     con.execute('DELETE FROM support_video_reports')
             with server.db() as con:
                 self.assertEqual(con.execute("SELECT COUNT(*) FROM audit WHERE action IN ('admin-view-booking-videos','admin-view-booking-video')").fetchone()[0],3)
+            original_sha = video_media.sha256
+            def revoke_after_upload(source):
+                digest = original_sha(source)
+                with server.db() as writer:
+                    writer.execute("DELETE FROM sessions WHERE user_id='abc'")
+                return digest
+            with patch.object(video_media, 'sha256', revoke_after_upload), patch.object(video_media, 'prepare') as prepare:
+                denied_retry = call('POST', path, urlencode(data), source.read_bytes(), 'abc')
+                self.assertEqual(denied_retry['status'], 401)
+                self.assertEqual(set(json.loads(denied_retry['body'])), {'error'})
+                prepare.assert_not_called()
             original_auth=server.Handler.auth
             def revoke_after_initial_auth(handler,con,role='client',*,bind=True):
                 actor=original_auth(handler,con,role,bind=bind)

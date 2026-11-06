@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import json
 import secrets
+import sqlite3
+from contextlib import closing
 from urllib.parse import urlencode
 import unittest
 from unittest.mock import patch
@@ -32,6 +34,50 @@ class BookingHttpTests(unittest.TestCase):
 
     def book(self):
         return self.req('/api/bookings','POST',{'quoteId':self.quote()['id'],'requestId':secrets.token_hex(16)})
+
+    def test_booking_reads_release_database_before_sending_http_response(self):
+        quote = self.quote(petPassports={'owned': fixture_image()})
+        booking = self.req('/api/bookings', 'POST', {'quoteId': quote['id'], 'requestId': secrets.token_hex(16)})
+        base = '/api/bookings/' + booking['id']
+        self.req(base+'/accept', 'POST', {'revision': 0, 'requestId': secrets.token_hex(16)}, user='abc')
+        paths = ['/api/bookings', base, base+'/review', base+'/care', base+'/care/history', base+'/dispute',
+                 base+'/pets/owned/passport', '/api/sitters/abc:boarding/reviews']
+        with server.db() as con:
+            self.assertEqual(con.execute('PRAGMA journal_mode=DELETE').fetchone()[0], 'delete')
+        outcomes = []
+        original_reply = server.Handler.reply
+        def reply(handler, status, data):
+            if handler.path in paths and status == 200:
+                with closing(sqlite3.connect(server.DATA/'momiq.sqlite3', timeout=0)) as writer:
+                    try:
+                        writer.execute("UPDATE runtime_metadata SET value=value WHERE key='environment'")
+                        writer.commit()
+                        outcomes.append((handler.path, 'committed'))
+                    except sqlite3.OperationalError as error:
+                        outcomes.append((handler.path, str(error)))
+                        writer.rollback()
+            return original_reply(handler, status, data)
+        with patch.object(server.Handler, 'reply', reply):
+            for path in paths:
+                self.req(path)
+        self.assertEqual(outcomes, [(path, 'committed') for path in paths])
+
+    def test_pet_media_rechecks_session_before_reading_private_evidence(self):
+        quote = self.quote(petPassports={'owned': fixture_image()})
+        booking = self.req('/api/bookings', 'POST', {'quoteId': quote['id'], 'requestId': secrets.token_hex(16)})
+        path = '/api/bookings/' + booking['id'] + '/pets/owned/passport'
+        self.assertIn('image', self.req(path))
+        original_auth = server.Handler.auth
+        def revoke(handler, con, role='client', *, bind=True):
+            actor = original_auth(handler, con, role, bind=bind)
+            if bind:
+                with server.db() as writer:
+                    writer.execute('DELETE FROM sessions WHERE user_id=? AND role=?', (actor, role))
+            return actor
+        with patch.object(server.Handler, 'auth', revoke):
+            for user in ('customer', 'abc'):
+                response = self.req(path, user=user, status=401)
+                self.assertEqual(set(response), {'error'})
 
     def test_private_video_explanation_http_contract_and_retry(self):
         import booking_http, booking_videos
