@@ -232,21 +232,22 @@ def route(handler,con,user,path,validate_photo,environment='production'):
     if handler.command=='GET':
         before,status=cursor(handler)
         if identity and status:raise ValueError('Status filter is only for lists')
-        con.execute('BEGIN')
+        con.execute('BEGIN IMMEDIATE' if admin else 'BEGIN')
         if image_id:
             if before:raise ValueError('Image has no cursor')
             ticket(con,identity,user,admin)
             row=con.execute('SELECT image FROM support_messages WHERE id=? AND ticket_id=?',(int(image_id),identity)).fetchone()
             if not row or not row['image']:raise engine.BookingError(404,'Rasm topilmadi')
             if admin:
-                con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'support-image-view',identity+':'+image_id,datetime.now(timezone.utc).isoformat()));con.commit()
+                con.execute('INSERT INTO audit(actor,action,target,time) VALUES(?,?,?,?)',(user,'support-image-view',identity+':'+image_id,datetime.now(timezone.utc).isoformat()))
+            con.commit()
             handler.reply(200,{'image':row['image']})
             return True
         if identity:
             result=view(con,identity,user,admin,before)
             if admin:
                 audit_detail(con,identity,user,before)
-                con.commit()
+            con.commit()
             handler.reply(200,result);return True
         clauses=[] if admin else ['owner_id=?'];args=[] if admin else [user]
         if before:clauses.append('seq<?');args.append(int(before))
@@ -258,7 +259,7 @@ def route(handler,con,user,path,validate_photo,environment='production'):
         if not admin and not before:result['legacyItems']=engine.account(con,user).get('support',[])
         if admin:
             audit_detail(con,None,user,before,status)
-            con.commit()
+        con.commit()
         handler.reply(200,result);return True
     if handler.command=='POST' and not image_id:
         if urlparse(handler.path).query:raise ValueError('Unexpected support mutation query')

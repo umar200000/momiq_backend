@@ -224,7 +224,7 @@ def route(handler, con, uid, path, photo, environment):
         before=query.get('before',[None])[0]
         if before is not None and not re.fullmatch(r'[1-9][0-9]{0,17}',before):
             raise ValueError('Tarix cursori noto‘g‘ri')
-        con.execute('BEGIN')
+        con.execute('BEGIN IMMEDIATE')
         rows=con.execute('SELECT version,commission_bps,actor,reason,created,test_only,qr_active FROM platform_settings'+
                          (' WHERE version<?' if before else '')+' ORDER BY version DESC LIMIT 21',
                          (int(before),) if before else ()).fetchall()
@@ -237,7 +237,7 @@ def route(handler, con, uid, path, photo, environment):
     if path == '/api/admin/platform-settings' and method in ('GET','PUT'):
         if method=='GET':
             if urlparse(handler.path).query:raise ValueError('Unexpected settings query')
-            con.execute('BEGIN');result=settings(con)
+            con.execute('BEGIN IMMEDIATE');result=settings(con)
             audit_read(con,uid,'platform-settings-view',None,version=result['version'])
             con.commit();handler.reply(200,result);return True
         if method=='PUT':

@@ -59,6 +59,13 @@ class WorkQueueTests(unittest.TestCase):
                (target+'?before=999','work-history-view',{'kind':'support','target':ticket['id'],'before':999}),
                ('work-queue/operators?kind=support','work-operators-view',{'kind':'support'})]
         original=work_queue.audit_view
+        def audited_read(*args):
+            with server.db() as writer:
+                writer.execute('PRAGMA busy_timeout=0')
+                with self.assertRaises(sqlite3.OperationalError) as error:
+                    writer.execute('BEGIN IMMEDIATE')
+                self.assertEqual(error.exception.sqlite_errorcode & 255, sqlite3.SQLITE_BUSY)
+            return original(*args)
         for route,action,metadata in cases:
             replies=[]
             def reply(status,payload):
@@ -68,7 +75,8 @@ class WorkQueueTests(unittest.TestCase):
                     self.assertNotIn('TEST',event['target'])
                 replies.append((status,payload))
             handler=SimpleNamespace(path='/api/admin/'+route,command='GET',operator_role='administrator',reply=reply)
-            with server.db() as con:work_queue.route(handler,con,'manager',handler.path.split('?')[0])
+            with patch.object(work_queue,'audit_view',side_effect=audited_read):
+                with server.db() as con:work_queue.route(handler,con,'manager',handler.path.split('?')[0])
             self.assertEqual(replies[0][0],200)
             with server.db() as con:count=con.execute('SELECT count(*) FROM audit').fetchone()[0]
             replies.clear()

@@ -226,7 +226,7 @@ def route(handler,con,user,path,photo,environment):
         if incidents[3]=='excuse' and handler.command=='POST':
             result=excuse(con,incidents[1],incidents[2],user,handler.body(),current);con.commit();handler.reply(200,result);return True
         if handler.command!='GET':raise engine.BookingError(404,'Topilmadi')
-        before,_=query(handler,{'before'});con.execute('BEGIN')
+        before,_=query(handler,{'before'});con.execute('BEGIN IMMEDIATE')
         if incidents[3]=='history':
             rows=con.execute('SELECT * FROM incident_events WHERE booking_id=? AND user_id=?'+(' AND id<?' if before else '')+' ORDER BY id DESC LIMIT 21',
                              [incidents[1],incidents[2]]+([int(before)] if before else [])).fetchall()
@@ -242,7 +242,8 @@ def route(handler,con,user,path,photo,environment):
     image=owner[2] if owner else admin[3]
     if handler.command=='GET':
         if admin and admin[2]=='resolve':raise engine.BookingError(404,'Topilmadi')
-        before,status=query(handler,{'before','status'} if not identity else {'before'});con.execute('BEGIN')
+        before,status=query(handler,{'before','status'} if not identity else {'before'})
+        con.execute('BEGIN IMMEDIATE' if is_admin else 'BEGIN')
         if image:
             if before:raise ValueError('Image has no cursor')
             booking(con,identity,user,is_admin)

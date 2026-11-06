@@ -45,14 +45,22 @@ class BookingReviewTests(unittest.TestCase):
         routes=[('/api/admin/reviews','review-list-view',{'before':None}),
                 (f'/api/admin/reviews/{identity}/history','review-history-view',{'reviewId':identity,'before':None})]
         original=reviews.audit_view
+        def audited_read(*args,**kwargs):
+            with server.db() as writer:
+                writer.execute('PRAGMA busy_timeout=0')
+                with self.assertRaises(sqlite3.OperationalError) as error:
+                    writer.execute('BEGIN IMMEDIATE')
+                self.assertEqual(error.exception.sqlite_errorcode & 255, sqlite3.SQLITE_BUSY)
+            return original(*args,**kwargs)
         def fail(*args,**kwargs):
             original(*args,**kwargs)
             raise RuntimeError('TEST audit failure')
         for path,action,target in routes:
             replies=[]
             handler=SimpleNamespace(path=path,command='GET',reply=lambda status,data:replies.append((status,data)))
-            with server.db() as con:
-                self.assertTrue(reviews.admin_route(handler,con,'test-operator',path,self.start))
+            with patch.object(reviews,'audit_view',side_effect=audited_read):
+                with server.db() as con:
+                    self.assertTrue(reviews.admin_route(handler,con,'test-operator',path,self.start))
             self.assertEqual(replies[0][0],200)
             with server.db() as con:
                 row=con.execute('SELECT actor,target FROM audit WHERE action=? ORDER BY id DESC LIMIT 1',(action,)).fetchone()

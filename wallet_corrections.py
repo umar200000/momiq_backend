@@ -73,7 +73,7 @@ def route(handler, con, actor, path):
     before=query.get('before',[None])[0]
     if set(query)-{'before'} or any(len(values)!=1 for values in query.values()) or (before is not None and not re.fullmatch('[a-f0-9]{32}',before)):
         raise ValueError('Tarix cursori noto‘g‘ri')
-    con.execute('BEGIN')
+    con.execute('BEGIN IMMEDIATE' if admin else 'BEGIN')
     row=con.execute('SELECT * FROM topup_requests WHERE id=?',(match[2],)).fetchone()
     if not row or (not admin and row['user_id']!=actor): raise wallet.WalletError(404,'Tushum topilmadi')
     if not admin: wallet.require_sitter(con,actor)
@@ -91,6 +91,6 @@ def route(handler, con, actor, path):
                        'balanceMinor':wallet.balance(con,row['user_id']), 'transferReference':row['transfer_reference'] if admin else None}
     if admin:
         wallet.audit_read(con,actor,'topup-corrections-view',row['id'],before=before)
-        con.commit()
+    con.commit()
     handler.reply(200,result)
     return True

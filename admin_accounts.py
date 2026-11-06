@@ -72,7 +72,8 @@ def listing_detail(con, row, item, data):
 
 def index(con, kind, params):
     selected,digest,after=filters(params,kind)
-    con.execute('BEGIN')
+    if not con.in_transaction:
+        con.execute('BEGIN')
     result=[]
     if kind=='users':
         query = 'SELECT u.* FROM users u WHERE u.id>?'
@@ -131,6 +132,7 @@ def route(handler, con, actor, path, account_snapshot, roles_for):
     if match:
         params=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
         selected,_,after=filters(params,match[1])
+        con.execute('BEGIN IMMEDIATE')
         result=index(con,match[1],params)
         audit_index(con,actor,match[1],selected,after)
         con.commit();handler.reply(200,result)

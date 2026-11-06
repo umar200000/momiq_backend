@@ -19,6 +19,31 @@ from test_media import fixture_image
 
 
 class SupportTests(unittest.TestCase):
+    def test_owner_support_reads_release_database_before_reply(self):
+        created = self.req('/api/support', 'POST', self.data(image=fixture_image()))
+        base = '/api/support/' + created['ticket']['id']
+        paths = ['/api/support', base, base+'/messages/'+created['items'][0]['id']+'/image']
+        with server.db() as con:
+            self.assertEqual(con.execute('PRAGMA journal_mode=DELETE').fetchone()[0], 'delete')
+        outcomes = []
+        original_reply = server.Handler.reply
+        def reply(handler, status, data):
+            if handler.path in paths and status == 200:
+                with server.db() as writer:
+                    writer.execute('PRAGMA busy_timeout=0')
+                    try:
+                        writer.execute("UPDATE runtime_metadata SET value=value WHERE key='environment'")
+                        writer.commit()
+                        outcomes.append((handler.path, 'committed'))
+                    except sqlite3.OperationalError as error:
+                        outcomes.append((handler.path, str(error)))
+                        writer.rollback()
+            return original_reply(handler, status, data)
+        with patch.object(server.Handler, 'reply', reply):
+            for path in paths:
+                self.req(path)
+        self.assertEqual(outcomes, [(path, 'committed') for path in paths])
+
     def test_deletion_request_waits_for_both_parties_and_survives_end_of_obligation(self):
         b=self.book()
         self.req('/api/bookings/'+b['id']+'/accept','POST',{'revision':0,'requestId':secrets.token_hex(16)},user='abc')

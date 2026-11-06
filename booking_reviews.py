@@ -165,7 +165,7 @@ def admin_route(handler,con,actor,path,now):
     if path=='/api/admin/reviews' and handler.command=='GET':
         before=query_cursor(handler);args=[];clause=''
         if before is not None:clause=' WHERE id<?';args.append(int(before))
-        con.execute('BEGIN')
+        con.execute('BEGIN IMMEDIATE')
         rows=con.execute('SELECT * FROM booking_reviews'+clause+' ORDER BY id DESC LIMIT 21',args).fetchall()
         audit_view(con,actor,'review-list-view',now,before=int(before) if before else None)
         con.commit()
@@ -181,7 +181,7 @@ def admin_route(handler,con,actor,path,now):
     if match[2]=='history' and handler.command=='GET':
         before=query_cursor(handler);args=[identity];clause=''
         if before is not None:clause=' AND revision<?';args.append(int(before))
-        con.execute('BEGIN')
+        con.execute('BEGIN IMMEDIATE')
         if not con.execute('SELECT 1 FROM booking_reviews WHERE id=?',(identity,)).fetchone():raise engine.BookingError(404,'Sharh topilmadi')
         rows=con.execute('SELECT * FROM review_history WHERE review_id=?'+clause+' ORDER BY revision DESC LIMIT 21',args).fetchall()
         audit_view(con,actor,'review-history-view',now,reviewId=identity,before=int(before) if before else None)

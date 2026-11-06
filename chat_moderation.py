@@ -97,7 +97,7 @@ def route(handler, con, user, path):
         before = query.get('before', [None])[0]
         if before is not None: clauses.append('id<?'); args.append(number(before))
         where = ' WHERE '+' AND '.join(clauses) if clauses else ''
-        con.execute('BEGIN')
+        con.execute('BEGIN IMMEDIATE')
         rows = con.execute('SELECT * FROM chat_reports'+where+' ORDER BY id DESC LIMIT 21', args).fetchall()
         result={'items':[report_json(r) for r in rows[:20]], 'nextCursor':str(rows[19]['id']) if len(rows)>20 else None}
         audit(con,user,'chat-report-list',json.dumps({'status':status,'before':int(before) if before is not None else None}))

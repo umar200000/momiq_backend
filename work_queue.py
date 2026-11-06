@@ -140,14 +140,14 @@ def route(handler,con,actor,path):
     if not path.startswith('/api/admin/work-queue'):return False
     role=handler.operator_role;current=datetime.now(timezone.utc)
     if path=='/api/admin/work-queue' and handler.command=='GET':
-        params=query(handler,('kind','filter','after'));con.execute('BEGIN')
+        params=query(handler,('kind','filter','after'));con.execute('BEGIN IMMEDIATE')
         result=page(con,actor,role,params,current)
         audit_view(con,actor,'work-queue-view',{'kind':result['kind'],'filter':result['filter'],'after':params.get('after') or None},current)
         con.commit();handler.reply(200,result);return True
     if path=='/api/admin/work-queue/operators' and handler.command=='GET':
         params=query(handler,('kind',));kind=params.get('kind');allowed(role,kind)
         if role!='administrator':raise engine.BookingError(403,'Operator tanlash administrator uchun')
-        con.execute('BEGIN')
+        con.execute('BEGIN IMMEDIATE')
         rows=con.execute('SELECT p.username,p.role FROM admin_permissions p JOIN admins a ON a.username=p.username WHERE p.enabled=1 AND p.role IN (?,?) ORDER BY p.username',(KINDS[kind],'administrator')).fetchall()
         result={'items':[dict(r) for r in rows]}
         audit_view(con,actor,'work-operators-view',{'kind':kind},current)
@@ -158,7 +158,7 @@ def route(handler,con,actor,path):
     if action:
         if role!='support' or kind!='support':raise engine.BookingError(403,'Administratorga yo‘naltirish support roli uchun')
         if action=='escalation-operators' and handler.command=='GET':
-            query(handler,());con.execute('BEGIN')
+            query(handler,());con.execute('BEGIN IMMEDIATE')
             item=source(con,kind,target);state=assignment(con,kind,target,current)
             if not can_escalate(con,actor,role,kind,item,state):raise engine.BookingError(409,'Murojaatni hozir yo‘naltirib bo‘lmaydi')
             rows=con.execute("SELECT p.username,p.role FROM admin_permissions p JOIN admins a ON a.username=p.username WHERE p.enabled=1 AND p.role='administrator' ORDER BY p.username").fetchall()
@@ -171,7 +171,7 @@ def route(handler,con,actor,path):
             con.commit();handler.reply(200,result);return True
         raise engine.BookingError(405,'Amal ruxsat etilmagan')
     if handler.command=='GET':
-        params=query(handler,('before',));con.execute('BEGIN')
+        params=query(handler,('before',));con.execute('BEGIN IMMEDIATE')
         result=view(con,kind,target,current,params.get('before'))
         result['canEscalate']=can_escalate(con,actor,role,kind,result['source'],result['assignment'])
         audit_view(con,actor,'work-history-view',{'kind':kind,'target':target,'before':int(params['before']) if params.get('before') else None},current)

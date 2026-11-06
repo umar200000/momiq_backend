@@ -1,5 +1,6 @@
 """Private index/evidence reads must commit minimal audit before disclosure."""
 import json
+import sqlite3
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -26,6 +27,14 @@ class OperatorReadAuditTests(unittest.TestCase):
 
     def check_read(self,module,method,path,action,metadata,invoke):
         replies=[]
+        original=getattr(module,method)
+        def audited_read(*args,**kwargs):
+            with server.db() as competing:
+                competing.execute('PRAGMA busy_timeout=0')
+                with self.assertRaises(sqlite3.OperationalError) as error:
+                    competing.execute('BEGIN IMMEDIATE')
+                self.assertEqual(error.exception.sqlite_errorcode & 255, sqlite3.SQLITE_BUSY)
+            return original(*args,**kwargs)
         def reply(status,payload):
             # A second connection proves the event was committed before reply.
             with server.db() as other:
@@ -36,13 +45,13 @@ class OperatorReadAuditTests(unittest.TestCase):
                 self.assertNotIn('TEST private evidence',row['target'])
             replies.append((status,payload))
         handler=SimpleNamespace(path=path,command='GET',reply=reply)
-        with server.db() as con:invoke(handler,con,path.split('?')[0])
+        with patch.object(module,method,side_effect=audited_read):
+            with server.db() as con:invoke(handler,con,path.split('?')[0])
         self.assertEqual(replies[0][0],200)
         with server.db() as con:
             count=con.execute('SELECT count(*) FROM audit').fetchone()[0]
             before={name:[tuple(row) for row in con.execute('SELECT * FROM '+name)] for name in
                     ('bookings','wallet_entries','booking_disputes','dispute_events','booking_incidents','incident_events')}
-        original=getattr(module,method)
         def fail(*args,**kwargs):
             original(*args,**kwargs)
             raise RuntimeError('TEST audit storage failure')

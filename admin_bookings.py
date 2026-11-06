@@ -79,7 +79,7 @@ def route(handler, con, actor, path):
     if handler.command!='GET':raise engine.BookingError(405,'Bu bo‘lim faqat ko‘rish uchun; nizo qarori alohida oqimda')
     query=parse_qs(urlparse(handler.path).query,keep_blank_values=True)
     identity,section=match.groups()
-    con.execute('BEGIN IMMEDIATE' if identity else 'BEGIN')
+    con.execute('BEGIN IMMEDIATE')
     if not identity:
         result=page(con,query)
         before,status,bucket,text=booking_index.options(query)
