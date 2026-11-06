@@ -92,6 +92,10 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-11-07. Maxfiy ma’lumotlarni o‘qish va baza bandligi
 
+- [x] **M109/M110/M131, oxirgi juftlik tasdig‘i.** `21b1c8e` admin [CI 42298403197](https://github.com/umar200000/momiq_admin/actions/runs/42298403197) dan o‘tdi. Shu SHA’ni bog‘lagan `3cf7cb9` backend [CI 42298402950](https://github.com/umar200000/momiq_backend/actions/runs/42298402950) ham muvaffaqiyatli. Ikkala deploy sinov branchi sabab o‘tkazib yuborilgan. Ro‘yxat qayta sanaldi: 139 jami, 85 yopiq, 37 joriy ochiq va 17 alohida kutishda; faqat ichki bajarilgan qismlar belgilandi.
+
+- [x] **M110/M123/M131, mobil yakuniy dalil.** `f79aba2` uchun [CI 42296374955](https://github.com/umar200000/momiq_app/actions/runs/42296374955) dagi `test`, `ios-simulator`, `ios-startup` bosqichlari o‘tdi. Artefakt `13542982828` natijasida aynan shu manba, `net.momiq.app`, iPhone 16 Pro/iOS 18.6, `first-launch` va `cold-restart` qayd etilgan. Qayta ochilish PNG’i ko‘rildi: rol tanlash ekrani to‘liq ochilgan. Bu LOCAL QA paketi, signing yoki to‘liq bron E2E qabuli emas.
+
 - [x] **M102/M124, 401 javobining sekin tanasi.** Alohida sinovda 401 sarlavhasi kelib, JSON tanasi kutishda qolganida maxfiy panel ochiq qolishi takrorlandi. Admin `21b1c8e` da sessiya aynan sarlavha kelishi bilan tozalanadi. Kech tugagan tana yangi sessiyaga tegmaydi; yaroqli kirish xatosining xabari saqlanadi. Adminning 85 testi o‘tdi, backend juftligi yangi SHA’ga bog‘landi.
 
 - [x] **M109/M110/M131, yangi tekshirilgan juftlik.** Admin `bb528f2` uchun [CI 42297163559](https://github.com/umar200000/momiq_admin/actions/runs/42297163559) o‘tdi. Uni aniq SHA bilan bog‘lagan backend `1789f5a` uchun [CI 42297211575](https://github.com/umar200000/momiq_backend/actions/runs/42297211575) ham muvaffaqiyatli: 485 unittest, yuklama/proxy bosqichlari va 6 ta Gunicorn worker uzilishi. Har ikkala CI’da deploy sinov branchi sabab kutilgan holda o‘tkazib yuborilgan. M019, server konsoli va staging o‘zgarmadi.
