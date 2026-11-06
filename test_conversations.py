@@ -1,6 +1,7 @@
 import hashlib
 import json
 import secrets
+import sqlite3
 import threading
 import time
 import unittest
@@ -18,6 +19,33 @@ from test_media import fixture_image
 
 
 class ConversationTests(unittest.TestCase):
+    def test_chat_reads_release_database_before_reply(self):
+        chat = self.create_chat()
+        base = '/api/conversations/' + chat['id']
+        sent = self.send_chat(chat['id'], image=fixture_image())
+        paths = ['/api/conversations', base, base+'/messages',
+                 base+'/messages/'+sent['id']+'/image', base+'/bookings', base+'/reports']
+        with server.db() as con:
+            self.assertEqual(con.execute('PRAGMA journal_mode=DELETE').fetchone()[0], 'delete')
+        outcomes = []
+        original_reply = server.Handler.reply
+        def reply(handler, status, data):
+            if handler.path in paths and status == 200:
+                with server.db() as writer:
+                    writer.execute('PRAGMA busy_timeout=0')
+                    try:
+                        writer.execute("UPDATE runtime_metadata SET value=value WHERE key='environment'")
+                        writer.commit()
+                        outcomes.append((handler.path, 'committed'))
+                    except sqlite3.OperationalError as error:
+                        outcomes.append((handler.path, str(error)))
+                        writer.rollback()
+            return original_reply(handler, status, data)
+        with patch.object(server.Handler, 'reply', reply):
+            for path in paths:
+                self.req(path)
+        self.assertEqual(outcomes, [(path, 'committed') for path in paths])
+
     save = test_catalog.CatalogTests.save
     review = test_catalog.CatalogTests.review
 

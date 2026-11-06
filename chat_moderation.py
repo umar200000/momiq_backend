@@ -43,7 +43,9 @@ def route(handler, con, user, path):
             args = [identity, user]; clause = ''
             if before is not None: clause = ' AND r.id<?'; args.append(number(before))
             rows = con.execute('SELECT r.* FROM chat_reports r JOIN conversation_messages m ON m.id=r.message_id WHERE m.conversation_id=? AND r.reporter_id=?'+clause+' ORDER BY r.id DESC LIMIT 21', args).fetchall()
-            handler.reply(200, {'items': [report_json(r) for r in rows[:20]], 'nextCursor':str(rows[19]['id']) if len(rows)>20 else None})
+            result = {'items': [report_json(r) for r in rows[:20]], 'nextCursor':str(rows[19]['id']) if len(rows)>20 else None}
+            con.commit()
+            handler.reply(200, result)
             return True
         if handler.command != 'POST': raise ChatError(404, 'Topilmadi')
         data = handler.body()

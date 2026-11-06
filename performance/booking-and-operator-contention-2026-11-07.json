@@ -1,0 +1,62 @@
+{
+  "accounts": 1000,
+  "concurrentAccepts": 100,
+  "bookingStates": {
+    "accepted": 10,
+    "pending": 90
+  },
+  "replayedAccepts": 10,
+  "commissionEntries": 10,
+  "acceptEvents": 10,
+  "walletsReconciled": true,
+  "integrity": "ok",
+  "foreignKeyErrors": 0,
+  "sqlite": "3.46.1",
+  "journal": "wal",
+  "platform": "Linux",
+  "transactionLatency": {
+    "count": 100,
+    "p50Ms": 2479.52,
+    "p95Ms": 6891.23,
+    "p99Ms": 7294.32
+  },
+  "sourceSha": "678ae3af0fe77306a5b7eb6b3400da11921c11e8",
+  "scope": "Disposable local SQLite TEST database, route calls concurrent with booking transactions. No HTTP or production calls.",
+  "operatorReads": 100,
+  "operatorAuditEvents": {
+    "admin-users-index": 25,
+    "admin-booking-index": 25,
+    "dispute-list-view": 25,
+    "platform-settings-view": 25
+  },
+  "operatorReadLatency": {
+    "count": 100,
+    "p50Ms": 1.42,
+    "p95Ms": 20.93,
+    "p99Ms": 78.83
+  },
+  "baselineWithoutOperatorReads": {
+    "accounts": 1000,
+    "concurrentAccepts": 100,
+    "bookingStates": {
+      "accepted": 10,
+      "pending": 90
+    },
+    "replayedAccepts": 10,
+    "commissionEntries": 10,
+    "acceptEvents": 10,
+    "walletsReconciled": true,
+    "integrity": "ok",
+    "foreignKeyErrors": 0,
+    "sqlite": "3.46.1",
+    "journal": "wal",
+    "platform": "Linux",
+    "transactionLatency": {
+      "count": 100,
+      "p50Ms": 1761.86,
+      "p95Ms": 5962.52,
+      "p99Ms": 6361.28
+    }
+  },
+  "comparisonLimit": "One mixed run followed by one baseline on the same Linux workspace. Direct DB transaction latency includes lock waiting. No hosted latency or capacity claim."
+}

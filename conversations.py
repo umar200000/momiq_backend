@@ -180,13 +180,17 @@ def route(handler, con, user, path, validate_photo, environment):
             con.execute('BEGIN')
             rows = con.execute('SELECT * FROM (SELECT c.*,COALESCE((SELECT MAX(m.id) FROM conversation_messages m WHERE m.conversation_id=c.id),0) activity FROM conversations c WHERE customer_id=? OR sitter_id=?) '
                                + clause + ' ORDER BY activity DESC,seq DESC LIMIT 31', args).fetchall()
-            handler.reply(200, {'items': [summary(con, r, user) for r in rows[:PAGE]],
-                                'nextCursor': f"{rows[PAGE-1]['activity']}:{rows[PAGE-1]['seq']}" if len(rows) > PAGE else None})
+            result = {'items': [summary(con, r, user) for r in rows[:PAGE]],
+                      'nextCursor': f"{rows[PAGE-1]['activity']}:{rows[PAGE-1]['seq']}" if len(rows) > PAGE else None}
+            con.commit()
+            handler.reply(200, result)
             return True
     related = re.fullmatch(r'/api/conversations/([a-f0-9]{32})/bookings', path)
     if related and handler.command == 'GET':
         import booking_chat
-        handler.reply(200, booking_chat.related(con, related[1], user, environment, query))
+        result = booking_chat.related(con, related[1], user, environment, query)
+        con.commit()
+        handler.reply(200, result)
         return True
     match = re.fullmatch(r'/api/conversations/([a-f0-9]{32})(?:/(messages|read|received)(?:/([1-9][0-9]{0,17})/image)?)?', path)
     if not match:
@@ -220,7 +224,7 @@ def route(handler, con, user, path, validate_photo, environment):
     if image_id:
         image = con.execute('SELECT image FROM conversation_messages WHERE conversation_id=? AND id=? AND hidden=0', (identity, int(image_id))).fetchone()
         if not image or not image['image']: raise ChatError(404, 'Rasm topilmadi')
-        handler.reply(200, {'image': image['image']})
+        result = {'image': image['image']}
     elif action == 'messages':
         before, after = query.get('before', [None])[0], query.get('after', [None])[0]
         if before is not None and after is not None: raise ValueError('Use one cursor')
@@ -240,9 +244,11 @@ def route(handler, con, user, path, validate_photo, environment):
         else:
             changes = []
             change_cursor = str(con.execute('SELECT COALESCE(MAX(id),0) FROM chat_changes WHERE conversation_id=?', (identity,)).fetchone()[0])
-        handler.reply(200, {'items': [message(r, user) for r in page], 'hasMore': len(rows) > PAGE,
-                            'redactedIds': [str(r['message_id']) for r in changes], 'changeCursor': change_cursor,
-                            'conversation': summary(con, row, user)})
+        result = {'items': [message(r, user) for r in page], 'hasMore': len(rows) > PAGE,
+                  'redactedIds': [str(r['message_id']) for r in changes], 'changeCursor': change_cursor,
+                  'conversation': summary(con, row, user)}
     else:
-        handler.reply(200, summary(con, row, user))
+        result = summary(con, row, user)
+    con.commit()
+    handler.reply(200, result)
     return True
