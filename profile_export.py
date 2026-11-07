@@ -1,6 +1,7 @@
 """Owner-only portable profile fields. Media, credentials and other parties are excluded."""
 from datetime import datetime,timezone
 import json
+import math
 import pet_safety
 import sitter_availability
 
@@ -9,7 +10,14 @@ def fields(record, names):
     if not isinstance(record,dict):
         return {}
     return {name:record[name] for name in names if name in record and
-            (record[name] is None or type(record[name]) in (str,int,float,bool))}
+            (record[name] is None or type(record[name]) in (str,int,bool) or
+             (type(record[name]) is float and math.isfinite(record[name])))}
+
+
+def records(value):
+    # Older optional collections can be null or damaged. Never iterate a map's
+    # keys/string characters as records, or rewrite the source while exporting.
+    return [item for item in value if isinstance(item,dict)] if isinstance(value,list) else []
 
 
 def owner_services(con, owner):
@@ -62,9 +70,9 @@ def read(con,owner):
     return {
         'format':'momiq-profile-v1','ownerId':owner,'generatedAt':datetime.now(timezone.utc).isoformat(),
         'profile':{**fields(account.get('profile'),('first','last')),'phone':row['phone']},
-        'addresses':[fields(a,('id','label','address','apartment','lat','lon')) for a in account.get('addresses',[])],
+        'addresses':[fields(a,('id','label','address','apartment','lat','lon')) for a in records(account.get('addresses'))],
         'pets':[fields(p,('id','type','otherType','name','age','sex','breed','notes','archived',*pet_safety.FIELDS))
-                for p in account.get('pets',[])],
+                for p in records(account.get('pets'))],
         'sitterProfile':sitter_fields,
         'preferences':{**fields(account,('language',)),
                        'notifications':fields(account.get('notifications'),('orders','chat','video'))},

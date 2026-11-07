@@ -120,6 +120,50 @@ class ApiTests(unittest.TestCase):
             con.execute('UPDATE listings SET data=? WHERE user_id=?',('broken old draft',owner['userId']))
         self.assertEqual(self.req(path,token=owner['token'])['sitterProfile'],{'housing':'house'})
 
+    def test_profile_export_preserves_valid_fields_when_legacy_collections_are_unreadable(self):
+        owner = self.login('998900222833')
+        with server.db() as con:
+            original = con.execute('SELECT account FROM users WHERE id=?', (owner['userId'],)).fetchone()[0]
+        def restore():
+            with server.db() as con:
+                con.execute('UPDATE users SET account=? WHERE id=?', (original, owner['userId']))
+        self.addCleanup(restore)
+        for invalid in (None, 7, 'PRIVATE malformed collection', {'PRIVATE': 'not a list'}):
+            with self.subTest(collection=type(invalid).__name__):
+                account = {**owner['account'], 'profile': {'first': 'TEST OWNER'},
+                           'addresses': invalid, 'pets': invalid}
+                persisted = json.dumps(account)
+                with server.db() as con:
+                    con.execute('UPDATE users SET account=? WHERE id=?', (persisted, owner['userId']))
+                payload = self.req('/api/me/profile-export', token=owner['token'])
+                self.assertEqual(payload['profile']['first'], 'TEST OWNER')
+                self.assertEqual(payload['addresses'], [])
+                self.assertEqual(payload['pets'], [])
+                self.assertNotIn('PRIVATE', json.dumps(payload))
+                with server.db() as con:
+                    self.assertEqual(con.execute('SELECT account FROM users WHERE id=?', (owner['userId'],)).fetchone()[0], persisted)
+
+    def test_profile_export_skips_invalid_records_and_nonfinite_numbers_without_rewriting_owner_data(self):
+        owner = self.login('998900222834')
+        with server.db() as con:
+            original = con.execute('SELECT account FROM users WHERE id=?', (owner['userId'],)).fetchone()[0]
+        def restore():
+            with server.db() as con:
+                con.execute('UPDATE users SET account=? WHERE id=?', (original, owner['userId']))
+        self.addCleanup(restore)
+        account = {**owner['account'],
+            'addresses': [None, 'PRIVATE', 7, {'id': 'a', 'lat': 41.3, 'lon': float('inf'), 'secret': 'PRIVATE'}],
+            'pets': [None, False, {'id': 'p', 'name': 'TEST CAT', 'age': float('nan'), 'photo': 'PRIVATE'}]}
+        persisted = json.dumps(account)
+        with server.db() as con:
+            con.execute('UPDATE users SET account=? WHERE id=?', (persisted, owner['userId']))
+        payload = self.req('/api/me/profile-export', token=owner['token'])
+        self.assertEqual(payload['addresses'], [{'id': 'a', 'lat': 41.3}])
+        self.assertEqual(payload['pets'], [{'id': 'p', 'name': 'TEST CAT'}])
+        self.assertNotIn('PRIVATE', json.dumps(payload, allow_nan=False))
+        with server.db() as con:
+            self.assertEqual(con.execute('SELECT account FROM users WHERE id=?', (owner['userId'],)).fetchone()[0], persisted)
+
     def test_notifications_are_owner_scoped_paginated_and_read_idempotently(self):
         import notifications
         a=self.login('998900000011');b=self.login('998900000012')

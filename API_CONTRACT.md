@@ -661,6 +661,8 @@ Gunicorn serves video/poster ranges from the already authorized file descriptor 
 
 ### Owner profile export
 
+Optional legacy address/pet collections that are null or not arrays are treated as unreadable and exported as empty arrays. Non-object members are skipped; only allowlisted scalar fields are copied, with non-finite numbers omitted so the result remains standard JSON. Other valid profile fields remain exportable. This is a best-effort read of the existing profile, not a repair or migration: the stored account is never rewritten.
+
 `GET /api/me/profile-export` accepts an authenticated customer/sitter session and no query parameters. The server derives the owner exclusively from the session. It returns format `momiq-profile-v1`, ownerId, UTC generatedAt, basic profile and phone, saved addresses, pet/care fields, sitter profile text and preferences. Photos, passports, chat, support, financial history and credentials are excluded from this profile-only export. Older clients continue to use `GET /api/me`. If a sitter has saved services, `sitterProfile.services` contains their service types, rates in UZS, supported pets, active flags and boarding capacities. The server reads only listings belonging to the authenticated owner and omits listing locations, media and moderation data. A missing or damaged listing document does not prevent export of the remaining profile.
 
 Under Help, the account owner confirms the scope before the app requests the export. A matching owner and session are required before passing bytes to the native Save dialog. Only the selected destination is reported as saved. The app cleans its own iOS picker staging file after the picker returns and removes interrupted staging files on a subsequent launch. User-saved copies are controlled by their destination. Full data-subject export, erasure, retention exceptions and backup tombstone policy remain separate release work.
@@ -824,6 +826,10 @@ For new fields and version transitions, follow **Upgrade compatibility** above. 
 ### Pending account erasure requests
 
 An owner may confirm an `account_deletion` support request while either participant has an accepted, active or disputed booking or an open case. The existing ticket represents the request. Its detail is recalculated in the current database snapshot. `deletionReview.state` is `waiting_for_obligations` when either `openBooking` or `openDispute` is true and becomes `awaiting_verification` on the same ticket once both are false. A new request ID for a second outstanding request is rejected with HTTP 409. An exact retry returns the original acknowledgement. Operator replies keep the request open. Generic ticket resolution cannot erase the account or remove it from this queue. Actual erasure still requires ownership verification and the retention/recovery policy. Historical resolved tickets require a fresh owner confirmation for a new request.
+
+### Wallet snapshots and local payment drafts
+
+The candidate mobile wallet validates a full balance/config/ledger snapshot before publishing it. It checks money types, QR configuration, the supported non-refundable terms and displayed ledger fields. Top-up pages must have unique IDs ordered by descending `(created,id)` and cannot overlap previously loaded rows; a continuation cursor identifies the final row of a full 20-row page and must advance. A malformed page preserves the existing rows and cursor for retry. Invalid stored payment configuration or pending-attempt flags leave the original draft untouched and disable submission; they never start a replacement payment automatically. These checks are client guards and do not replace owner authorization or the server ledger.
 
 ### Client deadlines and incomplete error responses
 
