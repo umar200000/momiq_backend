@@ -580,6 +580,10 @@ Incoming conversation pages are fully checked before merging: matching 32-hex co
 
 A poll captured before or during a local block update cannot replace the confirmed block capability afterwards. Block/discard/send storage boundaries are serialized where they conflict; an expired controller cannot clear a retry draft. Delivery/read acknowledgements require `ok:true`; false/incomplete responses remain retryable without claiming delivery/read. No automatic message/financial mutation replay is added.
 
+### Encrypted local draft read failures
+
+The AES-GCM draft format and owner/origin/scope binding are unchanged. Reads consume at most the configured plaintext limit plus nonce/MAC overhead and one overflow-detection byte. Truncated or oversized envelopes, failed authentication, unavailable/malformed keys and invalid/non-object JSON produce recoverable format errors without plaintext or key material in `FormatException.source`. Files are preserved and a missing key is never generated during a read. Ordinary filesystem/secure-storage availability errors and expired-session errors remain distinct; explicit recovery does not weaken owner/scope authentication or silently clear an unreadable draft. This is local recovery behavior, not key rotation, migration or native secure-storage acceptance.
+
 ### Mobile chat and care recovery
 
 Chat restores only a complete `{text, image, requestId}` outbox with bounded text, a stable 16–100 character request ID and an optional bounded, decodable base64 image. Invalid local data is preserved without POST or editor assignment. The recovery screen can reread it or clear it after explicit confirmation; a successful clear initializes the conversation again. A failed clear does not replace the original request. Server payload and permission checks remain authoritative.
