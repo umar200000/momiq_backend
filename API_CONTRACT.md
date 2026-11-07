@@ -580,6 +580,10 @@ Incoming conversation pages are fully checked before merging: matching 32-hex co
 
 A poll captured before or during a local block update cannot replace the confirmed block capability afterwards. Block/discard/send storage boundaries are serialized where they conflict; an expired controller cannot clear a retry draft. Delivery/read acknowledgements require `ok:true`; false/incomplete responses remain retryable without claiming delivery/read. No automatic message/financial mutation replay is added.
 
+### Mobile support retry drafts
+
+The mobile support retry draft is validated before populating editors or issuing a retry. Required field types, owner `reply` action, stable request ID, revision, creation context, optional confirmation fields and decodable bounded image are checked without normalizing the stored payload. An unreadable draft remains on disk and cannot be replaced by a new send; the user can retry reading it or explicitly clear it. A failed clear retains both the original payload and the visible storage error. This does not change the server wire contract, perform automatic replay or grant new support/moderation permissions.
+
 ### Support-to-administrator content handoff
 
 This additive workflow uses existing schema25 assignment/history tables and required no additional migration beyond schema 27. For an active support ticket with an immutable listing/review target (ordinary report or appeal), a support operator may hand unassigned or self-assigned work to an enabled administrator. The administrator already has support/moderation access; this does not grant support access to finance, accounts or another role's private namespace.
