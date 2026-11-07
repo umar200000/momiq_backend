@@ -580,6 +580,12 @@ Incoming conversation pages are fully checked before merging: matching 32-hex co
 
 A poll captured before or during a local block update cannot replace the confirmed block capability afterwards. Block/discard/send storage boundaries are serialized where they conflict; an expired controller cannot clear a retry draft. Delivery/read acknowledgements require `ok:true`; false/incomplete responses remain retryable without claiming delivery/read. No automatic message/financial mutation replay is added.
 
+### Mobile chat and care recovery
+
+Chat restores only a complete `{text, image, requestId}` outbox with bounded text, a stable 16–100 character request ID and an optional bounded, decodable base64 image. Invalid local data is preserved without POST or editor assignment. The recovery screen can reread it or clear it after explicit confirmation; a successful clear initializes the conversation again. A failed clear does not replace the original request. Server payload and permission checks remain authoritative.
+
+For care writes, a validated acknowledgement followed by successful local draft cleanup confirms the write independently of the subsequent overview GET. If that GET fails or is malformed, the UI reports that the entry was saved and requires an overview refresh before another write. History pagination cannot unlock that write guard. Cached history is invalidated as soon as the write is confirmed. A failed local cleanup instead retains the original request for exact idempotent retry; an unvalidated acknowledgement is never treated as success.
+
 ### Mobile support retry drafts
 
 The mobile support retry draft is validated before populating editors or issuing a retry. Required field types, owner `reply` action, stable request ID, revision, creation context, optional confirmation fields and decodable bounded image are checked without normalizing the stored payload. An unreadable draft remains on disk and cannot be replaced by a new send; the user can retry reading it or explicitly clear it. A failed clear retains both the original payload and the visible storage error. This does not change the server wire contract, perform automatic replay or grant new support/moderation permissions.
