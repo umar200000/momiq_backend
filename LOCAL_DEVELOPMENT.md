@@ -77,9 +77,11 @@ Oddiy seed balans va moderatsiya yaratmagani uchun katalog bo‘sh bo‘lishi mu
 
 ```powershell
 ./.venv/Scripts/python.exe seed_mvp.py --data-dir .local/mvp-catalog-20261111
-./start.ps1 -Port 8083 -DataDir D:\projects\momiq_v1\momiq_backend\.local\mvp-catalog-20261111
+./start.ps1 -Port 8080 -DataDir D:\projects\momiq_v1\momiq_backend\.local\mvp-catalog-20261111
 ```
 
-Admin: http://127.0.0.1:8083/admin/ . Kirish ma’lumoti shu katalogning `admin-login.txt` faylida; chat yoki Gitga ko‘chirmang. API: `http://127.0.0.1:8083/api`. Bu avvalgi 8080/8081 muhitidan alohida. Mijoz `998000000001`, enagalar `998000000002`/`003`/`004`, faqat lokal OTP `111111`. Har enagada TEST 1 000 000 so‘m balans bor; bu bank tushumi emas. Uch e’lon TEST tasdiqlangan, haqiqiy MyID emas; production katalogidan chiqariladi. Bron, yangi to‘lov cheki yoki xizmat tasdiqlari yaratilmaydi.
+Admin: http://127.0.0.1:8080/admin/ . Kirish ma’lumoti shu katalogning `admin-login.txt` faylida; chat yoki Gitga ko‘chirmang. API: `http://127.0.0.1:8080/api`, ilovaning `config/local.json` manzili bilan mos. Baza avvalgi preview bazalaridan alohida. Port band bo‘lsa launcher boshqa jarayonni o‘chirmaydi. Mijoz `998000000001`, enagalar `998000000002`/`003`/`004`, faqat lokal OTP `111111`. Har enagada TEST 1 000 000 so‘m balans bor; bu bank tushumi emas. Uch e’lon TEST tasdiqlangan, haqiqiy MyID emas; production katalogidan chiqariladi. Bron, yangi to‘lov cheki yoki xizmat tasdiqlari yaratilmaydi.
 
 Faqat health/readiness, admin sahifasi va anonim katalog GET orqali lokal ko‘rinish tekshirildi. Mobil unit/widget/CI dalili haqiqiy qurilmada barcha oqim sinaldi degani emas. APK install, jonli M055, SMS/MyID/push/xarita integratsiyasi va signing shu MVP ishidan tashqarida qoladi. Yuqoridagi eski `-App` misoli bloklangan installni qayta urinib ko‘rishga ruxsat emas.
+
+2026-11-11 tekshirilgan kod: mobil `08da642`, backend `876490c`, admin `d8ae506`. [Mobil CI paketlari](https://github.com/umar200000/momiq_app/actions/runs/42986889568): Android ARM64 debug artefakti `13840620804`, unsigned iOS simulator artefakti `13839444519`. GitHub ularni 2026-11-18 gacha saqlaydi. Bular `local` QA paketlari, do‘kon/production relizi emas. [Backend CI](https://github.com/umar200000/momiq_backend/actions/runs/42988384287) 489 test bilan o‘tdi; adminning 90 lokal testi ham o‘tdi. Read-only preview natijasi `.local/mvp-readiness-20261111.json` da. Startup natijasi va ochiq qabul shartlari `PRODUCTION_CHECKLIST.md` da qayd etiladi.
