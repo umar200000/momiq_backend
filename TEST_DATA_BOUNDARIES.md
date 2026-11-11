@@ -33,3 +33,8 @@ For a committed fixture notification, run `python push_sandbox.py --data-dir .lo
 The offline push simulator identifies its own SQLite file with an application ID. An older unmarked simulator is admitted only with its original two-table schema. Unrelated files are rejected before schema or delivery writes.
 
 The offline push consumer checks account block status and the saved orders, chat and video preferences at the start of a batch. A suppressed notice advances the test delivery cursor without contacting the simulated provider. The owner still sees the committed in-app history. Re-enabling a category only permits future eligible notices.
+
+
+### Integratsiyasiz MVP katalogi (2026-11-11)
+
+`seed_mvp.py --data-dir <yangi-katalog>` local muhitdagi alohida MVP katalogini atomar tayyorlaydi. To‘rtta TEST hisob, uch xizmat, har enagaga 100 000 000 minor birlik sintetik kredit va `testOnly` moderatsiya bor. Kredit yozuvlari har xizmatning barqaror source ID’siga bog‘langan; real chek/tushum emas. `bookings`, `booking_quotes`, `topup_requests` va `conversations` bo‘sh qoladi. Production katalogi bu e’lonlarni qaytarmaydi. Mavjud begona yoki oddiy seed bazasiga qo‘shish rad etiladi; o‘z MVP bazasida takror ishga tushirish tester tahrirlarini saqlab, yozmaydi. Hosted runtime, hardlink va yarim tayyor baza nashri rad etilishi `test_seed_mvp.py` da tekshirilgan. Bu M055 jonli sinovi yoki boshqa providerga ulanish emas.

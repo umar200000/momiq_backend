@@ -69,3 +69,17 @@ Android build C diskidagi global Gradle keshida joy tugashi bilan to‘xtadi. Ap
 
 
 Preview APK (8081) uchun app katalogida `./tool/build-preview.ps1 -Port 8081` ishlating. Skript local health/instance ni tekshiradi, aniq API manzilli alohida config bilan x64 debug APK yaratadi va `.local/preview-apk.json` ichida manzil/instance/hash yozadi. `config/local.json` odatiy 8080 uchun: uni 8081 preview ustiga build qilib o‘rnatish boshqa muhit sifatida lokal sessiya/qoralamalarni tozalaydi. Build tugagani va APK hash/manzili tekshirilgandan keyingina o‘rnating. Serverdagi hisob ma’lumoti bundan o‘zgarmaydi.
+
+
+**2026-11-11: integratsiyasiz texnik MVP ko‘rish muhiti**
+
+Oddiy seed balans va moderatsiya yaratmagani uchun katalog bo‘sh bo‘lishi mumkin. Uch xizmatni ko‘rish uchun yangi, alohida katalogda quyidagini ishlating (allaqachon tayyor MVP katalogida birinchi buyruq yozishsiz `already-created` qaytaradi):
+
+```powershell
+./.venv/Scripts/python.exe seed_mvp.py --data-dir .local/mvp-catalog-20261111
+./start.ps1 -Port 8083 -DataDir D:\projects\momiq_v1\momiq_backend\.local\mvp-catalog-20261111
+```
+
+Admin: http://127.0.0.1:8083/admin/ . Kirish ma’lumoti shu katalogning `admin-login.txt` faylida; chat yoki Gitga ko‘chirmang. API: `http://127.0.0.1:8083/api`. Bu avvalgi 8080/8081 muhitidan alohida. Mijoz `998000000001`, enagalar `998000000002`/`003`/`004`, faqat lokal OTP `111111`. Har enagada TEST 1 000 000 so‘m balans bor; bu bank tushumi emas. Uch e’lon TEST tasdiqlangan, haqiqiy MyID emas; production katalogidan chiqariladi. Bron, yangi to‘lov cheki yoki xizmat tasdiqlari yaratilmaydi.
+
+Faqat health/readiness, admin sahifasi va anonim katalog GET orqali lokal ko‘rinish tekshirildi. Mobil unit/widget/CI dalili haqiqiy qurilmada barcha oqim sinaldi degani emas. APK install, jonli M055, SMS/MyID/push/xarita integratsiyasi va signing shu MVP ishidan tashqarida qoladi. Yuqoridagi eski `-App` misoli bloklangan installni qayta urinib ko‘rishga ruxsat emas.
