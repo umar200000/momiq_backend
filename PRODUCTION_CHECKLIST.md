@@ -92,6 +92,8 @@ Quyidagi navbat eski umumiy “Bajarish tartibi”dan ustun. ID va avvalgi dalil
 
 ### 2026-11-12. Operator tasdig‘i, yo‘naltirish va admin branch konflikti
 
+PR1 tavsifini yangi tekshiruvga moslashtirish GitHub connector’ida `403 Resource not accessible by integration` bilan rad etildi; bu kod push yoki CI xatosi emas. Tavsif yangilandi deb hisoblanmaydi. Ayni SHA va CI dalili ushbu jurnal, API contract va lokal yo‘riqnomada saqlandi; boshqa credential bilan PR yozish qayta urinilmadi.
+
 - [x] **M102/M124, operator kirish/chiqish tasdig‘i.** Admin `bd1f7b2` va yakuniy `d35d349` da HTTP 200ning o‘zi muvaffaqiyat deb olinmaydi: login/logout JSON object ichida `ok: true` bo‘lishi kerak. Null, massiv, scalar, bo‘sh yoki noto‘g‘ri `ok` identity yuklashni boshlamaydi; logout tasdiqsiz eski ko‘rinishni muvaffaqiyat deb tozalamaydi, qo‘lda qayta urinish ochiq. Username (100 belgigacha), ma’lum rol, yagona va ma’lum panel nomlari tekshirilgach workspace ochiladi. Login yuborgan username snapshotiga keyingi identity mos bo‘lishi shart; input keyin o‘zgarsa boshqa hisob ko‘rsatilmaydi. 401, kech javob va timeoutning mavjud sessiya chegaralari saqlandi. Bu cross-tab mutex, MFA yoki serverdagi test login o‘zgarishi emas.
 
 - [x] **M102/M104/M124, admin API redirect chegarasi.** Fetch `redirect: error` bilan yuboriladi. 301/302/303/307/308 va GET/POST izolyatsiyalangan ikkita loopback HTTP serverda sinaldi; redirect nishoniga so‘rov yoki body yetib bormadi, avtomatik retry yo‘q, deadline tozalandi. Dastlabki test eski kod redirectni qabul qilishini ko‘rsatdi. Dalil admin `.local/admin-redirect-red.log`, `.local/admin-auth-redirect-full.log`.
