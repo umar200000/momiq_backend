@@ -1,5 +1,7 @@
 # Hozir bajariladigan ishlar — 2026-11-12
 
+**So‘nggi tekshiruv:** iOS build/startup (birinchi ochilish va qayta ochilish) CI’da o‘tdi. D05a–D05c ikki yillik muddat hisoboti va faqat admin o‘qiydigan audit ko‘rinishi lokal tekshirildi. [Amaldagi bajarilgan qismlar va dalillar](OWNER_DECISIONS_2026-11-12.md), [retention chegarasi](RETENTION_REVIEW.md). Jismoniy tozalash/yurist/server qabuli yopilmagan.
+
 **Yangi qarorlar bilan yangilandi:** egasi 25 savolga javob berdi. [Qarorlar va D01–D09 yangi navbat](OWNER_DECISIONS_2026-11-12.md) amaldagi keyingi ishlarni belgilaydi. Quyidagi 12/12 va “0 hozirgi kod vazifasi” shu javoblardan OLDINGI auditning yakunidir; yangi ochilgan ishlar yo‘q degani emas. MFA, offsite backup va object storage/CDNdan voz kechildi; ular tayyor deb belgilanmaydi.
 
 Bu hujjat eski “37 joriy band” navbati o‘rniga ishlatiladi. 37 — production qabulining katta bandlari; quyidagi K raqamlar hozir tugatish mumkin bo‘lgan aniq kod vazifalari. 139 bandning tarixiy yopilish mezoni o‘zgarmaydi.

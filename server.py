@@ -28,6 +28,7 @@ import operator_access
 import admin_metrics
 import work_queue
 import legal_documents
+import retention_review
 import pet_safety
 import sitter_dashboard
 import notifications
@@ -575,6 +576,8 @@ class Handler(BaseHTTPRequestHandler):
             if work_queue.route(self,con,user,path):
                 return
             if legal_documents.route(self,con,user,path):
+                return
+            if retention_review.route(self,con,user,path):
                 return
             if admin_metrics.route(self,con,user,path):
                 return

@@ -1,5 +1,7 @@
 **Momiq productionga tayyorlash vazifalari**
 
+2026-11-12 qo‘shimcha dalil: unsigned iOS simulator build va ikkita startup CI tekshiruvi o‘tdi. M097/M108 uchun D05a–D05c (ikki yillik hisob, admin-only audit arxivi, metadata review UI) lokal tayyor. [Bajarish dalili](OWNER_DECISIONS_2026-11-12.md) va [hali ochiq tozalash shartlari](RETENTION_REVIEW.md). Ota bandlar to‘liq yopilmagan.
+
 Holat: foydalanuvchi barcha qolgan takliflarni tasdiqladi, bosqichma-bosqich amalga oshirish boshlandi. Sana: 2026-10-27. Vazifalar faqat tegishli tekshiruvdan keyin yopiladi.
 
 **Foydalanuvchi tasdiqlagan mahsulot qarorlari**
