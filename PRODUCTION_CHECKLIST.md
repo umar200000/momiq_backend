@@ -64,7 +64,16 @@ Mock/test ma’lumotlari qo‘shish va keyingi ish davomida zarur deploy uchun f
 
 Har bir katak faqat kod, tegishli tekshiruv va natija dalili mavjud bo‘lganda belgilanadi. Ish boshlanganda mas’ul, bog‘liqlik, commit/PR va test dalili shu ID ostida yoziladi. Shartli vazifa faqat mahsulot qarori yozilgandan keyin qo‘llanmaydi deb yopiladi; jimgina tashlab ketilmaydi. Quyidagi ro‘yxat auditda ma’lum bo‘lgan ko‘lamni qamraydi; ish davomida topilgan yangi holatlar yangi ID bilan qo‘shiladi.
 
-**Joriy bajarish navbati — 2026-11-03**
+**Amaldagi navbat — 2026-11-12:** [MVP_EXECUTION_PLAN.md](MVP_EXECUTION_PLAN.md). Hozirgi aniq kod vazifalari shu hujjatda sanaladi. Quyidagi 37 bandlik navbat tarixiy bo‘lib, hozir bajariladigan ishlar soni emas.
+
+### 2026-11-12. Hozirgi kod navbati tugatildi, katta bandlar ajratildi
+
+- [x] K01–K12: hisob/xabar, e’lon/sharh/chat moderatsiyasi, komissiya/QR, tushum/tuzatish, nizo/istisno, biriktirish/escalation javoblari tekshirildi. HTTP 2xxning o‘zi muvaffaqiyat hisoblanmaydi; mos tasdiqsiz forma yoki ayni retry saqlanadi. Legacy o‘chirish asl sababni takrorlaydi. Admin `ed5c47d`.
+- [x] 115 Node testi, 14 vaqtinchalik baza/HTTP testi va ulardan 12 yo‘l bo‘yicha olingan 53 javobning haqiqiy admin validatoriga mosligi o‘tdi. Moslik runida 20 Node testi. 4 release-pair testi va aniq admin SHA tekshirildi. [Admin CI](https://github.com/umar200000/momiq_admin/actions/runs/43199150091): 115/115, JS sintaksisi va secrets scan muvaffaqiyatli; deploy skipped.
+- [x] 37 katta band 7 lokal texnik tayyor / 0 hozirgi kod ishi / 30 keyingi shart kutuvchi guruhga ajratildi; har biri yangi rejada o‘z dalili va qolgan qabul sharti bilan yozildi. Oldindan ajratilgan 17 band o‘zgarishsiz. 139 ota bandning kataklari o‘zgarmadi: 85 yopiq, 54 production qabuli ochiq.
+- Kod ish branchiga push qilindi; productionga merge/deploy qilinmadi. M019, integratsiya, bloklangan test, staging, konsol va keyinga qoldirilgan qarorlar o‘zgarmadi. Backend PR main konflikti ushbu navbatga qo‘shilmadi; yangi to‘liq backend CI/deploy da’vosi yo‘q. Backend pin admin `ed5c47d53f0b8126d4f843cf3fa0542a10e365f7`ga mos.
+
+**Tarixiy bajarish navbati — 2026-11-03**
 
 Foydalanuvchining oxirgi ko‘rsatmasi: hozir bajariladigan ishlar davom etadi; qaror, tashqi xizmat, kirish yoki bloklangan sinov talab qiladigan qism oxirida birga muhokama qilinadi. Asosiy hisob **139 band: 85 bajarilgan, 54 ochiq**. **37 ta band joriy navbatda. M019 SMSni, M008 stagingni kutadi. M042 xarita xizmati ochilguncha, M100 eski server bazasidagi yakuniy sinovgacha keyinga qoldirildi. M116 monitoring va xabarnoma egasi bilan yakunda ko‘riladi**. Avval oxiriga qoldirilgan **12 band** o‘z navbatida. Joriy bandlarning bir qismi ham qurilma, provayder yoki egasining qarorini kutadi. Ichki bosqich bajarilgani ota bandni avtomatik yopmaydi.
 

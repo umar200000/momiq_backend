@@ -1,5 +1,7 @@
 **Momiq local va test muhiti**
 
+Admin yozish tasdiqlarini moslashtirib tekshirish: `./.venv/Scripts/python.exe -X utf8 tool/check_admin_write_receipts.py --admin ../momiq_admin`. Bu faqat 14 ta belgilangan vaqtinchalik baza/loopback HTTP testini bajaradi, 12 xil amaldan olingan javoblarni Node orqali haqiqiy admin tekshiruviga beradi. Jonli integratsiya, staging yoki bloklangan native testni ochmaydi. Sintetik javob fayli vaqtinchalik papkada yaratiladi va sinovdan keyin tozalanadi.
+
 Backend va admin repolari bir ota papkada `momiq_backend` va `momiq_admin` nomlari bilan turadi. Eski `momiq_admin_panel` nomi ham fallback sifatida qo‘llanadi; `MOMIQ_ADMIN_DIR` aniq yo‘lni belgilaydi.
 
 Python 3.12+ va Flutter 3.44.5 kerak. CI Python 3.12 / Flutter 3.44.5 ishlatadi. App papkasida `./tool/setup-flutter.ps1` loyiha uchun alohida SDK o‘rnatadi; keyingi buyruqlarda `./tool/flutter.ps1` ishlatiladi. Global SDK o‘zgarmaydi. Windowsdagi global Flutter 3.47.8 test processida 0xc0000005 native qulash kuzatildi; CI bilan bir xil 3.44.5 SDK’da to‘liq suite o‘tdi. Bu kuzatuv upstream xatoning aniq ildiz sababi topildi degani emas. Git long-path sozlamasi faqat shu SDK clone’ida yoqiladi. Loyiha Python 3.12.10 `.venv`da ishlaydi; global Python 3.15.1 o‘zgarmaydi. Java/NDK uyg‘unligi hali M010 doirasida tekshiriladi. iOS simulator/build uchun macOS kerak; signing yakuniy bosqichda.

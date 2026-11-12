@@ -1,5 +1,7 @@
 # Current API contract
 
+Admin write confirmations are checked before success notices or form reloads. Account PUT, legacy message DELETE and review moderation keep their explicit `{ok:true}` contract. Listing moderation, platform settings, top-up review/correction, chat moderation, dispute/incident decisions and assignment/escalation validate the response fields against the serialized request (identity/revision/decision/amount where returned). This does not add missing identity or request-ID fields to existing responses. A successful HTTP status with a missing or contradictory receipt is uncertain, not proof of failure; the operator keeps the draft/retry and can refresh the state. Assignment retry validates the original event while allowing a newer current assignment. `tool/check_admin_write_receipts.py` verifies all twelve routes using temporary-database HTTP tests and the actual admin validator.
+
 The branch contains migrations through version 29. Migration 28 adds private video reporting. Migration 29 rejects replacement of an existing platform settings version on insert, preserving the QR and commission terms referenced by earlier transactions. Check the deployed database separately with the readiness endpoint.
 
 Client authentication accepts one Bearer credential. Administrator authentication accepts one `momiq_admin` cookie. Ambiguous credentials and raw bearer tokens return 401. Logout validates and revokes the same credential that authenticated the request.

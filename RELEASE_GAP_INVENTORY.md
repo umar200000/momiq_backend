@@ -1,5 +1,7 @@
 # Relizdagi qolgan cheklovlar inventari
 
+**Amaldagi hisob — 2026-11-12:** [MVP_EXECUTION_PLAN.md](MVP_EXECUTION_PLAN.md) eski “37 joriy ish” navbatini almashtiradi. Auditda topilgan 12 ta aniq kod vazifasi bajarildi: hozir shu navbatda 0 ta ochiq. 37 katta bandning 7 tasida lokal texnik qism tayyor, 30 tasi keyingi muhit/qarorni kutadi. Oldindan alohida qoldirilgan 17 band o‘zgarishsiz. Asosiy production mezonlari bo‘yicha 85 yopiq / 54 ochiq saqlanadi; quyidagi eski 37/38/49 hisoblar o‘z sanasidagi tarixdir.
+
 2026-11-03, `codex/production-foundations` manbasi. Bu production server/qurilma holatining tasdig‘i emas. Asosiy vazifa va qabul mezonlari [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) da; bu hujjat topilgan markerlar nimani anglatishini va qaysi bandda hal bo‘lishini ko‘rsatadi.
 
 | Topilma | Amaldagi holat va chegara | Qolgan ish |
