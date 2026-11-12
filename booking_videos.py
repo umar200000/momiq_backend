@@ -11,6 +11,7 @@ import re
 import secrets
 import shutil
 import media_maintenance
+import storage_capacity
 import threading
 import time
 from urllib.parse import parse_qs, urlparse
@@ -109,6 +110,7 @@ def store(con, root, identity, user, data, source, clock):
     finally:
         # Release the read snapshot before decoding or replying to an exact retry.
         con.rollback()
+    storage_capacity.require_space(root, policy.MAX_BYTES + storage_capacity.MIB)
     root = media.private_directory(root)
     with media_maintenance.workspace(root,'.processing-') as temporary:
         prepared = media.prepare(source, temporary)
@@ -122,6 +124,7 @@ def store(con, root, identity, user, data, source, clock):
                 return acknowledgement(old,identity)
             now = clock()
             writable(con, identity, user, data, now)
+            storage_capacity.require_space(root, sum(Path(prepared[key]).stat().st_size for key in ('videoFile', 'posterFile')))
             video_id = secrets.token_hex(16)
             candidate = root/video_id
             candidate.mkdir(mode=0o700)
@@ -292,6 +295,12 @@ def receive(handler, con, user, match, query, root, clock):
         raise engine.BookingError(413,'Video 32 MiB dan oshmasin')
     if handler.headers.get('Transfer-Encoding') is not None:
         raise ValueError('Chunked request not supported')
+    try:
+        storage_capacity.require_space(root, length + 2 * policy.MAX_BYTES + 2 * storage_capacity.MIB)
+    except storage_capacity.StorageUnavailable:
+        # The body was not consumed; never reuse this connection for another request.
+        handler.close_connection = True
+        raise
     engine.begin(con)
     conversations.quota(con,user,'video-upload',6)
     con.commit()

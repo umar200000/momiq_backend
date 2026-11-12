@@ -29,6 +29,8 @@ import admin_metrics
 import work_queue
 import legal_documents
 import retention_review
+import storage_capacity
+import errno
 import pet_safety
 import sitter_dashboard
 import notifications
@@ -593,7 +595,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if booking_reviews.admin_route(self,con,user,path,datetime.fromisoformat(now())):
                 return
-            if wallet.route(self,con,user,path,photo,ENVIRONMENT):
+            if wallet.route(self,con,user,path,photo,ENVIRONMENT,data_root=DATA):
                 return
             if booking_http.route(self,con,user,path,ENVIRONMENT,DATA,area=SETTINGS.area):
                 return
@@ -822,11 +824,20 @@ class Handler(BaseHTTPRequestHandler):
             outcome='invalid_input';self.reply(400,{'error':str(e)})
         except (MediaBusy, VideoUnavailable) as e:
             outcome='media_busy';self.reply(503,{'error':str(e)})
+        except storage_capacity.StorageUnavailable:
+            outcome='storage_busy';self.reply(503,{'error':storage_capacity.UNAVAILABLE})
         except (ValueError,KeyError,TypeError):
             outcome='invalid_input';self.reply(400,{'error':'Ma’lumotlarni tekshiring'})
         except (BrokenPipeError,ConnectionResetError): outcome='disconnected'
+        except OSError as e:
+            if e.errno in (errno.ENOSPC, errno.EDQUOT):
+                outcome='storage_busy';self.reply(503,{'error':storage_capacity.UNAVAILABLE})
+            else:
+                outcome='server_error';self.reply(500,{'error':'Server xatosi'})
         except sqlite3.OperationalError as e:
-            if (getattr(e,'sqlite_errorcode',0)&255) in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED):
+            if (getattr(e,'sqlite_errorcode',0)&255)==sqlite3.SQLITE_FULL:
+                outcome='storage_busy';self.reply(503,{'error':storage_capacity.UNAVAILABLE})
+            elif (getattr(e,'sqlite_errorcode',0)&255) in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED):
                 outcome='database_busy';self.reply(503,{'error':'Xizmat vaqtincha band. Biroz kutib qayta urining.'})
             else:
                 outcome='server_error';self.reply(500,{'error':'Server xatosi'})

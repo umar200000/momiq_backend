@@ -5,7 +5,7 @@ import math
 CLIENT_GROUPS=frozenset(('auth','me','sitters','bookings','wallet','conversations','notifications','support','health','ready'))
 ADMIN_GROUPS=frozenset(('login','logout','me','users','sitters','listings','topups','settings','platform-settings','bookings','support','disputes','reviews','chat-reports','metrics','metrics.csv','work-queue'))
 METHODS=frozenset(('GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'))
-OUTCOMES=frozenset(('ok','rejected','invalid_input','database_busy','media_busy','disconnected','server_error'))
+OUTCOMES=frozenset(('ok','rejected','invalid_input','database_busy','media_busy','storage_busy','disconnected','server_error'))
 
 
 def access_record(method,path,status,*,elapsed_seconds=None,outcome=None):

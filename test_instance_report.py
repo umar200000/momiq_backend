@@ -13,6 +13,25 @@ from tool import instance_report
 
 
 class InstanceReportTests(unittest.TestCase):
+    def test_receipt_bytes_count_current_and_immutable_claims_without_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'demo'
+            seed_scenarios.build(root,payments=True)
+            with closing(sqlite3.connect(root/'momiq.sqlite3')) as con:
+                before=list(con.iterdump())
+                current=con.execute('SELECT SUM(length(CAST(receipt AS BLOB))) FROM topup_requests').fetchone()[0]
+                claims=con.execute('SELECT SUM(length(CAST(receipt AS BLOB))) FROM topup_evidence_claims').fetchone()[0]
+                for limit,expected in ((current+claims,0),(current+claims-1,1)):
+                    with redirect_stdout(StringIO()) as output:
+                        result=instance_report.main(['--data',str(root),'--mode','test','--max-receipt-stored-base64-bytes',str(limit)])
+                    self.assertEqual(result,expected)
+                    report=json.loads(output.getvalue())
+                    self.assertEqual(report['metrics']['currentReceiptBase64Bytes'],current)
+                    self.assertEqual(report['metrics']['evidenceReceiptBase64Bytes'],claims)
+                    self.assertEqual(report['metrics']['receiptStoredBase64Bytes'],current+claims)
+                    self.assertNotIn(str(root),output.getvalue());self.assertNotIn('TEST',output.getvalue())
+                self.assertEqual(list(con.iterdump()),before)
+
     def test_deadline_queues_report_at_boundary_without_changing_bookings_or_disputes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)/'demo'

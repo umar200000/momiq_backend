@@ -39,13 +39,25 @@ def snapshot(data,mode):
         overdue_disputes = con.execute(
             "SELECT COUNT(*) FROM booking_disputes WHERE status='open' AND deadline<=?", (now,)
         ).fetchone()[0]
+        # Logical Base64 bytes include the current receipt and immutable evidence
+        # claim copies. These are already inside databaseBytes, not extra files.
+        receipts = con.execute('SELECT COALESCE(SUM(length(CAST(receipt AS BLOB))),0) FROM topup_requests').fetchone()[0]
+        evidence = con.execute('SELECT COALESCE(SUM(length(CAST(receipt AS BLOB))),0) FROM topup_evidence_claims').fetchone()[0]
+        videos = con.execute('''SELECT COUNT(*),COALESCE(SUM(v.bytes),0)
+            FROM booking_videos v LEFT JOIN video_retirements r ON r.video_id=v.id
+            WHERE r.purged_at IS NULL''').fetchone()
+        pending_purge = con.execute('SELECT COUNT(*) FROM video_retirements WHERE purged_at IS NULL').fetchone()[0]
         try:
             wal=(data/'momiq.sqlite3-wal').stat().st_size
         except FileNotFoundError:
             wal=0
     return {'schema':schema,'diskFreeBytes':shutil.disk_usage(data).free,'databaseBytes':database.stat().st_size,
             'hostAvailableRamBytes':available_ram(),'walBytes':wal,'pendingTopups':topups,'openSupport':support,
-            'expiredPendingBookings':expired_requests,'overdueOpenDisputes':overdue_disputes}
+            'expiredPendingBookings':expired_requests,'overdueOpenDisputes':overdue_disputes,
+            'currentReceiptBase64Bytes':receipts,'evidenceReceiptBase64Bytes':evidence,
+            'receiptStoredBase64Bytes':receipts+evidence,
+            'unpurgedVideoCount':videos[0],'unpurgedVideoRecordedBytes':videos[1],
+            'pendingVideoPurgeCount':pending_purge}
 
 
 def main(argv=None):
@@ -54,7 +66,10 @@ def main(argv=None):
     parser.add_argument('--mode',required=True,choices=('local','test','staging','production'))
     thresholds={'min-disk-free-bytes':'diskFreeBytes','min-host-available-ram-bytes':'hostAvailableRamBytes',
                 'max-wal-bytes':'walBytes','max-pending-topups':'pendingTopups','max-open-support':'openSupport',
-                'max-expired-pending-bookings':'expiredPendingBookings','max-overdue-open-disputes':'overdueOpenDisputes'}
+                'max-expired-pending-bookings':'expiredPendingBookings','max-overdue-open-disputes':'overdueOpenDisputes',
+                'max-receipt-stored-base64-bytes':'receiptStoredBase64Bytes',
+                'max-unpurged-video-recorded-bytes':'unpurgedVideoRecordedBytes',
+                'max-pending-video-purge-count':'pendingVideoPurgeCount'}
     for flag in thresholds:
         parser.add_argument('--'+flag,type=int)
     args=parser.parse_args(argv)

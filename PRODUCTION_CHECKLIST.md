@@ -1219,7 +1219,7 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [x] M101 — API shartnomasini hujjatlashtirish va tekshirish: request/response, status/xato kodi, null, pagination, vaqt va valyuta; eski ilova versiyasiga moslik siyosati mavjud.
 - [ ] M102 — Har obyekt va amal bo‘yicha ruxsatni tekshirish: boshqa hisob, boshqa rol, bloklangan/o‘chgan hisob, o‘zgartirilgan ID va qo‘shimcha JSON maydoni orqali huquq oshmaydi.
 - [x] M103 — Barcha kirishlar va uploadni chegaralash: uzunlik, son, sana, koordinata, MIME/haqiqiy format, fayl/piksel/video hajmi; zararli yoki ortiqcha resurs talab qiluvchi fayl rad etiladi.
-- [ ] M104 — Rasmlar/videolarni object storage’ga ko‘chirish: bazada metadata, thumbnail, maxfiy media uchun ruxsatli URL, EXIF maxfiyligi, yetim fayl tozalash; DB javobi Base64 bilan shishmaydi.
+- [ ] M104 — 2026-11-12 qarori bilan media VPSda qoladi; object storage/CDN talabi bekor. Xususiy media ruxsati, EXIF, yetim fayl tozalash, disk joyi nazorati va chek hajmini boshqarish; haqiqiy VPS yo‘li/sig‘imi/ruxsat qabuli ochiq. D08 lokal qismlari qarorlar ro‘yxatida alohida belgilanadi.
 - [ ] M105 — Timeout, retry va background ishlarni ishonchli qilish: xavfsiz retry faqat mos amallarda, idempotency, rejalangan ishlarni deduplikatsiya va server restartidan keyingi davom ettirish.
 - [x] M106 — HTTPS, cookie, CSRF/origin, XSS va rate limit himoyalarini tekshirish: reverse proxy va real domenlarda sinov; admin va mijoz chegarasi saqlanadi, ishlamayotgan cheklov bordek hisoblanmaydi.
 - [ ] M107 — Secret va bog‘liqliklarni boshqarish: Git/history/log skan, kalit rotatsiyasi, provider cheklovi, dependency/litsenziya tekshiruvi; secretlar CI/runtime orqali beriladi, lokal fayllar repoga kirmaydi.
@@ -1232,8 +1232,8 @@ Momiq mijozning xizmat pulini yig‘maydi va enagaga xizmat daromadini payout qi
 - [ ] M111 — Migratsiya/deploy ketma-ketligini xavfsiz qilish: eski-yangi kodning vaqtincha birga ishlashi, lock va backup; kod rollback’i sxemani o‘zi qaytarmasligi hisobga olinadi.
 - [x] M112 — Deploydan keyingi smoke tekshiruvini kengaytirish: health’dan tashqari DB, asosiy o‘qish, auth chegaralari va release SHA; test yozuvi kerak bo‘lsa izolyatsiyalangan va belgilangan bo‘ladi.
 - [ ] M113 — Jarayon va infratuzilmani tekshirish: service restart, proxy timeout/body limit, firewall, HTTPS yangilanishi va filesystem huquqlari; nginx/systemd/bootstrap o‘zgarishi oddiy push bilan o‘rnatilmasligi hisobga olinadi.
-- [ ] M114 — Alohida joydagi backupni sozlash: DB va media uchun shifrlash, retention, kirish cheklovi, backup yoshi/hajmi ogohlantirishi; shu server yo‘qolsa nusxa saqlanib qoladi.
-- [ ] M115 — Tiklash va rollback mashqini bajarish: toza muhitda DB+media mos tiklanadi, belgilangan vaqt/yo‘qotish chegarasi o‘lchanadi; to‘lov va o‘chirilgan hisob holatlari qayta tekshiriladi.
+- [ ] M114 — Egasi 2026-11-12 da alohida operatsion backupdan voz kechgan. Talab bajarildi emas, waived. Eski backup fayllari/kodi va deploy himoya nusxalari o‘zgartirilmagan.
+- [ ] M115 — Offsite tiklash mashqi egasining 2026-11-12 qarori bilan waived; haqiqiy deploy rollback va operator qabuli uchun serverga kirish kutiladi. Oldingi sintetik tiklash testlari amaliy server qabuli emas.
 - [ ] M117 — Operatsion yo‘riqnoma va xarajat nazoratini tayyorlash: incident, provider uzilishi, kalit almashtirish, maintenance, disk/release/log tozalash, SMS/video limitlari; mas’ul va tiklash qadamlari aniq.
 
 **P. Reliz sifati va tarqatish**

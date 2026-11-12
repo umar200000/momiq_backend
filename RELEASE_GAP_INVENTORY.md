@@ -1,5 +1,7 @@
 # Relizdagi qolgan cheklovlar inventari
 
+2026-11-12 yangilanish: D08a–D08b lokal disk oldindan tekshiruvi va cheklar/video hajm hisoboti bajarildi (517 backend test: 505 pass, 12 skip). Amaldagi talab media VPSda qolishi; quyidagi eski object-storage/offsite kutish qaydlari egasining yangi qarori bilan almashtirilgan. Server qabuli, Telegram va bloklangan test ochiq qoladi. [Joriy bajarilgan qismlar](OWNER_DECISIONS_2026-11-12.md).
+
 **Keyingi yangilanish — egasi 25 savolga javob berdi:** [yangi qarorlar va D01–D09](OWNER_DECISIONS_2026-11-12.md). Pastdagi 0 ta kod ishi hisobi oldingi auditga tegishli. Saqlash, huquqiy hujjatlar, admin vakolati va operatsiya talablari yangilandi; yangi bajarilgan qismlar hamda qolgan bog‘liqliklar yangi qaydda ajratilgan.
 
 **Amaldagi hisob — 2026-11-12:** [MVP_EXECUTION_PLAN.md](MVP_EXECUTION_PLAN.md) eski “37 joriy ish” navbatini almashtiradi. Auditda topilgan 12 ta aniq kod vazifasi bajarildi: hozir shu navbatda 0 ta ochiq. 37 katta bandning 7 tasida lokal texnik qism tayyor, 30 tasi keyingi muhit/qarorni kutadi. Oldindan alohida qoldirilgan 17 band o‘zgarishsiz. Asosiy production mezonlari bo‘yicha 85 yopiq / 54 ochiq saqlanadi; quyidagi eski 37/38/49 hisoblar o‘z sanasidagi tarixdir.

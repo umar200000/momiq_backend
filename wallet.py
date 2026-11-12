@@ -6,6 +6,7 @@ import re
 import secrets
 import notifications
 import topup_history
+import storage_capacity
 from datetime import datetime, timezone, timedelta
 from urllib.parse import parse_qs, urlparse
 
@@ -166,7 +167,7 @@ def require_sitter(con, uid):
         raise WalletError(403,'Enaga hisobi talab qilinadi')
 
 
-def route(handler, con, uid, path, photo, environment):
+def route(handler, con, uid, path, photo, environment, *, data_root=None):
     import wallet_corrections
     if wallet_corrections.route(handler, con, uid, path): return True
     method=handler.command
@@ -325,6 +326,7 @@ def route(handler, con, uid, path, photo, environment):
         if environment=='production' and qr['test_only']: raise WalletError(400,'Test QR mumkin emas')
         if con.execute('SELECT 1 FROM topup_evidence_claims WHERE receipt_hash=?',(digest,)).fetchone():
             raise WalletError(409,'Bu chek avval yuborilgan. Yordam xizmatiga murojaat qiling.')
+        storage_capacity.receipt_space(data_root, receipt)
         topup=secrets.token_hex(16)
         con.execute('INSERT INTO topup_requests(id,user_id,amount_minor,receipt,receipt_hash,qr_version,terms_version,request_id,status,created,payer_reference,paid_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                     (topup,uid,value,receipt,digest,version,TERMS_VERSION,request_id,'pending',now(),payer_reference,paid_at))
@@ -363,6 +365,7 @@ def route(handler, con, uid, path, photo, environment):
         if version!=row['qr_version']: raise WalletError(409,'Asl to‘lovning QR versiyasini o‘zgartirmang')
         claim=con.execute('SELECT topup_id FROM topup_evidence_claims WHERE receipt_hash=?',(digest,)).fetchone()
         if claim and claim[0]!=row['id']: raise WalletError(409,'Bu chek boshqa so‘rovda ishlatilgan')
+        storage_capacity.receipt_space(data_root, receipt)
         con.execute("UPDATE topup_requests SET amount_minor=?,receipt=?,receipt_hash=?,payer_reference=?,paid_at=?,terms_version=?,status='pending',transfer_reference=NULL,reviewed_by=NULL,review_reason=NULL,reviewed_at=NULL,revision=revision+1 WHERE id=?",
                     (value,receipt,digest,payer_reference,paid_at,TERMS_VERSION,row['id']))
         topup_history.record(con,row['id'],'resubmitted',uid,request_id=request_id)

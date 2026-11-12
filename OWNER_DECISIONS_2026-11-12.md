@@ -43,7 +43,11 @@ Bu qayd oldingi kutish sabablarini yangilaydi. Oldingi “hozir 0 kod vazifasi�
 - [ ] D06 — M116 Telegram bot/chat konfiguratsiyasi va amaliy signal; ulanish ma’lumoti kutiladi.
 - [ ] D07 — M109/M111/M113 Airnet konsoli orqali deploy, TLS, xizmat va disk huquqlarini tekshirish; ulanish kutiladi.
 - [ ] D08 — M104 VPSdagi video/chek saqlash va hajm boshqaruvi; offsite/CDN xaridisiz. Amaldagi server hajmi/yo‘li/limitlarini tekshirish kerak.
+- [x] D08a — Video qabul qilish/qayta ishlash/e’lon qilishdan hamda yangi chek/tahrir yozishdan oldin disk joyini tekshirish. 256 MiB texnik zaxira + yangi yozuv allowance; vaqtinchalik 503, o‘qilmagan video tanasida ulanishni yopish, dublikat chek retry’sini qayta yozmaslik. Disk to‘lishidagi qisman fayl/DB rollback va qayta urinish sinaldi.
+- [x] D08b — Lokal hajm hisoboti: joriy va o‘zgarmas chek nusxalarining Base64 baytlari, hali purged bo‘lmagan video yozuvlari hajmi/soni, tozalashni kutayotganlar soni. Maxfiy mazmunsiz va o‘qish rejimida; aniq chegara/ortiqcha hajm exit kodlari sinaldi. [Amaliy chegaralar](OPERATIONS.md#vps-media-hajmini-boshqarish--lokal-tayyor-qism).
 - [ ] D09 — M055 avvalgi blok shartini alohida ko‘rib chiqish; native/live test yopilmagan.
+
+Hozirgi D navbatida **9 ta mustaqil qism bajarilgan**: D01–D04, D05a–D05c, D08a–D08b. **5 ta yakuniy band ochiq**: D05 (yurist/haqiqiy tozalash/server qabuli), D06 (Telegram), D07 (server konsoli), D08 (VPSning amaldagi hajmi/ruxsati/qabuli), D09 (bloklangan sinov). Bu eski 37 ta production bandining barchasi yopildi degani emas. Shu navbatda aniqlangan, yuqoridagi kutishlarga bog‘liq bo‘lmagan kod qismlari tekshirilib bajarildi.
 
 ## Huquqiy qoralama chegarasi
 
@@ -67,3 +71,11 @@ Yurist uchun rasmiy manbalar: [Shaxsga doir ma’lumotlar to‘g‘risida, Lex.u
 - [x] Admin `1cd73507c2d0a936ba093a0353d76777c2c50003`: 125/125 Node testi, JS sintaksisi va [CI 43242775975](https://github.com/umar200000/momiq_admin/actions/runs/43242775975) success; deploy skipped. Backend pin va release-pair tekshiruvi aynan shu commitga mos.
 - [x] Lokal 8081 jarayoni tekshirilgan PID bilan yangilandi. Administrator orqali oltita retention kategoriyasi, audit arxivi va yangi panel fayli HTTP orqali tekshirildi. Yangi tushum yoki bron yaratilmagan; o‘qish auditlari yozildi. UI uchun avtomatik DOM testlari o‘tdi; vizual/qurilma qabuli deb ko‘rsatilmaydi.
 - [ ] D05 yakuni: huquqiy istisnolar, jismoniy tozalash tartibi va server qabuli ochiq. Hisobot `expired_review` desa ham o‘chirish ruxsati yo‘q. Alohida arxiv nusxasi/backup yaratilmagan. Telegram va server kirishini kutadigan ishlar bajarilmadi.
+
+### D08a–D08b lokal qismi — 2026-11-12
+
+- Dastlab 15 ta storage/instance-report/request-logging target testi o‘tdi. So‘ng video nusxalash o‘rtasida ENOSPC regressiyasi qo‘shildi va to‘liq suite bilan tekshirildi: **517 ta test, 505 pass, 12 muhitga bog‘liq skip, 0 xato** (`.local/storage-full-backend.log`). Barcha yozuvchi ssenariylar vaqtinchalik sintetik bazalarda; bloklangan jonli M055/install bajarilmagan.
+- Haqiqiy lokal 8081 bazasi uchun `instance_report` read-only yuritildi: schema 30, 256 MiB erkin joy chegarasi o‘tdi; receipt/video ma’lumoti yoki fayl yo‘li hisobotga chiqarilmadi. Bu Airnet VPS disk o‘lchovi emas.
+- Backend/admin release-pair `1cd73507c2d0a936ba093a0353d76777c2c50003` bilan mos. Admin va ilova kodi bu bosqichda o‘zgarmagan.
+- Rejadagi M090/M092/M097/M104/M114/M115/M117 kutish sabablari egasining javoblariga moslashtirildi. MFA/offsite/CDN voz kechilgan qismlar tugallangan deb belgilanmadi. Production kataklarining yopilish soni sun’iy kamaytirilmadi.
+- Server konsoli, Telegram, integratsiyalar, jismoniy dalil o‘chirish va operatsion backup yoqish bajarilmagan. Disk preflight parallel jarayonlar uchun rezervatsiya yoki barcha disk sarfining kvotasi emas; haqiqiy VPS qabuli ochiq.

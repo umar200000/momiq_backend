@@ -1,5 +1,23 @@
 # Momiq operatsion yo‘riqnomasi
 
+2026-11-12 qarorlari ustuvor: media VPSda; CDN/object storage va alohida operatsion backup hozir buyurtma qilinmaydi. Quyidagi eski backup/tiklash yo‘riqlari mavjud vositalar ma’lumotnomasi, ularni hozir yoqish topshirig‘i emas. Telegram va vakolatli server konsoli kutishda. [Amaldagi qarorlar](OWNER_DECISIONS_2026-11-12.md).
+
+## VPS media hajmini boshqarish — lokal tayyor qism
+
+Video yuklashdan, qayta ishlashdan va yakuniy fayl yozishdan oldin disk joyi tekshiriladi. Chekni yangi yuborish va tahrirlashda ham dalil yozishdan oldin tekshiruv bor. `storage_capacity.py` texnik zaxirasi 256 MiB; undan tashqari yangi yozuvning taxminiy hajmi ham sig‘ishi kerak. Bu umumiy VPS kvotasi yoki parallel jarayonlar uchun joy band qilish kafolati emas.
+
+Video qabul qilish uchun kiruvchi hajm + ikkita 32 MiB video nusxa + 2 MiB yordamchi joy hisoblanadi; qayta ishlash va nusxani e’lon qilishdan oldin yana tekshiriladi. Chek uchun Base64 uzunligining 6 baravari + 1 MiB SQLite/jurnal zaxirasi olinadi. Bu koddagi taxminiy yuqori allowance; haqiqiy VPS sig‘imi va signal chegaralari serverga kirilgach o‘lchanadi.
+
+Joy yetmasa yoki tekshirish imkonsiz bo‘lsa 503 qaytadi. Video tanasi hali o‘qilmagan bo‘lsa ulanish yopiladi, upload limiti sarflanmaydi. Yangi chek/tahrir yozilmaydi, asl dalil va retry ID saqlanadi. Oldin qabul qilingan chek retry’si yangi joy ajratmaydi. Video store’dagi ayni retry ham yangi derivativ yaratmaydi; HTTP video retry’sini qabul qilish uchun vaqtinchalik upload joyi baribir kerak. Disk yozish vaqtida to‘lsa (`ENOSPC`/`EDQUOT`/`SQLITE_FULL`), xususiy yo‘llarsiz vaqtinchalik xato qaytadi. Logda `storage_busy` qayd etiladi; Telegramga xabar yuborilmaydi. Boshqa jarayonlar diskni shu orada to‘ldirishi mumkin, shu sabab tranzaksiya rollback va qisman faylni tozalash himoyasi saqlanadi.
+
+`tool/instance_report.py` qo‘shimcha maydonlari:
+
+- `currentReceiptBase64Bytes`, `evidenceReceiptBase64Bytes`, `receiptStoredBase64Bytes`: joriy chek va o‘zgarmas dalil nusxalarining mantiqiy Base64 baytlari. Ular allaqachon `databaseBytes` ichida; disk sarfiga yana qo‘shilmaydi.
+- `unpurgedVideoCount`, `unpurgedVideoRecordedBytes`: bazada jismonan tozalandi deb belgilanmagan playbacklar soni va qayd qilingan hajmi. Poster, vaqtinchalik va yetim fayllar hisobiga kirmaydi; bu fayl tizimini to‘liq inventarizatsiya qilish emas.
+- `pendingVideoPurgeCount`: muddati tugagan, lekin hali purged_at yozilmagan video yozuvlari.
+
+Qo‘shimcha chegaralar: `--max-receipt-stored-base64-bytes`, `--max-unpurged-video-recorded-bytes`, `--max-pending-video-purge-count`. Aniq chegaraga teng qiymat o‘tadi, ortiqcha qiymat exit 1. Hisobot faqat o‘qiydi; chek/video mazmuni, hisob identifikatori yoki maxfiy yo‘lni chiqarmaydi. Server timeri, haqiqiy disk o‘lchovi, cheklarni faylga ko‘chirish va tashqi signal bu lokal qismda bajarilmagan.
+
 2026-10-29. M117/M116/M114/M115 ichki bosqichi. Bu hujjat repodagi vositalar bilan ishlash tartibi; ularning hosted serverga o‘rnatilgani yoki navbatchi/alert xizmati yoqilganini tasdiqlamaydi. Production chiqarish chegaralari [DEPLOYMENT.md](DEPLOYMENT.md) va [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) da.
 
 Migratsiya nusxasi uchun yangi fayl nomini tanlang. Uning yonida avvalgi SQLite jurnallari bo‘lsa, boshqa nom ishlating. Linux’da yakuniy nusxa bir faylga ikkinchi nom berish (`hard link`) orqali e’lon qilinadi, shuning uchun shu imkoniyatga ega disk kerak. Jarayon majburan to‘xtatilsa, `.momiq-snapshot-*` vaqtinchalik katalogi qolishi mumkin. Tiklash uchun tekshirilgan yakuniy faylni ishlating.
