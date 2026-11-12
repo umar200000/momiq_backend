@@ -185,7 +185,7 @@ def completeness(account,item):
     return missing
 
 
-def review(con,uid,kind,data,actor,environment):
+def review(con,uid,kind,data,actor,environment,role='administrator'):
     if set(data)-{'decision','reason','testOnly','_revision'}:raise ValueError('Unexpected moderation fields')
     decision=data.get('decision');reason=data.get('reason')
     if decision not in ('approve','reject','suspend'): raise ValueError('Invalid review decision')
@@ -198,6 +198,8 @@ def review(con,uid,kind,data,actor,environment):
     item=next((x for x in current['listings'] if x['type']==kind),None)
     if not item: raise CatalogError(404,'E’lon topilmadi')
     if decision=='approve':
+        if current['moderation'].get(kind,{}).get('status') in ('rejected','suspended') and role!='administrator':
+            raise CatalogError(403,'E’lonni qayta ko‘rsatishni faqat administrator tasdiqlaydi')
         if blocked or not item['active']: raise CatalogError(409,'Bloklangan yoki nofaol e’lon tasdiqlanmaydi')
         missing=completeness(account,item)
         if missing: raise CatalogError(409,'Profilni to‘ldiring: '+', '.join(missing))

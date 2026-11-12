@@ -135,9 +135,9 @@ class RestoreDrillTests(unittest.TestCase):
                 backup_bundle.create(server.DATA,root/'copy')
                 original=backup_bundle.digest(root/'copy'/'momiq.sqlite3')
                 result=restore_drill.rehearse(root/'copy','test')
-                self.assertEqual(result['migrationsApplied'],[28,29])
+                self.assertEqual(result['migrationsApplied'],[28,29,30])
                 self.assertEqual(result['schemaBefore'],27)
-                self.assertEqual(result['schema'],29)
+                self.assertEqual(result['schema'],30)
                 self.assertEqual(original,backup_bundle.digest(root/'copy'/'momiq.sqlite3'))
                 with server.db() as con:
                     self.assertEqual(con.execute('SELECT max(version) FROM schema_migrations').fetchone()[0],27)

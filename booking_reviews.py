@@ -130,11 +130,13 @@ def public_route(handler,con,path,environment):
     return True
 
 
-def moderate(con,actor,identity,data,now):
+def moderate(con,actor,identity,data,now,role='administrator'):
     if not isinstance(data,dict) or set(data)!={'revision','requestId','hidden','reason'}:
         raise ValueError('Invalid moderation fields')
     if type(data['hidden']) is not bool or type(data['revision']) is not int:
         raise ValueError('Invalid moderation values')
+    if not data['hidden'] and role!='administrator':
+        raise engine.BookingError(403,'Sharhni qayta ko‘rsatishni faqat administrator tasdiqlaydi')
     reason=data['reason']
     if not isinstance(reason,str) or not reason.strip() or len(reason)>500:raise ValueError('Reason required')
     fingerprint=engine.retry_key(data['requestId'],{'reviewId':identity,**data})
@@ -176,7 +178,7 @@ def admin_route(handler,con,actor,path,now):
     identity=int(match[1])
     if match[2]=='moderate' and handler.command=='POST':
         if urlparse(handler.path).query:raise ValueError('Unexpected review mutation query')
-        result=moderate(con,actor,identity,handler.body(),now);con.commit();handler.reply(200,result)
+        result=moderate(con,actor,identity,handler.body(),now,handler.operator_role);con.commit();handler.reply(200,result)
         return True
     if match[2]=='history' and handler.command=='GET':
         before=query_cursor(handler);args=[identity];clause=''

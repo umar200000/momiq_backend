@@ -4,6 +4,8 @@ Holat: foydalanuvchi barcha qolgan takliflarni tasdiqladi, bosqichma-bosqich ama
 
 **Foydalanuvchi tasdiqlagan mahsulot qarorlari**
 
+- **2026-11-12, yangi 25 javob:** [qarorlar va bajarish holati](OWNER_DECISIONS_2026-11-12.md). Faqat egasi administrator; yashirilgan kontentni qayta ochish faqat administratorga tegishli. MFA rad etildi. Audit va zarur moliya/nizo dalillari 2 yil, audit o‘zgartirilmaydi. Rekvizitlar va 5 huquqiy qoralama admin panelda tahrirlanadi; yurist qabuli ochiq. Support dushanba–shanba 09:00–18:00 Asia/Tashkent, 3 ish kuni; maxsus no-show 48 soati saqlanadi. Telegram egasiga, hosting Airnet, sinov muhiti local, budjet $200/oy. Video/cheklar VPSda; CDN/object storage va alohida backup talabidan voz kechildi. SMS/MyID/xarita/Firebase kutishda; tiklash MyID orqali. Eski baza nusxasi yo‘q. iPhone 13 Pro Max/Galaxy A52 modellari ma’lum, ulanish/qabul hali yo‘q. Do‘kon hisoblari bor, domen olinadi, signing oxirida. Oldingi qarama-qarshi kutish qaydlari shu qaror bilan almashtiriladi; bajarilmagan ishlar katagi avtomatik yopilmaydi.
+
 - 2026-10-29 M118/M007 tasdiq: Google Play/App Store ilovasi hali ochilmagan; Android applicationId va iOS bundle ID `net.momiq.app`. Signing yakuniy bosqichda. Dastlabki yuklama sinovi 1 000 synthetic TEST hisob va bir vaqtda 100 faol foydalanuvchi bilan; bu haqiqiy foydalanuvchilar uchun limit emas. Video yuklamasi alohida o‘lchanadi.
 
 - 2026-10-29 M065 tasdiq: ortiqcha kiritilgan kredit asl tushumga bog‘langan, sabab/operator/vaqt saqlanadigan yangi manfiy jurnal yozuvi bilan tuzatiladi. Qoldiq yetmasa manfiy balans yoki qisman debit yo‘q: amal rad etiladi, holat yordam xizmati orqali alohida ko‘riladi.

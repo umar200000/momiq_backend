@@ -246,6 +246,12 @@ MIGRATIONS = (
     (29, 'protect referenced payment settings versions against replacement', (
         "CREATE TRIGGER platform_settings_no_replace BEFORE INSERT ON platform_settings WHEN EXISTS(SELECT 1 FROM platform_settings WHERE version=NEW.version) BEGIN SELECT RAISE(ABORT,'Platform settings history is immutable'); END",
     )),
+    (30, 'versioned legal drafts and organization details', (
+        'CREATE TABLE legal_document_versions(version INTEGER PRIMARY KEY, payload TEXT NOT NULL, actor TEXT NOT NULL, reason TEXT NOT NULL, created TEXT NOT NULL)',
+        "CREATE TRIGGER legal_versions_no_update BEFORE UPDATE ON legal_document_versions BEGIN SELECT RAISE(ABORT,'Legal history is immutable'); END",
+        "CREATE TRIGGER legal_versions_no_delete BEFORE DELETE ON legal_document_versions BEGIN SELECT RAISE(ABORT,'Legal history is immutable'); END",
+        "CREATE TRIGGER legal_versions_no_replace BEFORE INSERT ON legal_document_versions WHEN EXISTS(SELECT 1 FROM legal_document_versions WHERE version=NEW.version) BEGIN SELECT RAISE(ABORT,'Legal history is immutable'); END",
+    )),
 )
 
 

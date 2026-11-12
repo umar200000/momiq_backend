@@ -1,5 +1,7 @@
 # Hozir bajariladigan ishlar — 2026-11-12
 
+**Yangi qarorlar bilan yangilandi:** egasi 25 savolga javob berdi. [Qarorlar va D01–D09 yangi navbat](OWNER_DECISIONS_2026-11-12.md) amaldagi keyingi ishlarni belgilaydi. Quyidagi 12/12 va “0 hozirgi kod vazifasi” shu javoblardan OLDINGI auditning yakunidir; yangi ochilgan ishlar yo‘q degani emas. MFA, offsite backup va object storage/CDNdan voz kechildi; ular tayyor deb belgilanmaydi.
+
 Bu hujjat eski “37 joriy band” navbati o‘rniga ishlatiladi. 37 — production qabulining katta bandlari; quyidagi K raqamlar hozir tugatish mumkin bo‘lgan aniq kod vazifalari. 139 bandning tarixiy yopilish mezoni o‘zgarmaydi.
 
 **Yakuniy hisob: 37 band = 7 lokal texnik qismi tayyor + 0 hozirgi kod vazifasi qolgan band + 30 keyinga qoldirilgan band. Aniqlangan 12 ta kod vazifasining 12 tasi bajarildi, 0 tasi ochiq.** Bu butun mahsulot productionga tayyor degani emas.

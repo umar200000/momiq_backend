@@ -27,6 +27,7 @@ import admin_accounts
 import operator_access
 import admin_metrics
 import work_queue
+import legal_documents
 import pet_safety
 import sitter_dashboard
 import notifications
@@ -573,6 +574,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if work_queue.route(self,con,user,path):
                 return
+            if legal_documents.route(self,con,user,path):
+                return
             if admin_metrics.route(self,con,user,path):
                 return
             if admin_accounts.route(self,con,user,path,account_snapshot,roles_for):
@@ -707,7 +710,7 @@ class Handler(BaseHTTPRequestHandler):
             match = re.fullmatch(r'/api/admin/listings/([a-f0-9]+)/(boarding|homeVisit|personal)/review',path)
             if match and self.command == 'POST':
                 if urlparse(self.path).query:raise ValueError('Unexpected moderation query')
-                self.reply(200,catalog.review(con,*match.groups(),self.body(),user,ENVIRONMENT))
+                self.reply(200,catalog.review(con,*match.groups(),self.body(),user,ENVIRONMENT,self.operator_role))
                 return
             if path == "/api/messages" and self.command == "GET":
                 self.reply_message_history(con,user)

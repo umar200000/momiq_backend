@@ -1,5 +1,7 @@
 **Momiq local va test muhiti**
 
+2026-11-12: egasining yangi qarorlari bo‘yicha lokal admin `http://127.0.0.1:8081/admin/` va `.local/mvp-catalog-20261111` TEST bazasi bilan ishga tushirildi. Schema 30 huquqiy qoralamalar tarixini saqlaydi. **Komissiya / QR → Hujjatlar va rekvizitlar** administratorga 6 rekvizit maydoni va 5 o‘zbekcha matnni tahrirlash imkonini beradi. Qoralama saqlash ommaviy nashr emas; yurist qabuli va foydalanuvchi roziligi alohida qoladi. [Yangi qarorlar](OWNER_DECISIONS_2026-11-12.md).
+
 Admin yozish tasdiqlarini moslashtirib tekshirish: `./.venv/Scripts/python.exe -X utf8 tool/check_admin_write_receipts.py --admin ../momiq_admin`. Bu faqat 14 ta belgilangan vaqtinchalik baza/loopback HTTP testini bajaradi, 12 xil amaldan olingan javoblarni Node orqali haqiqiy admin tekshiruviga beradi. Jonli integratsiya, staging yoki bloklangan native testni ochmaydi. Sintetik javob fayli vaqtinchalik papkada yaratiladi va sinovdan keyin tozalanadi.
 
 Backend va admin repolari bir ota papkada `momiq_backend` va `momiq_admin` nomlari bilan turadi. Eski `momiq_admin_panel` nomi ham fallback sifatida qo‘llanadi; `MOMIQ_ADMIN_DIR` aniq yo‘lni belgilaydi.
